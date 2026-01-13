@@ -234,6 +234,164 @@ export async function loadArtifact(projectId: string, artifactId: string) {
   return artifact;
 }
 
+export async function loadArtifactContext(projectId: string, artifactId: string) {
+  const parsedProjectId = projectIdSchema.safeParse(projectId);
+  const parsedArtifactId = artifactIdSchema.safeParse(artifactId);
+  if (!parsedProjectId.success || !parsedArtifactId.success) {
+    logDebug("loadArtifactContext:invalid", { projectId, artifactId });
+    throw new Error("Invalid artifact");
+  }
+
+  const artifact = await prisma.artifact.findFirst({
+    where: { id: parsedArtifactId.data, projectId: parsedProjectId.data },
+    select: {
+      id: true,
+      title: true,
+      problem: true,
+      prompt_content: true,
+    },
+  });
+
+  if (!artifact) {
+    logDebug("loadArtifactContext:not-found", { projectId, artifactId });
+    throw new Error("Artifact not found");
+  }
+
+  logDebug("loadArtifactContext:start", {
+    projectId: parsedProjectId.data,
+    artifactId: parsedArtifactId.data,
+  });
+
+  let sessions = await prisma.artifactSession.findMany({
+    where: { artifactId: parsedArtifactId.data },
+    orderBy: { created_at: "desc" },
+    select: { id: true, created_at: true, history: true },
+  });
+
+  if (sessions.length === 0) {
+    const session = await prisma.artifactSession.create({
+      data: {
+        id: randomUUID(),
+        artifactId: parsedArtifactId.data,
+        history: [],
+      },
+      select: { id: true, created_at: true, history: true },
+    });
+    sessions = [session];
+  }
+
+  const currentSessionId = sessions[0]?.id;
+  const currentSession = await prisma.artifactSession.findFirst({
+    where: { id: currentSessionId, artifactId: parsedArtifactId.data },
+  });
+
+  if (!currentSession) {
+    throw new Error("Artifact session not found");
+  }
+
+  const historyResult = HistoryItemSchema.array().safeParse(currentSession.history);
+  const history = historyResult.success ? historyResult.data : [];
+
+  logDebug("loadArtifactContext:done", {
+    artifactId: parsedArtifactId.data,
+    historyCount: history.length,
+  });
+
+  return {
+    artifact,
+    history,
+    sessions: sessions.map((session) => ({
+      id: session.id,
+      created_at: session.created_at,
+      last_message: formatSessionSummary(session.history),
+    })),
+    currentSessionId,
+  };
+}
+
+export async function loadArtifactSession(
+  projectId: string,
+  artifactId: string,
+  sessionId: string
+) {
+  const parsedProjectId = projectIdSchema.safeParse(projectId);
+  const parsedArtifactId = artifactIdSchema.safeParse(artifactId);
+  const parsedSessionId = sessionIdSchema.safeParse(sessionId);
+  if (
+    !parsedProjectId.success ||
+    !parsedArtifactId.success ||
+    !parsedSessionId.success
+  ) {
+    logDebug("loadArtifactSession:invalid", { projectId, artifactId, sessionId });
+    throw new Error("Invalid artifact session");
+  }
+
+  const session = await prisma.artifactSession.findFirst({
+    where: {
+      id: parsedSessionId.data,
+      artifactId: parsedArtifactId.data,
+      artifact: { projectId: parsedProjectId.data },
+    },
+  });
+
+  if (!session) {
+    logDebug("loadArtifactSession:not-found", {
+      projectId,
+      artifactId,
+      sessionId,
+    });
+    throw new Error("Artifact session not found");
+  }
+
+  const historyResult = HistoryItemSchema.array().safeParse(session.history);
+  const history = historyResult.success ? historyResult.data : [];
+
+  logDebug("loadArtifactSession:done", {
+    sessionId: session.id,
+    historyCount: history.length,
+  });
+
+  return { history };
+}
+
+export async function createArtifactSession(
+  projectId: string,
+  artifactId: string
+) {
+  const parsedProjectId = projectIdSchema.safeParse(projectId);
+  const parsedArtifactId = artifactIdSchema.safeParse(artifactId);
+  if (!parsedProjectId.success || !parsedArtifactId.success) {
+    logDebug("createArtifactSession:invalid", { projectId, artifactId });
+    throw new Error("Invalid artifact");
+  }
+
+  const artifact = await prisma.artifact.findFirst({
+    where: { id: parsedArtifactId.data, projectId: parsedProjectId.data },
+  });
+
+  if (!artifact) {
+    logDebug("createArtifactSession:not-found", { projectId, artifactId });
+    throw new Error("Artifact not found");
+  }
+
+  const sessionId = randomUUID();
+  logDebug("createArtifactSession:start", {
+    artifactId: parsedArtifactId.data,
+    sessionId,
+  });
+
+  const session = await prisma.artifactSession.create({
+    data: {
+      id: sessionId,
+      artifactId: parsedArtifactId.data,
+      history: [],
+    },
+  });
+
+  logDebug("createArtifactSession:done", { sessionId: session.id });
+  return session.id;
+}
+
 export async function createSession(projectId: string) {
   const parsedProjectId = projectIdSchema.safeParse(projectId);
   if (!parsedProjectId.success) {
