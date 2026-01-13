@@ -7,6 +7,7 @@ import {
   DraftAnswerSchema,
   HistoryItemSchema,
   QuestionSchema,
+  ArtifactUpdateSchema,
   type DraftAnswer,
   type SessionState,
 } from "../../lib/schemas";
@@ -14,6 +15,7 @@ import { z } from "zod";
 
 const projectIdSchema = z.string().uuid();
 const sessionIdSchema = z.string().min(1);
+const artifactIdSchema = z.string().min(1);
 const isDebug =
   process.env.DEBUG_ACTIONS === "true" || process.env.DEBUG_ACTIONS === "1";
 
@@ -134,6 +136,102 @@ export async function createProject() {
 
   logDebug("createProject:done", { projectId });
   return projectId;
+}
+
+export async function listArtifacts(projectId: string) {
+  const parsedProjectId = projectIdSchema.safeParse(projectId);
+  if (!parsedProjectId.success) {
+    logDebug("listArtifacts:invalid", { projectId });
+    throw new Error("Invalid projectId");
+  }
+
+  const artifacts = await prisma.artifact.findMany({
+    where: { projectId: parsedProjectId.data },
+    orderBy: { updated_at: "desc" },
+    select: {
+      id: true,
+      title: true,
+      problem: true,
+      prompt_content: true,
+      created_at: true,
+      updated_at: true,
+    },
+  });
+
+  logDebug("listArtifacts:done", {
+    projectId: parsedProjectId.data,
+    count: artifacts.length,
+  });
+
+  return artifacts;
+}
+
+export async function createArtifact(projectId: string) {
+  const parsedProjectId = projectIdSchema.safeParse(projectId);
+  if (!parsedProjectId.success) {
+    logDebug("createArtifact:invalid", { projectId });
+    throw new Error("Invalid projectId");
+  }
+
+  const artifact = await prisma.artifact.create({
+    data: {
+      projectId: parsedProjectId.data,
+      title: "未命名制品",
+      problem: "请填写该制品解决的问题。",
+      prompt_content:
+        "你是一个专业助手。请根据用户需求给出清晰、可执行的结果。",
+    },
+  });
+
+  logDebug("createArtifact:done", { artifactId: artifact.id });
+  return artifact;
+}
+
+export async function updateArtifact(
+  projectId: string,
+  artifactId: string,
+  payload: unknown
+) {
+  const parsedProjectId = projectIdSchema.safeParse(projectId);
+  const parsedArtifactId = artifactIdSchema.safeParse(artifactId);
+  if (!parsedProjectId.success || !parsedArtifactId.success) {
+    logDebug("updateArtifact:invalid", { projectId, artifactId });
+    throw new Error("Invalid artifact");
+  }
+
+  const parsedPayload = ArtifactUpdateSchema.safeParse(payload);
+  if (!parsedPayload.success) {
+    logDebug("updateArtifact:invalid-payload", { artifactId });
+    throw new Error("Invalid payload");
+  }
+
+  const artifact = await prisma.artifact.update({
+    where: { id: parsedArtifactId.data },
+    data: parsedPayload.data,
+  });
+
+  logDebug("updateArtifact:done", { artifactId: artifact.id });
+  return artifact;
+}
+
+export async function loadArtifact(projectId: string, artifactId: string) {
+  const parsedProjectId = projectIdSchema.safeParse(projectId);
+  const parsedArtifactId = artifactIdSchema.safeParse(artifactId);
+  if (!parsedProjectId.success || !parsedArtifactId.success) {
+    logDebug("loadArtifact:invalid", { projectId, artifactId });
+    throw new Error("Invalid artifact");
+  }
+
+  const artifact = await prisma.artifact.findFirst({
+    where: { id: parsedArtifactId.data, projectId: parsedProjectId.data },
+  });
+
+  if (!artifact) {
+    logDebug("loadArtifact:not-found", { projectId, artifactId });
+    throw new Error("Artifact not found");
+  }
+
+  return artifact;
 }
 
 export async function createSession(projectId: string) {

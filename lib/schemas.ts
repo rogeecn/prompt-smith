@@ -146,3 +146,37 @@ export const HistoryItemSchema = z.object({
 });
 
 export type HistoryItem = z.infer<typeof HistoryItemSchema>;
+
+export const ArtifactSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  problem: z.string().min(1),
+  prompt_content: z.string().min(1),
+});
+
+export type Artifact = z.infer<typeof ArtifactSchema>;
+
+export const ArtifactUpdateSchema = z.object({
+  title: z.string().min(1),
+  problem: z.string().min(1),
+  prompt_content: z.string().min(1),
+});
+
+export type ArtifactUpdate = z.infer<typeof ArtifactUpdateSchema>;
+
+export const ArtifactChatRequestSchema = z.object({
+  projectId: z.string().uuid(),
+  artifactId: z.string().min(1),
+  sessionId: z.string().min(1).optional(),
+  message: z.string().min(1).max(4000),
+  traceId: z.string().min(1).optional(),
+});
+
+export type ArtifactChatRequest = z.infer<typeof ArtifactChatRequestSchema>;
+
+export const ArtifactChatResponseSchema = z.object({
+  reply: z.string().min(1),
+  sessionId: z.string().min(1),
+});
+
+export type ArtifactChatResponse = z.infer<typeof ArtifactChatResponseSchema>;
