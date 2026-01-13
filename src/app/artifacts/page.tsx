@@ -211,6 +211,10 @@ export default function ArtifactsPage() {
               制品列表
             </p>
             <h1 className="text-lg font-semibold text-slate-900">Prompt 制品库</h1>
+            <p className="mt-1 text-xs text-slate-500">
+              新建空白制品后可在右侧直接编辑并保存，也可粘贴已有 Prompt
+              作为制品内容。
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -226,7 +230,7 @@ export default function ArtifactsPage() {
               disabled={isCreating}
               className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
             >
-              新建制品
+              新建空白制品
             </button>
           </div>
         </div>
@@ -238,7 +242,17 @@ export default function ArtifactsPage() {
             </div>
             <div className="flex-1 overflow-y-auto p-3">
               {artifacts.length === 0 ? (
-                <p className="text-sm text-slate-400">暂无制品</p>
+                <div className="rounded-xl border border-dashed border-slate-200 bg-white/80 px-4 py-6 text-center text-sm text-slate-500">
+                  <p>暂无制品。</p>
+                  <button
+                    type="button"
+                    onClick={handleCreateArtifact}
+                    disabled={isCreating}
+                    className="mt-3 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                  >
+                    立即新建
+                  </button>
+                </div>
               ) : (
                 <div className="space-y-2">
                   {artifacts.map((item) => {
@@ -284,6 +298,9 @@ export default function ArtifactsPage() {
                     <h2 className="text-lg font-semibold text-slate-900">
                       {currentArtifact.title}
                     </h2>
+                    <p className="mt-1 text-xs text-slate-500">
+                      在此编辑标题、解决问题与 Prompt 内容，保存后即可用于对话。
+                    </p>
                   </div>
                   <button
                     type="button"
