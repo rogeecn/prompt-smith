@@ -95,7 +95,7 @@ export const ChatRequestSchema = z
   .object({
     projectId: z.string().uuid(),
     sessionId: z.string().min(1),
-    message: z.string().min(1).max(2000).optional(),
+    message: z.string().min(1).max(12000).optional(),
     answers: z.array(AnswerSchema).max(40).optional(),
     traceId: z.string().min(1).optional(),
   })
