@@ -20,6 +20,7 @@ import { deriveTitleFromPrompt } from "../lib/template";
 const OTHER_OPTION_ID = "__other__";
 const NONE_OPTION_ID = "__none__";
 const DEFAULT_START_MESSAGE = "开始向导";
+const FORM_MESSAGE_PREFIX = "__FORM__:";
 const isDebug = process.env.NODE_ENV !== "production";
 
 const logDebug = (label: string, payload?: unknown) => {
@@ -101,42 +102,73 @@ const normalizeOptions = (
   return normalized;
 };
 
-const formatAnswersForDisplay = (
-  questions: Question[],
-  drafts: Record<string, DraftAnswer>
-) =>
-  questions
-    .map((question, index) => {
-      const key = getQuestionKey(question, index);
-      const draft = drafts[key];
-      if (!draft) {
-        return null;
-      }
+const serializeFormMessage = (payload: {
+  questions: Question[];
+  answers: Record<string, DraftAnswer>;
+}) => `${FORM_MESSAGE_PREFIX}${JSON.stringify(payload)}`;
 
-      if (draft.type === "text" && typeof draft.value === "string") {
-        return `- ${question.text}：${draft.value}`;
-      }
-
-      if (draft.type === "single" && typeof draft.value === "string") {
-        if (draft.value === OTHER_OPTION_ID) {
-          return `- ${question.text}：其他（${draft.other ?? "未填写"}）`;
-        }
-        return `- ${question.text}：${getOptionLabel(question, draft.value)}`;
-      }
-
-      if (draft.type === "multi" && Array.isArray(draft.value)) {
-        const labels = draft.value.map((value) =>
-          value === OTHER_OPTION_ID
-            ? `其他（${draft.other ?? "未填写"}）`
-            : getOptionLabel(question, value)
-        );
-        return `- ${question.text}：${labels.join("、")}`;
-      }
-
+const parseFormMessage = (content: string) => {
+  if (!content.startsWith(FORM_MESSAGE_PREFIX)) {
+    return null;
+  }
+  const raw = content.slice(FORM_MESSAGE_PREFIX.length);
+  try {
+    const parsed = JSON.parse(raw) as {
+      questions: Question[];
+      answers: Record<string, DraftAnswer>;
+    };
+    if (!parsed || !Array.isArray(parsed.questions)) {
       return null;
-    })
-    .filter(Boolean)
-    .join("\n");
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const formatDraftAnswer = (question: Question, draft?: DraftAnswer) => {
+  if (!draft) {
+    return "未填写";
+  }
+
+  if (question.type === "text") {
+    if (typeof draft.value === "string" && draft.value.trim()) {
+      return draft.value.trim();
+    }
+    return "未填写";
+  }
+
+  if (question.type === "single") {
+    if (typeof draft.value !== "string" || !draft.value) {
+      return "未填写";
+    }
+    if (draft.value === OTHER_OPTION_ID) {
+      return draft.other?.trim() ? `其他：${draft.other.trim()}` : "其他";
+    }
+    if (draft.value === NONE_OPTION_ID) {
+      return "不需要此功能";
+    }
+    return getOptionLabel(question, draft.value);
+  }
+
+  if (question.type === "multi") {
+    if (!Array.isArray(draft.value) || draft.value.length === 0) {
+      return "未填写";
+    }
+    if (draft.value.includes(NONE_OPTION_ID)) {
+      return "不需要此功能";
+    }
+    const labels = draft.value.map((value) => {
+      if (value === OTHER_OPTION_ID) {
+        return draft.other?.trim() ? `其他：${draft.other.trim()}` : "其他";
+      }
+      return getOptionLabel(question, value);
+    });
+    return labels.join("、");
+  }
+
+  return "未填写";
+};
 
 const shouldShowStep = (step?: string) => {
   if (!step) {
@@ -614,8 +646,10 @@ export default function ChatInterface({
       return base;
     });
 
-    const summary = formatAnswersForDisplay(pendingQuestions, draftAnswers);
-    const displayMessage = summary || "已提交答案。";
+    const displayMessage = serializeFormMessage({
+      questions: pendingQuestions,
+      answers: draftAnswers,
+    });
     const optimisticUserMessage: HistoryItem = {
       role: "user",
       content: displayMessage,
@@ -623,6 +657,10 @@ export default function ChatInterface({
     };
 
     logDebug("提交答案", { answers, displayMessage });
+
+    setPendingQuestions([]);
+    setDraftAnswers({});
+    setFieldErrors({});
 
     await sendRequest({
       answers,
@@ -737,45 +775,46 @@ export default function ChatInterface({
     }
 
     return (
-      <details
-        open
-        className="rounded-2xl border border-slate-200 bg-white/80 p-4"
-      >
-        <summary className="cursor-pointer text-sm font-semibold text-slate-900">
-          多 Agent 评分过程（可收起）
-        </summary>
-        <div className="mt-3 space-y-4 text-sm text-slate-700">
-          {deliberations.map((stage, index) => (
-            <div key={`${stage.stage}-${index}`}>
-              <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
-                {stage.stage}
-              </p>
-              <div className="mt-2 space-y-2">
-                {stage.agents.map((agent, agentIndex) => (
-                  <div
-                    key={`${agent.name}-${agentIndex}`}
-                    className="rounded-xl bg-slate-50 px-3 py-2"
-                  >
-                    <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
-                      <span>{agent.name}</span>
-                      <span>评分：{agent.score}</span>
-                    </div>
-                    <p className="mt-1 text-xs text-slate-600">
-                      {agent.stance}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {agent.rationale}
-                    </p>
+      <div className="flex justify-start">
+        <div className="max-w-[80%] rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-900 shadow-sm">
+          <details open className="rounded-xl bg-white/70 p-3">
+            <summary className="cursor-pointer text-sm font-semibold text-slate-900">
+              多 Agent 评分过程（可收起）
+            </summary>
+            <div className="mt-3 space-y-4 text-sm text-slate-700">
+              {deliberations.map((stage, index) => (
+                <div key={`${stage.stage}-${index}`}>
+                  <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
+                    {stage.stage}
+                  </p>
+                  <div className="mt-2 space-y-2">
+                    {stage.agents.map((agent, agentIndex) => (
+                      <div
+                        key={`${agent.name}-${agentIndex}`}
+                        className="rounded-xl bg-slate-50 px-3 py-2"
+                      >
+                        <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
+                          <span>{agent.name}</span>
+                          <span>评分：{agent.score}</span>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-600">
+                          {agent.stance}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {agent.rationale}
+                        </p>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-              <p className="mt-2 text-xs text-slate-500">
-                综合结论：{stage.synthesis}
-              </p>
+                  <p className="mt-2 text-xs text-slate-500">
+                    综合结论：{stage.synthesis}
+                  </p>
+                </div>
+              ))}
             </div>
-          ))}
+          </details>
         </div>
-      </details>
+      </div>
     );
   };
 
@@ -832,7 +871,9 @@ export default function ChatInterface({
     return "";
   }, [saveStatus]);
   const showChatInput =
-    messages.length === 0 || isFinished || Boolean(finalPrompt);
+    !isLoading &&
+    pendingQuestions.length === 0 &&
+    (messages.length === 0 || isFinished || Boolean(finalPrompt));
   const showQuestionForm = pendingQuestions.length > 0;
   const isRefineMode = Boolean(finalPrompt) || isFinished;
   const inputLabel = isRefineMode ? "继续修改" : "先说一句";
@@ -855,6 +896,7 @@ export default function ChatInterface({
         ) : (
           messages.map((item, index) => {
             const isUser = item.role === "user";
+            const formPayload = parseFormMessage(item.content);
             return (
               <div
                 key={`${item.timestamp}-${index}`}
@@ -868,11 +910,56 @@ export default function ChatInterface({
                       : "bg-slate-100 text-slate-900",
                   ].join(" ")}
                 >
-                  <div className="whitespace-pre-wrap break-words leading-relaxed [&_code]:rounded [&_code]:bg-slate-200/80 [&_code]:px-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {item.content}
-                    </ReactMarkdown>
-                  </div>
+                  {formPayload ? (
+                    <div
+                      className={[
+                        "space-y-3 text-xs leading-relaxed",
+                        isUser ? "text-slate-100" : "text-slate-700",
+                      ].join(" ")}
+                    >
+                      {formPayload.questions.map((question, questionIndex) => {
+                        const key = getQuestionKey(question, questionIndex);
+                        const draft = formPayload.answers[key];
+                        const answerText = formatDraftAnswer(question, draft);
+                        return (
+                          <div key={key} className="space-y-1">
+                            <p
+                              className={[
+                                "text-[11px] uppercase tracking-[0.28em]",
+                                isUser ? "text-slate-300" : "text-slate-400",
+                              ].join(" ")}
+                            >
+                              {shouldShowStep(question.step)
+                                ? question.step
+                                : `问题 ${questionIndex + 1}`}
+                            </p>
+                            <p
+                              className={[
+                                "text-sm font-semibold",
+                                isUser ? "text-white" : "text-slate-900",
+                              ].join(" ")}
+                            >
+                              {question.text}
+                            </p>
+                            <p
+                              className={[
+                                "text-sm",
+                                isUser ? "text-slate-100" : "text-slate-700",
+                              ].join(" ")}
+                            >
+                              {answerText}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="whitespace-pre-wrap break-words leading-relaxed [&_code]:rounded [&_code]:bg-slate-200/80 [&_code]:px-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {item.content}
+                      </ReactMarkdown>
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -1089,66 +1176,70 @@ export default function ChatInterface({
         {renderDeliberations()}
 
         {finalPrompt ? (
-          <section className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-xs uppercase tracking-[0.32em] text-emerald-700">
-                最终 Prompt
-              </p>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleCopyFinalPrompt}
-                  className="rounded-lg border border-emerald-300 bg-white px-3 py-1 text-xs font-medium text-emerald-800 transition hover:bg-emerald-100"
-                >
-                  {copyState === "success"
-                    ? "已复制"
-                    : copyState === "error"
-                      ? "复制失败"
-                      : "复制"}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleExportArtifact}
-                  className="rounded-lg border border-emerald-300 bg-white px-3 py-1 text-xs font-medium text-emerald-800 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={exportStatus === "saving"}
-                >
-                  {exportStatus === "saving" ? "导出中..." : "导出为制品"}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDownloadFinalPrompt}
-                  className="rounded-lg border border-emerald-200 bg-white px-3 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100"
-                >
-                  下载
-                </button>
-                <button
-                  type="button"
-                  onClick={handleExportSession}
-                  className="rounded-lg border border-emerald-200 bg-white px-3 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100"
-                >
-                  导出 JSON
-                </button>
-              </div>
+          <div className="flex justify-start">
+            <div className="max-w-[80%] rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-900 shadow-sm">
+              <section className="rounded-xl bg-emerald-50/70 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-xs uppercase tracking-[0.32em] text-emerald-700">
+                    最终 Prompt
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCopyFinalPrompt}
+                      className="rounded-lg border border-emerald-300 bg-white px-3 py-1 text-xs font-medium text-emerald-800 transition hover:bg-emerald-100"
+                    >
+                      {copyState === "success"
+                        ? "已复制"
+                        : copyState === "error"
+                          ? "复制失败"
+                          : "复制"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExportArtifact}
+                      className="rounded-lg border border-emerald-300 bg-white px-3 py-1 text-xs font-medium text-emerald-800 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={exportStatus === "saving"}
+                    >
+                      {exportStatus === "saving" ? "导出中..." : "导出为制品"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDownloadFinalPrompt}
+                      className="rounded-lg border border-emerald-200 bg-white px-3 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100"
+                    >
+                      下载
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExportSession}
+                      className="rounded-lg border border-emerald-200 bg-white px-3 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100"
+                    >
+                      导出 JSON
+                    </button>
+                  </div>
+                </div>
+                {copyState === "error" ? (
+                  <p className="mt-2 text-xs text-rose-500">
+                    复制失败，请手动选择文本复制。
+                  </p>
+                ) : null}
+                {exportStatus === "error" ? (
+                  <p className="mt-2 text-xs text-rose-500">
+                    {exportError ?? "导出制品失败，请重试。"}
+                  </p>
+                ) : null}
+                {exportStatus === "success" ? (
+                  <p className="mt-2 text-xs text-emerald-700">
+                    已导出为制品，正在打开详情页。
+                  </p>
+                ) : null}
+                <pre className="mt-3 max-h-56 overflow-y-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-emerald-900">
+                  {finalPrompt}
+                </pre>
+              </section>
             </div>
-            {copyState === "error" ? (
-              <p className="mt-2 text-xs text-rose-500">
-                复制失败，请手动选择文本复制。
-              </p>
-            ) : null}
-            {exportStatus === "error" ? (
-              <p className="mt-2 text-xs text-rose-500">
-                {exportError ?? "导出制品失败，请重试。"}
-              </p>
-            ) : null}
-            {exportStatus === "success" ? (
-              <p className="mt-2 text-xs text-emerald-700">
-                已导出为制品，正在打开详情页。
-              </p>
-            ) : null}
-            <pre className="mt-3 max-h-56 overflow-y-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-emerald-900">
-              {finalPrompt}
-            </pre>
-          </section>
+          </div>
         ) : null}
       </div>
 

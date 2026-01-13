@@ -16,6 +16,7 @@ const REQUEST_TIMEOUT_MS = Number(process.env.OPENAI_TIMEOUT_MS ?? "180000");
 const MAX_RETRIES = Number(process.env.OPENAI_MAX_RETRIES ?? "2");
 const MAX_HISTORY_ITEMS = Number(process.env.MAX_HISTORY_ITEMS ?? "60");
 const MAX_QUESTION_ROUNDS = Number(process.env.MAX_QUESTION_ROUNDS ?? "3");
+const FORM_MESSAGE_PREFIX = "__FORM__:";
 const isRetryableError = (error: unknown) => {
   if (!error || typeof error !== "object") {
     return false;
@@ -284,9 +285,11 @@ export async function POST(req: Request) {
       forceFinalize: shouldForceFinalize,
     });
 
+    const isFormMessage =
+      typeof message === "string" && message.startsWith(FORM_MESSAGE_PREFIX);
     const userContent = answers
       ? `用户回答(JSON): ${JSON.stringify(answers)}${
-          message ? `\n补充说明: ${message}` : ""
+          message && !isFormMessage ? `\n补充说明: ${message}` : ""
         }`
       : message ?? "";
 
