@@ -136,6 +136,11 @@ export default function ArtifactsPage() {
     () => artifacts.find((item) => item.id === currentArtifactId) ?? null,
     [artifacts, currentArtifactId]
   );
+  const templateKeys = useMemo(
+    () => extractTemplateVariables(form.prompt_content),
+    [form.prompt_content]
+  );
+  const hasTemplateMarkers = form.prompt_content.includes("{{");
 
   const handleSelectArtifact = (artifact: Artifact) => {
     setCurrentArtifactId(artifact.id);
@@ -192,7 +197,7 @@ export default function ArtifactsPage() {
           label: variable.label.trim() || variable.key.trim(),
         })),
       };
-      const templateKeys = extractTemplateVariables(trimmed.prompt_content);
+      const templateKeysLocal = extractTemplateVariables(trimmed.prompt_content);
       const variableKeys = trimmed.variables.map((variable) => variable.key);
       const uniqueKeys = new Set(variableKeys.filter(Boolean));
       if (uniqueKeys.size !== variableKeys.filter(Boolean).length) {
@@ -203,7 +208,7 @@ export default function ArtifactsPage() {
         setError("检测到模板变量，请先配置变量或清理占位符。");
         return;
       }
-      const missingKeys = templateKeys.filter((key) => !uniqueKeys.has(key));
+      const missingKeys = templateKeysLocal.filter((key) => !uniqueKeys.has(key));
       if (missingKeys.length > 0) {
         setError(`缺少变量配置：${missingKeys.join(", ")}`);
         return;
@@ -262,8 +267,7 @@ export default function ArtifactsPage() {
   };
 
   const handleExtractVariables = () => {
-    const keys = extractTemplateVariables(form.prompt_content);
-    if (keys.length === 0) {
+    if (templateKeys.length === 0) {
       setError("模板中未检测到变量占位符。");
       return;
     }
@@ -273,7 +277,7 @@ export default function ArtifactsPage() {
       const existing = new Map(
         (prev.variables ?? []).map((variable) => [variable.key, variable])
       );
-      const nextVariables = keys.map((key) => {
+      const nextVariables = templateKeys.map((key) => {
         const existingVariable = existing.get(key);
         if (existingVariable) {
           return existingVariable;
@@ -474,6 +478,16 @@ export default function ArtifactsPage() {
                         <p className="mt-1 text-xs text-slate-500">
                           模板占位符格式：{"{{variable_key}}"}
                         </p>
+                        {templateKeys.length > 0 ? (
+                          <p className="mt-1 text-xs text-slate-500">
+                            检测到 {templateKeys.length} 个变量：{" "}
+                            {templateKeys.join(", ")}
+                          </p>
+                        ) : hasTemplateMarkers ? (
+                          <p className="mt-1 text-xs text-amber-600">
+                            检测到 {{}} 但变量名不符合规范（仅英文字母/数字/下划线）。
+                          </p>
+                        ) : null}
                       </div>
                       <div className="flex items-center gap-2">
                         <button
