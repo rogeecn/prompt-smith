@@ -401,7 +401,7 @@ export default function ArtifactsPage() {
             </div>
           </section>
 
-          <section className="flex min-h-0 flex-col gap-4 rounded-2xl border border-slate-200 bg-white/70 p-4">
+          <section className="flex min-h-0 flex-col gap-4 overflow-y-auto rounded-2xl border border-slate-200 bg-white/70 p-4">
             {currentArtifact ? (
               <>
                 <div className="flex items-center justify-between">
