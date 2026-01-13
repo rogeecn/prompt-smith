@@ -299,7 +299,7 @@ export default function ArtifactChat({
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
       {variables.length > 0 ? (
-        <section className="mb-4 rounded-2xl border border-slate-200 bg-white/70 p-4">
+        <section className="mb-4 rounded-2xl bg-white/70 p-4 shadow-sm">
           <div className="flex items-center justify-between">
             <p className="text-xs uppercase tracking-[0.32em] text-slate-400">
               变量配置
@@ -317,7 +317,7 @@ export default function ArtifactChat({
               return (
                 <div
                   key={variable.key}
-                  className="rounded-xl border border-slate-200 bg-white p-3"
+                  className="rounded-xl bg-white/80 p-3 shadow-sm"
                 >
                   <div className="flex items-center justify-between text-xs text-slate-500">
                     <span className="font-semibold text-slate-700">{label}</span>
@@ -331,7 +331,7 @@ export default function ArtifactChat({
                       }
                       placeholder={variable.placeholder ?? "请输入内容"}
                       rows={3}
-                      className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                      className="mt-2 w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
                       disabled={isLoading || isDisabled}
                     />
                   ) : variable.type === "enum" && variable.options ? (
@@ -340,7 +340,7 @@ export default function ArtifactChat({
                       onChange={(event) =>
                         updateVariableInput(variable.key, event.target.value)
                       }
-                      className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                      className="mt-2 w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
                       disabled={isLoading || isDisabled}
                     >
                       <option value="">请选择</option>
@@ -356,7 +356,7 @@ export default function ArtifactChat({
                       onChange={(event) =>
                         updateVariableInput(variable.key, event.target.value)
                       }
-                      className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                      className="mt-2 w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
                       disabled={isLoading || isDisabled}
                     >
                       <option value="">请选择</option>
@@ -375,7 +375,7 @@ export default function ArtifactChat({
                         updateVariableInput(variable.key, event.target.value)
                       }
                       placeholder={variable.placeholder ?? "请输入数字"}
-                      className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                      className="mt-2 w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
                       disabled={isLoading || isDisabled}
                     />
                   ) : variable.type === "list" ? (
@@ -385,7 +385,7 @@ export default function ArtifactChat({
                         updateVariableInput(variable.key, event.target.value)
                       }
                       placeholder={variable.placeholder ?? "用逗号分隔多个值"}
-                      className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                      className="mt-2 w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
                       disabled={isLoading || isDisabled}
                     />
                   ) : (
@@ -395,7 +395,7 @@ export default function ArtifactChat({
                         updateVariableInput(variable.key, event.target.value)
                       }
                       placeholder={variable.placeholder ?? "请输入内容"}
-                      className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                      className="mt-2 w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
                       disabled={isLoading || isDisabled}
                     />
                   )}
@@ -410,7 +410,7 @@ export default function ArtifactChat({
       ) : null}
       <div
         ref={listRef}
-        className="flex-1 min-h-0 space-y-4 overflow-y-auto rounded-2xl border border-slate-200 bg-white/70 p-4"
+        className="flex-1 min-h-0 space-y-4 overflow-y-auto rounded-2xl border border-slate-200/60 bg-white/70 p-4"
       >
         {messages.length === 0 ? (
           <div className="flex h-full items-center justify-center text-sm text-slate-400">
@@ -456,7 +456,7 @@ export default function ArtifactChat({
       </div>
 
       <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-3">
-        <div className="rounded-2xl border border-slate-200 bg-white/70 p-4">
+        <div className="rounded-2xl border border-slate-200/60 bg-white/70 p-4">
           <label className="text-xs uppercase tracking-[0.32em] text-slate-400">
             继续对话
           </label>
@@ -474,7 +474,7 @@ export default function ArtifactChat({
             placeholder="输入你的需求或补充信息..."
             maxLength={1000}
             rows={1}
-            className="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+            className="mt-2 w-full resize-none rounded-xl border border-slate-200/60 bg-white px-4 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
             disabled={isLoading || isDisabled}
           />
           <p className="mt-2 text-[11px] text-slate-400">

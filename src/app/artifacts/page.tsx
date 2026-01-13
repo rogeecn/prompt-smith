@@ -294,7 +294,7 @@ export default function ArtifactsPage() {
       <div className="flex min-h-screen flex-col bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_45%,#e2e8f0_100%)]">
         <TopNav />
         <div className="flex flex-1 items-center justify-center px-6">
-          <div className="w-full max-w-md rounded-3xl border border-slate-200/70 bg-white/90 p-6 text-center shadow-[0_20px_50px_-35px_rgba(15,23,42,0.5)]">
+        <div className="w-full max-w-md rounded-3xl border border-slate-200/60 bg-white/90 p-6 text-center shadow-[0_20px_50px_-35px_rgba(15,23,42,0.5)]">
             <p className="text-sm text-slate-500">
               {isCreating ? "正在创建新项目..." : "准备创建你的新项目。"}
             </p>
@@ -334,7 +334,7 @@ export default function ArtifactsPage() {
             <button
               type="button"
               onClick={() => router.push(`/?projectId=${projectId}`)}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600 transition hover:bg-slate-100"
+              className="rounded-xl border border-slate-200/60 bg-white px-4 py-2 text-sm text-slate-600 transition hover:bg-slate-100"
             >
               返回向导
             </button>
@@ -350,13 +350,13 @@ export default function ArtifactsPage() {
         </div>
 
         <div className="grid h-full min-h-0 flex-1 gap-6 lg:grid-cols-[1fr_2fr]">
-          <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white/70">
-            <div className="border-b border-slate-200 px-4 py-3 text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">
+          <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl bg-white/70 shadow-sm">
+            <div className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">
               制品
             </div>
             <div className="flex-1 overflow-y-auto p-3">
               {artifacts.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-200 bg-white/80 px-4 py-6 text-center text-sm text-slate-500">
+                <div className="rounded-xl bg-white/80 px-4 py-6 text-center text-sm text-slate-500 shadow-sm">
                   <p>暂无制品。</p>
                   <button
                     type="button"
@@ -371,16 +371,16 @@ export default function ArtifactsPage() {
                 <div className="space-y-2">
                   {artifacts.map((item) => {
                     const isActive = item.id === currentArtifactId;
-                    return (
+                      return (
                       <button
                         key={item.id}
                         type="button"
                         onClick={() => handleSelectArtifact(item)}
                         className={[
-                          "w-full rounded-xl border px-3 py-3 text-left transition",
+                          "w-full rounded-xl px-3 py-3 text-left transition",
                           isActive
-                            ? "border-slate-900 bg-slate-900 text-white"
-                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50",
+                            ? "bg-slate-900 text-white shadow-sm"
+                            : "bg-white/80 text-slate-700 hover:bg-white",
                         ].join(" ")}
                       >
                         <p className="text-sm font-semibold">{item.title}</p>
@@ -401,7 +401,7 @@ export default function ArtifactsPage() {
             </div>
           </section>
 
-          <section className="flex min-h-0 flex-col gap-4 overflow-y-auto rounded-2xl border border-slate-200 bg-white/70 p-4">
+          <section className="flex min-h-0 flex-col gap-4 overflow-y-auto rounded-2xl bg-white/70 p-4 shadow-sm">
             {currentArtifact ? (
               <>
                 <div className="flex items-center justify-between">
@@ -419,7 +419,7 @@ export default function ArtifactsPage() {
                   <button
                     type="button"
                     onClick={handleUseArtifact}
-                    className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600 transition hover:bg-slate-100"
+                    className="rounded-xl border border-slate-200/60 bg-white px-4 py-2 text-sm text-slate-600 transition hover:bg-slate-100"
                   >
                     使用制品
                   </button>
@@ -435,7 +435,7 @@ export default function ArtifactsPage() {
                       onChange={(event) =>
                         setForm((prev) => ({ ...prev, title: event.target.value }))
                       }
-                      className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                      className="mt-2 w-full rounded-xl border border-slate-200/60 bg-white px-4 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
                     />
                   </div>
                   <div>
@@ -447,7 +447,7 @@ export default function ArtifactsPage() {
                       onChange={(event) =>
                         setForm((prev) => ({ ...prev, problem: event.target.value }))
                       }
-                      className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                      className="mt-2 w-full rounded-xl border border-slate-200/60 bg-white px-4 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
                     />
                   </div>
                   <div className="flex min-h-0 flex-1 flex-col">
@@ -462,10 +462,10 @@ export default function ArtifactsPage() {
                           prompt_content: event.target.value,
                         }))
                       }
-                      className="mt-2 min-h-[220px] flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                      className="mt-2 min-h-[220px] flex-1 rounded-xl border border-slate-200/60 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
                     />
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-white/80 p-4">
+                  <div className="rounded-2xl bg-slate-50/80 p-4 shadow-sm">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
@@ -479,7 +479,7 @@ export default function ArtifactsPage() {
                         <button
                           type="button"
                           onClick={handleExtractVariables}
-                          className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 transition hover:bg-slate-100"
+                          className="rounded-lg border border-slate-200/60 bg-white px-3 py-1 text-xs text-slate-600 transition hover:bg-slate-100"
                         >
                           从模板提取
                         </button>
@@ -498,7 +498,7 @@ export default function ArtifactsPage() {
                         {form.variables.map((variable, index) => (
                           <div
                             key={`${variable.key}-${index}`}
-                            className="rounded-xl border border-slate-200 bg-white p-3"
+                            className="rounded-xl bg-white/80 p-3 shadow-sm"
                           >
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <p className="text-xs font-semibold text-slate-700">
@@ -525,7 +525,7 @@ export default function ArtifactsPage() {
                                     })
                                   }
                                   placeholder="例如 target_audience"
-                                  className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
+                                  className="mt-2 w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
                                 />
                               </div>
                               <div>
@@ -540,7 +540,7 @@ export default function ArtifactsPage() {
                                     })
                                   }
                                   placeholder="如：受众"
-                                  className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
+                                  className="mt-2 w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
                                 />
                               </div>
                               <div>
@@ -554,7 +554,7 @@ export default function ArtifactsPage() {
                                       type: event.target.value as ArtifactVariable["type"],
                                     })
                                   }
-                                  className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
+                                  className="mt-2 w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
                                 >
                                   <option value="string">string</option>
                                   <option value="text">text</option>
@@ -591,7 +591,7 @@ export default function ArtifactsPage() {
                                       })
                                     }
                                     placeholder="例如：严肃, 活泼"
-                                    className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
+                                    className="mt-2 w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
                                   />
                                 </div>
                               ) : null}
@@ -609,7 +609,7 @@ export default function ArtifactsPage() {
                                         })
                                       }
                                       placeholder="例如：需要"
-                                      className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
+                                      className="mt-2 w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
                                     />
                                   </div>
                                   <div>
@@ -624,7 +624,7 @@ export default function ArtifactsPage() {
                                         })
                                       }
                                       placeholder="例如：不需要"
-                                      className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
+                                      className="mt-2 w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
                                     />
                                   </div>
                                 </div>
@@ -643,7 +643,7 @@ export default function ArtifactsPage() {
                                         })
                                       }
                                       placeholder="默认：、"
-                                      className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
+                                      className="mt-2 w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
                                     />
                                   </div>
                                   <div>
@@ -658,7 +658,7 @@ export default function ArtifactsPage() {
                                         })
                                       }
                                       placeholder="例如：要点1, 要点2"
-                                      className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
+                                      className="mt-2 w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
                                     />
                                   </div>
                                 </div>
@@ -680,7 +680,7 @@ export default function ArtifactsPage() {
                                                 : event.target.value === "true",
                                           })
                                         }
-                                        className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
+                                        className="mt-2 w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
                                       >
                                         <option value="">无</option>
                                         <option value="true">true</option>
@@ -709,7 +709,7 @@ export default function ArtifactsPage() {
                                           });
                                         }}
                                         placeholder="可选"
-                                        className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
+                                        className="mt-2 w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
                                       />
                                     )}
                                   </div>
@@ -725,7 +725,7 @@ export default function ArtifactsPage() {
                                         })
                                       }
                                       placeholder="输入提示"
-                                      className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
+                                      className="mt-2 w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
                                     />
                                   </div>
                                 </div>
