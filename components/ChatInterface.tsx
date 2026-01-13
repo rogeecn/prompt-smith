@@ -792,8 +792,8 @@ export default function ChatInterface({
     }
 
     return (
-      <div className="flex justify-start">
-        <div className="max-w-[72%] rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-900 shadow-sm">
+      <div className="flex w-full justify-start">
+        <div className="w-full rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-900 shadow-sm">
           <details open className="rounded-xl bg-white/70 p-3">
             <summary className="cursor-pointer text-sm font-semibold text-slate-900">
               多 Agent 评分过程（可收起）
@@ -973,6 +973,8 @@ export default function ChatInterface({
             );
           })
         )}
+
+        {renderDeliberations()}
 
         {showQuestionForm ? (
           <div className="flex justify-start" ref={questionFormRef}>
@@ -1180,8 +1182,6 @@ export default function ChatInterface({
             </div>
           </div>
         ) : null}
-
-        {!showQuestionForm ? renderDeliberations() : null}
 
         {finalPrompt ? (
           <div className="flex justify-start">
