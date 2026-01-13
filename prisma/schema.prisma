@@ -17,6 +17,7 @@ model Project {
   name       String
   created_at DateTime   @default(now())
   sessions   Session[]
+  artifacts  Artifact[]
 }
 
 model Session {
@@ -28,4 +29,29 @@ model Session {
   state      Json?
 
   @@index([projectId])
+}
+
+model Artifact {
+  id             String            @id @default(cuid())
+  project        Project           @relation(fields: [projectId], references: [id])
+  projectId      String
+  title          String
+  problem        String
+  prompt_content String
+  created_at     DateTime          @default(now())
+  updated_at     DateTime          @updatedAt
+  sessions       ArtifactSession[]
+
+  @@index([projectId])
+}
+
+model ArtifactSession {
+  id         String   @id @default(cuid())
+  artifact   Artifact @relation(fields: [artifactId], references: [id])
+  artifactId String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  history    Json
+
+  @@index([artifactId])
 }
