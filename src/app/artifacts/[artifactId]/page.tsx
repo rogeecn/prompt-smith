@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { z } from "zod";
 import ArtifactChat from "../../../../components/ArtifactChat";
+import TopNav from "../../../../components/TopNav";
 import {
   createArtifactSession,
   loadArtifactContext,
@@ -129,26 +130,30 @@ export default function ArtifactChatPage() {
 
   if (!validProjectId || !artifactId) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_45%,#e2e8f0_100%)] px-6">
-        <div className="w-full max-w-md rounded-3xl border border-slate-200/70 bg-white/90 p-6 text-center shadow-[0_20px_50px_-35px_rgba(15,23,42,0.5)]">
-          <p className="text-sm text-slate-500">
-            缺少必要参数，请从制品库进入。
-          </p>
-          <button
-            type="button"
-            onClick={() => router.push("/artifacts")}
-            className="mt-5 w-full rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-          >
-            返回制品库
-          </button>
+      <div className="flex min-h-screen flex-col bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_45%,#e2e8f0_100%)]">
+        <TopNav />
+        <div className="flex flex-1 items-center justify-center px-6">
+          <div className="w-full max-w-md rounded-3xl border border-slate-200/70 bg-white/90 p-6 text-center shadow-[0_20px_50px_-35px_rgba(15,23,42,0.5)]">
+            <p className="text-sm text-slate-500">
+              缺少必要参数，请从制品库进入。
+            </p>
+            <button
+              type="button"
+              onClick={() => router.push("/artifacts")}
+              className="mt-5 w-full rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              返回制品库
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-screen min-h-0 overflow-hidden bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_45%,#e2e8f0_100%)]">
-      <main className="flex h-full min-h-0 w-full flex-col gap-6 overflow-hidden px-4 py-4">
+    <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_45%,#e2e8f0_100%)]">
+      <TopNav />
+      <main className="flex flex-1 min-h-0 w-full flex-col gap-6 overflow-hidden px-4 py-4">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.32em] text-slate-400">

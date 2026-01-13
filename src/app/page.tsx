@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { z } from "zod";
 import ChatInterface from "../../components/ChatInterface";
+import TopNav from "../../components/TopNav";
 import {
   createProject,
   createSession,
@@ -188,30 +189,34 @@ export default function Home() {
 
   if (!projectId) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_45%,#e2e8f0_100%)] px-6">
-        <div className="w-full max-w-md rounded-3xl border border-slate-200/70 bg-white/90 p-6 text-center shadow-[0_20px_50px_-35px_rgba(15,23,42,0.5)]">
-          <p className="text-sm text-slate-500">
-            {isCreating ? "正在创建新项目..." : "准备创建你的新项目。"}
-          </p>
-          <button
-            type="button"
-            onClick={createAndRedirect}
-            disabled={isCreating}
-            className="mt-5 w-full rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
-          >
-            {isCreating ? "正在创建..." : "开始新项目"}
-          </button>
-          {error ? (
-            <p className="mt-3 text-xs text-rose-500">{error}</p>
-          ) : null}
+      <div className="flex min-h-screen flex-col bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_45%,#e2e8f0_100%)]">
+        <TopNav />
+        <div className="flex flex-1 items-center justify-center px-6">
+          <div className="w-full max-w-md rounded-3xl border border-slate-200/70 bg-white/90 p-6 text-center shadow-[0_20px_50px_-35px_rgba(15,23,42,0.5)]">
+            <p className="text-sm text-slate-500">
+              {isCreating ? "正在创建新项目..." : "准备创建你的新项目。"}
+            </p>
+            <button
+              type="button"
+              onClick={createAndRedirect}
+              disabled={isCreating}
+              className="mt-5 w-full rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+            >
+              {isCreating ? "正在创建..." : "开始新项目"}
+            </button>
+            {error ? (
+              <p className="mt-3 text-xs text-rose-500">{error}</p>
+            ) : null}
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-screen min-h-0 overflow-hidden bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_45%,#e2e8f0_100%)]">
-      <main className="flex h-full min-h-0 w-full flex-col gap-6 overflow-hidden px-4 py-4 box-border">
+    <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_45%,#e2e8f0_100%)]">
+      <TopNav />
+      <main className="flex flex-1 min-h-0 w-full flex-col gap-6 overflow-hidden px-4 py-4 box-border">
         <div className="grid h-full min-h-0 flex-1 gap-6 lg:grid-cols-[2fr_1fr]">
           <section className="flex min-h-0 flex-1 flex-col">
             {contextError ? (
