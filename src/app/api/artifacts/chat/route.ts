@@ -9,6 +9,7 @@ import {
 } from "../../../../../lib/schemas";
 
 const historyArraySchema = HistoryItemSchema.array();
+const isDebug = process.env.NODE_ENV !== "production";
 const REQUEST_TIMEOUT_MS = Number(process.env.OPENAI_TIMEOUT_MS ?? "180000");
 const MAX_RETRIES = Number(process.env.OPENAI_MAX_RETRIES ?? "2");
 const MAX_HISTORY_ITEMS = Number(process.env.MAX_HISTORY_ITEMS ?? "60");
@@ -85,9 +86,16 @@ const jsonWithTrace = (
 };
 
 export async function POST(req: Request) {
+  const startedAt = Date.now();
   let traceId = randomUUID();
   let body: unknown;
   try {
+    console.info("[api/artifacts/chat] request", {
+      projectId,
+      artifactId,
+      sessionId,
+      traceId,
+    });
     body = await req.json();
   } catch {
     console.error("[api/artifacts/chat] Invalid JSON");
@@ -214,11 +222,18 @@ export async function POST(req: Request) {
       data: { history: prunedHistory },
     });
 
+    if (isDebug) {
+      console.info("[api/artifacts/chat] response", {
+        reply_length: reply.length,
+      });
+    }
+
     const responseBody = ArtifactChatResponseSchema.parse({
       reply,
       sessionId: session.id,
     });
 
+    console.info("[api/artifacts/chat] done", { ms: Date.now() - startedAt });
     return jsonWithTrace(responseBody, undefined, traceId);
   } catch (error) {
     console.error("[api/artifacts/chat] error", { traceId, error });
