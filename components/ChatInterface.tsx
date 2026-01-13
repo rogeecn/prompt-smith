@@ -135,6 +135,13 @@ const formatAnswersForDisplay = (
     .filter(Boolean)
     .join("\n");
 
+const shouldShowStep = (step?: string) => {
+  if (!step) {
+    return false;
+  }
+  return /[^\d\s/.-]/.test(step);
+};
+
 export default function ChatInterface({
   projectId,
   sessionId,
@@ -860,7 +867,7 @@ export default function ChatInterface({
 
                 return (
                   <div key={key} className="py-4 first:pt-0 last:pb-0">
-                    {question.step ? (
+                    {shouldShowStep(question.step) ? (
                       <p className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
                         {question.step}
                       </p>
