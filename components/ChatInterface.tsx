@@ -213,11 +213,13 @@ export default function ChatInterface({
   >("idle");
   const [exportError, setExportError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
+  const questionFormRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestStateRef = useRef<SessionState | null>(null);
   const pendingSaveRef = useRef(false);
   const saveSequenceRef = useRef(0);
+  const previousQuestionsRef = useRef(0);
 
   useEffect(() => {
     setMessages(initialMessages);
@@ -254,12 +256,27 @@ export default function ChatInterface({
   }, [input]);
 
   useEffect(() => {
-    if (!listRef.current) {
+    const list = listRef.current;
+    if (!list) {
       return;
     }
 
-    listRef.current.scrollTop = listRef.current.scrollHeight;
-  }, [messages, pendingQuestions, isLoading, deliberations, finalPrompt]);
+    if (pendingQuestions.length > 0) {
+      if (previousQuestionsRef.current === 0) {
+        if (questionFormRef.current) {
+          questionFormRef.current.scrollIntoView({
+            block: "start",
+            behavior: "auto",
+          });
+        }
+      }
+      previousQuestionsRef.current = pendingQuestions.length;
+      return;
+    }
+
+    list.scrollTop = list.scrollHeight;
+    previousQuestionsRef.current = pendingQuestions.length;
+  }, [messages, pendingQuestions.length, isLoading, deliberations, finalPrompt]);
 
   useEffect(() => {
     if (!projectId || !sessionId) {
@@ -776,7 +793,7 @@ export default function ChatInterface({
 
     return (
       <div className="flex justify-start">
-        <div className="max-w-[80%] rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-900 shadow-sm">
+        <div className="max-w-[72%] rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-900 shadow-sm">
           <details open className="rounded-xl bg-white/70 p-3">
             <summary className="cursor-pointer text-sm font-semibold text-slate-900">
               多 Agent 评分过程（可收起）
@@ -874,7 +891,8 @@ export default function ChatInterface({
     !isLoading &&
     pendingQuestions.length === 0 &&
     (messages.length === 0 || isFinished || Boolean(finalPrompt));
-  const showQuestionForm = pendingQuestions.length > 0;
+  const showQuestionForm =
+    pendingQuestions.length > 0 && !finalPrompt && !isFinished;
   const isRefineMode = Boolean(finalPrompt) || isFinished;
   const inputLabel = isRefineMode ? "继续修改" : "先说一句";
   const inputPlaceholder = isRefineMode
@@ -957,7 +975,7 @@ export default function ChatInterface({
         )}
 
         {showQuestionForm ? (
-          <div className="flex justify-start">
+          <div className="flex justify-start" ref={questionFormRef}>
             <form
               onSubmit={handleAnswerSubmit}
               className="w-full rounded-2xl border border-slate-200 bg-white/70 p-4"
@@ -1163,7 +1181,7 @@ export default function ChatInterface({
           </div>
         ) : null}
 
-        {renderDeliberations()}
+        {!showQuestionForm ? renderDeliberations() : null}
 
         {finalPrompt ? (
           <div className="flex justify-start">
