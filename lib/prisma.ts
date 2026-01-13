@@ -15,8 +15,11 @@ if (!databaseUrl) {
 
 const pool = globalForPrisma.pgPool ?? new Pool({ connectionString: databaseUrl });
 const adapter = new PrismaPg(pool);
+const cached = globalForPrisma.prisma;
+const needsRefresh = cached ? !("artifact" in cached) : false;
 
-export const prisma = globalForPrisma.prisma ?? new PrismaClient({ adapter });
+export const prisma =
+  cached && !needsRefresh ? cached : new PrismaClient({ adapter });
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
