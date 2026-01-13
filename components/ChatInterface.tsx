@@ -913,7 +913,7 @@ export default function ChatInterface({
                   {formPayload ? (
                     <div
                       className={[
-                        "space-y-3 text-xs leading-relaxed",
+                        "space-y-2 text-sm leading-relaxed",
                         isUser ? "text-slate-100" : "text-slate-700",
                       ].join(" ")}
                     >
@@ -922,24 +922,14 @@ export default function ChatInterface({
                         const draft = formPayload.answers[key];
                         const answerText = formatDraftAnswer(question, draft);
                         return (
-                          <div key={key} className="space-y-1">
-                            <p
-                              className={[
-                                "text-[11px] uppercase tracking-[0.28em]",
-                                isUser ? "text-slate-300" : "text-slate-400",
-                              ].join(" ")}
-                            >
-                              {shouldShowStep(question.step)
-                                ? question.step
-                                : `问题 ${questionIndex + 1}`}
-                            </p>
+                          <div key={key} className="space-y-0.5">
                             <p
                               className={[
                                 "text-sm font-semibold",
                                 isUser ? "text-white" : "text-slate-900",
                               ].join(" ")}
                             >
-                              {question.text}
+                              {`Q${questionIndex + 1}：${question.text}`}
                             </p>
                             <p
                               className={[
@@ -947,7 +937,7 @@ export default function ChatInterface({
                                 isUser ? "text-slate-100" : "text-slate-700",
                               ].join(" ")}
                             >
-                              {answerText}
+                              {`A：${answerText}`}
                             </p>
                           </div>
                         );

@@ -17,6 +17,106 @@ const MAX_RETRIES = Number(process.env.OPENAI_MAX_RETRIES ?? "2");
 const MAX_HISTORY_ITEMS = Number(process.env.MAX_HISTORY_ITEMS ?? "60");
 const MAX_QUESTION_ROUNDS = Number(process.env.MAX_QUESTION_ROUNDS ?? "3");
 const FORM_MESSAGE_PREFIX = "__FORM__:";
+
+const resolveOptionLabel = (
+  options: { id?: string; label?: string }[] | undefined,
+  value: string
+) =>
+  options?.find((option) => option.id === value)?.label ?? value;
+
+const formatFormAnswer = (
+  question: {
+    type?: string;
+    text?: string;
+    options?: { id?: string; label?: string }[];
+  },
+  draft: { type?: string; value?: unknown; other?: string } | undefined
+) => {
+  if (!draft) {
+    return "未填写";
+  }
+
+  const value = draft.value;
+  if (question.type === "text") {
+    return typeof value === "string" && value.trim() ? value.trim() : "未填写";
+  }
+
+  if (question.type === "single") {
+    if (typeof value !== "string" || !value) {
+      return "未填写";
+    }
+    if (value === "__other__") {
+      return draft.other?.trim() ? `其他：${draft.other.trim()}` : "其他";
+    }
+    if (value === "__none__") {
+      return "不需要此功能";
+    }
+    return resolveOptionLabel(question.options, value);
+  }
+
+  if (question.type === "multi") {
+    if (!Array.isArray(value) || value.length === 0) {
+      return "未填写";
+    }
+    if (value.includes("__none__")) {
+      return "不需要此功能";
+    }
+    return value
+      .map((item) => {
+        if (item === "__other__") {
+          return draft.other?.trim() ? `其他：${draft.other.trim()}` : "其他";
+        }
+        if (typeof item === "string") {
+          return resolveOptionLabel(question.options, item);
+        }
+        return "";
+      })
+      .filter(Boolean)
+      .join("、");
+  }
+
+  return "未填写";
+};
+
+const formatFormMessageForLLM = (content: string) => {
+  if (!content.startsWith(FORM_MESSAGE_PREFIX)) {
+    return null;
+  }
+  const raw = content.slice(FORM_MESSAGE_PREFIX.length);
+  try {
+    const parsed = JSON.parse(raw) as {
+      questions?: {
+        id?: string;
+        text?: string;
+        type?: string;
+        options?: { id?: string; label?: string }[];
+      }[];
+      answers?: Record<string, { type?: string; value?: unknown; other?: string }>;
+    };
+    if (!parsed || !Array.isArray(parsed.questions)) {
+      return null;
+    }
+    const lines = parsed.questions.map((question, index) => {
+      const key =
+        typeof question.id === "string" && question.id
+          ? question.id
+          : `q-${index}`;
+      const title =
+        typeof question.text === "string" && question.text
+          ? question.text
+          : `问题 ${index + 1}`;
+      const draft = parsed.answers?.[key];
+      const answerText = formatFormAnswer(question, draft);
+      return `- ${title}：${answerText}`;
+    });
+    if (lines.length === 0) {
+      return null;
+    }
+    return `表单回答:\n${lines.join("\n")}`;
+  } catch {
+    return null;
+  }
+};
 const isRetryableError = (error: unknown) => {
   if (!error || typeof error !== "object") {
     return false;
@@ -287,20 +387,32 @@ export async function POST(req: Request) {
 
     const isFormMessage =
       typeof message === "string" && message.startsWith(FORM_MESSAGE_PREFIX);
+    const formattedFormMessage =
+      typeof message === "string" ? formatFormMessageForLLM(message) : null;
     const userContent = answers
       ? `用户回答(JSON): ${JSON.stringify(answers)}${
-          message && !isFormMessage ? `\n补充说明: ${message}` : ""
+          formattedFormMessage
+            ? `\n${formattedFormMessage}`
+            : message && !isFormMessage
+              ? `\n补充说明: ${message}`
+              : ""
         }`
-      : message ?? "";
+      : formattedFormMessage ?? message ?? "";
 
     const llmResponse = await generateWithRetry({
       model: getCompatModel(process.env.OPENAI_MODEL),
       messages: [
         { role: "system", content: [{ text: systemPrompt }] },
-        ...trimmedHistory.map((item) => ({
-          role: item.role === "assistant" ? "model" : "user",
-          content: [{ text: item.content }],
-        })),
+        ...trimmedHistory.map((item) => {
+          const content =
+            item.role === "user"
+              ? formatFormMessageForLLM(item.content) ?? item.content
+              : item.content;
+          return {
+            role: item.role === "assistant" ? "model" : "user",
+            content: [{ text: content }],
+          };
+        }),
         { role: "user", content: [{ text: userContent }] },
       ],
       output: { schema: LLMResponseSchema },
@@ -326,10 +438,16 @@ export async function POST(req: Request) {
         model: getCompatModel(process.env.OPENAI_MODEL),
         messages: [
           { role: "system", content: [{ text: retryPrompt }] },
-          ...trimmedHistory.map((item) => ({
-            role: item.role === "assistant" ? "model" : "user",
-            content: [{ text: item.content }],
-          })),
+          ...trimmedHistory.map((item) => {
+            const content =
+              item.role === "user"
+                ? formatFormMessageForLLM(item.content) ?? item.content
+                : item.content;
+            return {
+              role: item.role === "assistant" ? "model" : "user",
+              content: [{ text: content }],
+            };
+          }),
           { role: "user", content: [{ text: userContent }] },
         ],
         output: { schema: LLMResponseSchema },
