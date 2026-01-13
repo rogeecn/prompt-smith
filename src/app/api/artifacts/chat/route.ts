@@ -5,8 +5,10 @@ import { prisma } from "../../../../../lib/prisma";
 import {
   ArtifactChatRequestSchema,
   ArtifactChatResponseSchema,
+  ArtifactVariablesSchema,
   HistoryItemSchema,
 } from "../../../../../lib/schemas";
+import { extractTemplateVariables, renderTemplate } from "../../../../../lib/template";
 
 const historyArraySchema = HistoryItemSchema.array();
 const isDebug = process.env.NODE_ENV !== "production";
@@ -85,6 +87,121 @@ const jsonWithTrace = (
   return httpResponse;
 };
 
+const normalizeArtifactVariables = (value: unknown) => {
+  const parsed = ArtifactVariablesSchema.safeParse(value);
+  return parsed.success ? parsed.data : [];
+};
+
+const parseListValue = (value: string) =>
+  value
+    .split(/[,，]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const resolveInputs = (
+  variables: ReturnType<typeof normalizeArtifactVariables>,
+  rawInputs: Record<string, unknown> | undefined
+) => {
+  const inputs = rawInputs ?? {};
+  const renderedValues: Record<string, string> = {};
+  const errors: string[] = [];
+
+  variables.forEach((variable) => {
+    const key = variable.key;
+    const hasInput = Object.prototype.hasOwnProperty.call(inputs, key);
+    const rawValue = hasInput ? inputs[key] : variable.default;
+
+    const isMissing =
+      rawValue === undefined ||
+      rawValue === null ||
+      (typeof rawValue === "string" && rawValue.trim() === "");
+
+    if (isMissing) {
+      if (variable.required ?? true) {
+        errors.push(`变量 ${key} 为空`);
+      }
+      renderedValues[key] = "";
+      return;
+    }
+
+    if (variable.type === "number") {
+      const numberValue =
+        typeof rawValue === "number"
+          ? rawValue
+          : typeof rawValue === "string"
+            ? Number(rawValue)
+            : NaN;
+      if (Number.isNaN(numberValue)) {
+        errors.push(`变量 ${key} 必须为数字`);
+        return;
+      }
+      renderedValues[key] = String(numberValue);
+      return;
+    }
+
+    if (variable.type === "boolean") {
+      const booleanValue =
+        typeof rawValue === "boolean"
+          ? rawValue
+          : rawValue === "true"
+            ? true
+            : rawValue === "false"
+              ? false
+              : null;
+      if (booleanValue === null) {
+        errors.push(`变量 ${key} 必须为布尔值`);
+        return;
+      }
+      renderedValues[key] = booleanValue
+        ? variable.true_label ?? "true"
+        : variable.false_label ?? "false";
+      return;
+    }
+
+    if (variable.type === "list") {
+      const listValue = Array.isArray(rawValue)
+        ? rawValue.map((item) => String(item))
+        : typeof rawValue === "string"
+          ? parseListValue(rawValue)
+          : [];
+      if ((variable.required ?? true) && listValue.length === 0) {
+        errors.push(`变量 ${key} 不能为空`);
+        return;
+      }
+      const joiner = variable.joiner ?? "、";
+      renderedValues[key] = listValue.join(joiner);
+      return;
+    }
+
+    if (variable.type === "enum") {
+      if (typeof rawValue !== "string") {
+        errors.push(`变量 ${key} 必须为字符串`);
+        return;
+      }
+      if (variable.options && !variable.options.includes(rawValue)) {
+        errors.push(`变量 ${key} 不在可选项中`);
+        return;
+      }
+      renderedValues[key] = rawValue;
+      return;
+    }
+
+    if (typeof rawValue !== "string") {
+      errors.push(`变量 ${key} 必须为字符串`);
+      return;
+    }
+
+    if ((variable.required ?? true) && !rawValue.trim()) {
+      errors.push(`变量 ${key} 不能为空`);
+      return;
+    }
+
+    renderedValues[key] = rawValue;
+  });
+
+  return { renderedValues, errors };
+};
+
 export async function POST(req: Request) {
   const startedAt = Date.now();
   let traceId = randomUUID();
@@ -141,7 +258,7 @@ export async function POST(req: Request) {
   try {
     const artifact = await prisma.artifact.findFirst({
       where: { id: artifactId, projectId },
-      select: { id: true, prompt_content: true },
+      select: { id: true, prompt_content: true, variables: true },
     });
 
     if (!artifact) {
@@ -155,6 +272,42 @@ export async function POST(req: Request) {
         traceId
       );
     }
+
+    const variables = normalizeArtifactVariables(artifact.variables);
+    const templateVariables = extractTemplateVariables(artifact.prompt_content);
+    const missingDefinitions = templateVariables.filter(
+      (key) => !variables.some((variable) => variable.key === key)
+    );
+
+    if (missingDefinitions.length > 0) {
+      return jsonWithTrace(
+        {
+          error: `缺少变量配置：${missingDefinitions.join(", ")}`,
+        },
+        { status: 400 },
+        traceId
+      );
+    }
+
+    const { renderedValues, errors } = resolveInputs(
+      variables,
+      parsed.data.inputs
+    );
+    if (errors.length > 0) {
+      return jsonWithTrace(
+        {
+          error: errors[0],
+          details: errors,
+        },
+        { status: 400 },
+        traceId
+      );
+    }
+
+    const systemPrompt =
+      templateVariables.length > 0
+        ? renderTemplate(artifact.prompt_content, renderedValues)
+        : artifact.prompt_content;
 
     let session = null;
     if (sessionId) {
@@ -193,7 +346,7 @@ export async function POST(req: Request) {
     const llmResponse = await generateWithRetry({
       model: getCompatModel(process.env.OPENAI_MODEL),
       messages: [
-        { role: "system", content: [{ text: artifact.prompt_content }] },
+        { role: "system", content: [{ text: systemPrompt }] },
         ...trimmedHistory.map((item) => ({
           role: item.role === "assistant" ? "model" : "user",
           content: [{ text: item.content }],

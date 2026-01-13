@@ -147,11 +147,45 @@ export const HistoryItemSchema = z.object({
 
 export type HistoryItem = z.infer<typeof HistoryItemSchema>;
 
+const VariableKeySchema = z
+  .string()
+  .regex(/^[A-Za-z][A-Za-z0-9_]*$/, "变量名必须为英文字母或下划线");
+
+export const ArtifactVariableSchema = z
+  .object({
+    key: VariableKeySchema,
+    label: z.string().min(1),
+    type: z.enum(["string", "text", "number", "boolean", "enum", "list"]),
+    required: z.boolean().optional(),
+    placeholder: z.string().optional(),
+    default: z
+      .union([z.string(), z.number(), z.boolean(), z.array(z.string())])
+      .optional(),
+    options: z.array(z.string().min(1)).optional(),
+    joiner: z.string().optional(),
+    true_label: z.string().optional(),
+    false_label: z.string().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.type === "enum" && (!value.options || value.options.length === 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "enum 类型必须提供 options",
+        path: ["options"],
+      });
+    }
+  });
+
+export const ArtifactVariablesSchema = z.array(ArtifactVariableSchema).default([]);
+
+export type ArtifactVariable = z.infer<typeof ArtifactVariableSchema>;
+
 export const ArtifactSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
   problem: z.string().min(1),
   prompt_content: z.string().min(1),
+  variables: ArtifactVariablesSchema.default([]),
 });
 
 export type Artifact = z.infer<typeof ArtifactSchema>;
@@ -160,9 +194,17 @@ export const ArtifactUpdateSchema = z.object({
   title: z.string().min(1),
   problem: z.string().min(1),
   prompt_content: z.string().min(1),
+  variables: ArtifactVariablesSchema.optional(),
 });
 
 export type ArtifactUpdate = z.infer<typeof ArtifactUpdateSchema>;
+
+const ArtifactInputValueSchema = z.union([
+  z.string(),
+  z.number(),
+  z.boolean(),
+  z.array(z.string()),
+]);
 
 export const ArtifactChatRequestSchema = z.object({
   projectId: z.string().uuid(),
@@ -170,6 +212,7 @@ export const ArtifactChatRequestSchema = z.object({
   sessionId: z.string().min(1).optional(),
   message: z.string().min(1).max(4000),
   traceId: z.string().min(1).optional(),
+  inputs: z.record(ArtifactInputValueSchema).optional(),
 });
 
 export type ArtifactChatRequest = z.infer<typeof ArtifactChatRequestSchema>;

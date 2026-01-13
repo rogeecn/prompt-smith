@@ -38,6 +38,7 @@ model Artifact {
   title          String
   problem        String
   prompt_content String
+  variables      Json?
   created_at     DateTime          @default(now())
   updated_at     DateTime          @updatedAt
   sessions       ArtifactSession[]

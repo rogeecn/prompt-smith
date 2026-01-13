@@ -7,6 +7,7 @@ import {
   DraftAnswerSchema,
   HistoryItemSchema,
   QuestionSchema,
+  ArtifactVariablesSchema,
   ArtifactUpdateSchema,
   type DraftAnswer,
   type SessionState,
@@ -107,6 +108,11 @@ const normalizeSessionState = (value: unknown): SessionState => {
   };
 };
 
+const normalizeArtifactVariables = (value: unknown) => {
+  const parsed = ArtifactVariablesSchema.safeParse(value);
+  return parsed.success ? parsed.data : [];
+};
+
 const logDebug = (label: string, payload?: unknown) => {
   if (!isDebug) {
     return;
@@ -153,6 +159,7 @@ export async function listArtifacts(projectId: string) {
       title: true,
       problem: true,
       prompt_content: true,
+      variables: true,
       created_at: true,
       updated_at: true,
     },
@@ -163,7 +170,10 @@ export async function listArtifacts(projectId: string) {
     count: artifacts.length,
   });
 
-  return artifacts;
+  return artifacts.map((artifact) => ({
+    ...artifact,
+    variables: normalizeArtifactVariables(artifact.variables),
+  }));
 }
 
 export async function createArtifact(projectId: string) {
@@ -180,11 +190,15 @@ export async function createArtifact(projectId: string) {
       problem: "请填写该制品解决的问题。",
       prompt_content:
         "你是一个专业助手。请根据用户需求给出清晰、可执行的结果。",
+      variables: [],
     },
   });
 
   logDebug("createArtifact:done", { artifactId: artifact.id });
-  return artifact;
+  return {
+    ...artifact,
+    variables: normalizeArtifactVariables(artifact.variables),
+  };
 }
 
 export async function updateArtifact(
@@ -211,7 +225,10 @@ export async function updateArtifact(
   });
 
   logDebug("updateArtifact:done", { artifactId: artifact.id });
-  return artifact;
+  return {
+    ...artifact,
+    variables: normalizeArtifactVariables(artifact.variables),
+  };
 }
 
 export async function loadArtifact(projectId: string, artifactId: string) {
@@ -231,7 +248,10 @@ export async function loadArtifact(projectId: string, artifactId: string) {
     throw new Error("Artifact not found");
   }
 
-  return artifact;
+  return {
+    ...artifact,
+    variables: normalizeArtifactVariables(artifact.variables),
+  };
 }
 
 export async function loadArtifactContext(projectId: string, artifactId: string) {
@@ -249,6 +269,7 @@ export async function loadArtifactContext(projectId: string, artifactId: string)
       title: true,
       problem: true,
       prompt_content: true,
+      variables: true,
     },
   });
 
@@ -298,7 +319,10 @@ export async function loadArtifactContext(projectId: string, artifactId: string)
   });
 
   return {
-    artifact,
+    artifact: {
+      ...artifact,
+      variables: normalizeArtifactVariables(artifact.variables),
+    },
     history,
     sessions: sessions.map((session) => ({
       id: session.id,

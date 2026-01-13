@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 import {
   ArtifactChatRequestSchema,
   ArtifactChatResponseSchema,
+  type ArtifactVariable,
   type HistoryItem,
 } from "../lib/schemas";
 
@@ -22,11 +23,41 @@ const logDebug = (label: string, payload?: unknown) => {
   console.log(`[ArtifactChat] ${label}`, payload);
 };
 
+const parseListInput = (value: string) =>
+  value
+    .split(/[,，]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const formatDefaultValue = (variable: ArtifactVariable) => {
+  const fallback = variable.default;
+  if (fallback === undefined || fallback === null) {
+    return "";
+  }
+  if (variable.type === "boolean") {
+    return fallback === true ? "true" : fallback === false ? "false" : "";
+  }
+  if (variable.type === "list") {
+    if (Array.isArray(fallback)) {
+      return fallback.join(", ");
+    }
+    return typeof fallback === "string" ? fallback : "";
+  }
+  return String(fallback);
+};
+
+const buildInitialInputs = (variables: ArtifactVariable[]) =>
+  variables.reduce<Record<string, string>>((acc, variable) => {
+    acc[variable.key] = formatDefaultValue(variable);
+    return acc;
+  }, {});
+
 type ArtifactChatProps = {
   projectId: string;
   artifactId: string;
   sessionId: string;
   initialMessages?: HistoryItem[];
+  variables?: ArtifactVariable[];
   isDisabled?: boolean;
   onSessionIdChange?: (sessionId: string) => void;
 };
@@ -36,10 +67,13 @@ export default function ArtifactChat({
   artifactId,
   sessionId,
   initialMessages = [],
+  variables = [],
   isDisabled = false,
   onSessionIdChange,
 }: ArtifactChatProps) {
   const [messages, setMessages] = useState<HistoryItem[]>(initialMessages);
+  const [variableInputs, setVariableInputs] = useState<Record<string, string>>({});
+  const [variableErrors, setVariableErrors] = useState<Record<string, string>>({});
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -54,6 +88,11 @@ export default function ArtifactChat({
     setFormError(null);
     setRetryMessage(null);
   }, [projectId, artifactId, sessionId, initialMessages]);
+
+  useEffect(() => {
+    setVariableInputs(buildInitialInputs(variables));
+    setVariableErrors({});
+  }, [variables, projectId, artifactId, sessionId]);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -72,6 +111,20 @@ export default function ArtifactChat({
 
     listRef.current.scrollTop = listRef.current.scrollHeight;
   }, [messages, isLoading]);
+
+  const updateVariableInput = (key: string, value: string) => {
+    setVariableInputs((prev) => ({ ...prev, [key]: value }));
+    if (formError) {
+      setFormError(null);
+    }
+    setVariableErrors((prev) => {
+      if (!prev[key]) {
+        return prev;
+      }
+      const { [key]: _removed, ...rest } = prev;
+      return rest;
+    });
+  };
 
   const sendMessage = async (
     message: string,
@@ -93,6 +146,70 @@ export default function ArtifactChat({
       timestamp: Date.now(),
     };
 
+    const inputErrors: Record<string, string> = {};
+    const inputPayload: Record<string, string | number | boolean | string[]> = {};
+
+    variables.forEach((variable) => {
+      const raw = variableInputs[variable.key] ?? "";
+      const fallback = raw || formatDefaultValue(variable);
+      const hasValue = typeof fallback === "string" ? fallback.trim() !== "" : true;
+
+      if (!hasValue) {
+        if (variable.required ?? true) {
+          inputErrors[variable.key] = "请填写该变量";
+        }
+        return;
+      }
+
+      if (variable.type === "number") {
+        const numberValue = Number(fallback);
+        if (Number.isNaN(numberValue)) {
+          inputErrors[variable.key] = "请输入数字";
+        } else {
+          inputPayload[variable.key] = numberValue;
+        }
+        return;
+      }
+
+      if (variable.type === "boolean") {
+        if (fallback === "true") {
+          inputPayload[variable.key] = true;
+        } else if (fallback === "false") {
+          inputPayload[variable.key] = false;
+        } else {
+          inputErrors[variable.key] = "请选择是或否";
+        }
+        return;
+      }
+
+      if (variable.type === "list") {
+        const listValue = parseListInput(fallback);
+        if ((variable.required ?? true) && listValue.length === 0) {
+          inputErrors[variable.key] = "请填写至少一项";
+        } else {
+          inputPayload[variable.key] = listValue;
+        }
+        return;
+      }
+
+      if (variable.type === "enum") {
+        if (variable.options && !variable.options.includes(fallback)) {
+          inputErrors[variable.key] = "请选择可用选项";
+        } else {
+          inputPayload[variable.key] = fallback;
+        }
+        return;
+      }
+
+      inputPayload[variable.key] = fallback;
+    });
+
+    setVariableErrors(inputErrors);
+    if (Object.keys(inputErrors).length > 0) {
+      setFormError("请先完善变量配置。");
+      return;
+    }
+
     if (appendUser) {
       setMessages((prev) => [...prev, optimisticUserMessage]);
     }
@@ -113,6 +230,7 @@ export default function ArtifactChat({
         sessionId,
         message: trimmed,
         traceId,
+        inputs: inputPayload,
       });
 
       const response = await fetch("/api/artifacts/chat", {
@@ -180,6 +298,116 @@ export default function ArtifactChat({
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
+      {variables.length > 0 ? (
+        <section className="mb-4 rounded-2xl border border-slate-200 bg-white/70 p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs uppercase tracking-[0.32em] text-slate-400">
+              变量配置
+            </p>
+            <span className="text-xs text-slate-400">
+              用于替换制品模板中的占位符
+            </span>
+          </div>
+          <div className="mt-3 max-h-48 space-y-3 overflow-y-auto">
+            {variables.map((variable) => {
+              const label = variable.label || variable.key;
+              const value = variableInputs[variable.key] ?? "";
+              const error = variableErrors[variable.key];
+              const isRequired = variable.required ?? true;
+              return (
+                <div
+                  key={variable.key}
+                  className="rounded-xl border border-slate-200 bg-white p-3"
+                >
+                  <div className="flex items-center justify-between text-xs text-slate-500">
+                    <span className="font-semibold text-slate-700">{label}</span>
+                    <span>{isRequired ? "必填" : "可选"}</span>
+                  </div>
+                  {variable.type === "text" ? (
+                    <textarea
+                      value={value}
+                      onChange={(event) =>
+                        updateVariableInput(variable.key, event.target.value)
+                      }
+                      placeholder={variable.placeholder ?? "请输入内容"}
+                      rows={3}
+                      className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                      disabled={isLoading || isDisabled}
+                    />
+                  ) : variable.type === "enum" && variable.options ? (
+                    <select
+                      value={value}
+                      onChange={(event) =>
+                        updateVariableInput(variable.key, event.target.value)
+                      }
+                      className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                      disabled={isLoading || isDisabled}
+                    >
+                      <option value="">请选择</option>
+                      {variable.options.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  ) : variable.type === "boolean" ? (
+                    <select
+                      value={value}
+                      onChange={(event) =>
+                        updateVariableInput(variable.key, event.target.value)
+                      }
+                      className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                      disabled={isLoading || isDisabled}
+                    >
+                      <option value="">请选择</option>
+                      <option value="true">
+                        {variable.true_label ?? "是"}
+                      </option>
+                      <option value="false">
+                        {variable.false_label ?? "否"}
+                      </option>
+                    </select>
+                  ) : variable.type === "number" ? (
+                    <input
+                      type="number"
+                      value={value}
+                      onChange={(event) =>
+                        updateVariableInput(variable.key, event.target.value)
+                      }
+                      placeholder={variable.placeholder ?? "请输入数字"}
+                      className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                      disabled={isLoading || isDisabled}
+                    />
+                  ) : variable.type === "list" ? (
+                    <input
+                      value={value}
+                      onChange={(event) =>
+                        updateVariableInput(variable.key, event.target.value)
+                      }
+                      placeholder={variable.placeholder ?? "用逗号分隔多个值"}
+                      className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                      disabled={isLoading || isDisabled}
+                    />
+                  ) : (
+                    <input
+                      value={value}
+                      onChange={(event) =>
+                        updateVariableInput(variable.key, event.target.value)
+                      }
+                      placeholder={variable.placeholder ?? "请输入内容"}
+                      className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                      disabled={isLoading || isDisabled}
+                    />
+                  )}
+                  {error ? (
+                    <p className="mt-2 text-xs text-rose-500">{error}</p>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
       <div
         ref={listRef}
         className="flex-1 min-h-0 space-y-4 overflow-y-auto rounded-2xl border border-slate-200 bg-white/70 p-4"

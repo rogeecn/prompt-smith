@@ -10,7 +10,12 @@ import {
   listArtifacts,
   updateArtifact,
 } from "../actions";
-import type { Artifact, ArtifactUpdate } from "../../../lib/schemas";
+import type {
+  Artifact,
+  ArtifactUpdate,
+  ArtifactVariable,
+} from "../../../lib/schemas";
+import { extractTemplateVariables } from "../../../lib/template";
 
 const projectIdSchema = z.string().uuid();
 
@@ -18,6 +23,27 @@ const emptyForm: ArtifactUpdate = {
   title: "",
   problem: "",
   prompt_content: "",
+  variables: [],
+};
+
+const parseListValue = (value: string) =>
+  value
+    .split(/[,，]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const formatVariableDefault = (variable: ArtifactVariable) => {
+  const fallback = variable.default;
+  if (fallback === undefined || fallback === null) {
+    return "";
+  }
+  if (variable.type === "boolean") {
+    return fallback === true ? "true" : fallback === false ? "false" : "";
+  }
+  if (variable.type === "list") {
+    return Array.isArray(fallback) ? fallback.join(", ") : String(fallback);
+  }
+  return String(fallback);
 };
 
 export default function ArtifactsPage() {
@@ -88,6 +114,7 @@ export default function ArtifactsPage() {
             title: first.title,
             problem: first.problem,
             prompt_content: first.prompt_content,
+            variables: first.variables ?? [],
           });
         }
       } catch {
@@ -116,6 +143,7 @@ export default function ArtifactsPage() {
       title: artifact.title,
       problem: artifact.problem,
       prompt_content: artifact.prompt_content,
+      variables: artifact.variables ?? [],
     });
   };
 
@@ -136,6 +164,7 @@ export default function ArtifactsPage() {
         title: artifact.title,
         problem: artifact.problem,
         prompt_content: artifact.prompt_content,
+        variables: artifact.variables ?? [],
       });
     } catch {
       setError("新建制品失败，请重试。");
@@ -157,7 +186,29 @@ export default function ArtifactsPage() {
         title: form.title.trim(),
         problem: form.problem.trim(),
         prompt_content: form.prompt_content.trim(),
+        variables: (form.variables ?? []).map((variable) => ({
+          ...variable,
+          key: variable.key.trim(),
+          label: variable.label.trim() || variable.key.trim(),
+        })),
       };
+      const templateKeys = extractTemplateVariables(trimmed.prompt_content);
+      const variableKeys = trimmed.variables.map((variable) => variable.key);
+      const uniqueKeys = new Set(variableKeys.filter(Boolean));
+      if (uniqueKeys.size !== variableKeys.filter(Boolean).length) {
+        setError("变量名重复，请检查配置。");
+        return;
+      }
+      if (templateKeys.length > 0 && trimmed.variables.length === 0) {
+        setError("检测到模板变量，请先配置变量或清理占位符。");
+        return;
+      }
+      const missingKeys = templateKeys.filter((key) => !uniqueKeys.has(key));
+      if (missingKeys.length > 0) {
+        setError(`缺少变量配置：${missingKeys.join(", ")}`);
+        return;
+      }
+
       await updateArtifact(projectId, currentArtifactId, trimmed);
       const items = await listArtifacts(projectId);
       setArtifacts(items);
@@ -173,6 +224,69 @@ export default function ArtifactsPage() {
       return;
     }
     router.push(`/artifacts/${currentArtifactId}?projectId=${projectId}`);
+  };
+
+  const updateVariableAt = (
+    index: number,
+    patch: Partial<ArtifactVariable>
+  ) => {
+    setForm((prev) => {
+      const nextVariables = [...(prev.variables ?? [])];
+      const current = nextVariables[index] ?? {
+        key: "",
+        label: "",
+        type: "string",
+        required: true,
+      };
+      nextVariables[index] = { ...current, ...patch };
+      return { ...prev, variables: nextVariables };
+    });
+  };
+
+  const handleAddVariable = () => {
+    setForm((prev) => ({
+      ...prev,
+      variables: [
+        ...(prev.variables ?? []),
+        { key: "", label: "", type: "string", required: true },
+      ],
+    }));
+  };
+
+  const handleRemoveVariable = (index: number) => {
+    setForm((prev) => {
+      const nextVariables = [...(prev.variables ?? [])];
+      nextVariables.splice(index, 1);
+      return { ...prev, variables: nextVariables };
+    });
+  };
+
+  const handleExtractVariables = () => {
+    const keys = extractTemplateVariables(form.prompt_content);
+    if (keys.length === 0) {
+      setError("模板中未检测到变量占位符。");
+      return;
+    }
+
+    setError(null);
+    setForm((prev) => {
+      const existing = new Map(
+        (prev.variables ?? []).map((variable) => [variable.key, variable])
+      );
+      const nextVariables = keys.map((key) => {
+        const existingVariable = existing.get(key);
+        if (existingVariable) {
+          return existingVariable;
+        }
+        return {
+          key,
+          label: key,
+          type: "string" as const,
+          required: true,
+        };
+      });
+      return { ...prev, variables: nextVariables };
+    });
   };
 
   if (!projectId) {
@@ -350,6 +464,281 @@ export default function ArtifactsPage() {
                       }
                       className="mt-2 min-h-[220px] flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
                     />
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white/80 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
+                          变量配置
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          模板占位符格式：{"{{variable_key}}"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleExtractVariables}
+                          className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 transition hover:bg-slate-100"
+                        >
+                          从模板提取
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleAddVariable}
+                          className="rounded-lg bg-slate-900 px-3 py-1 text-xs font-semibold text-white transition hover:bg-slate-800"
+                        >
+                          添加变量
+                        </button>
+                      </div>
+                    </div>
+
+                    {form.variables && form.variables.length > 0 ? (
+                      <div className="mt-4 space-y-3">
+                        {form.variables.map((variable, index) => (
+                          <div
+                            key={`${variable.key}-${index}`}
+                            className="rounded-xl border border-slate-200 bg-white p-3"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-xs font-semibold text-slate-700">
+                                变量 {index + 1}
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveVariable(index)}
+                                className="text-xs text-rose-500 hover:text-rose-600"
+                              >
+                                删除
+                              </button>
+                            </div>
+                            <div className="mt-3 grid gap-3 md:grid-cols-2">
+                              <div>
+                                <label className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
+                                  变量名
+                                </label>
+                                <input
+                                  value={variable.key}
+                                  onChange={(event) =>
+                                    updateVariableAt(index, {
+                                      key: event.target.value,
+                                    })
+                                  }
+                                  placeholder="例如 target_audience"
+                                  className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
+                                  显示名称
+                                </label>
+                                <input
+                                  value={variable.label}
+                                  onChange={(event) =>
+                                    updateVariableAt(index, {
+                                      label: event.target.value,
+                                    })
+                                  }
+                                  placeholder="如：受众"
+                                  className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
+                                  类型
+                                </label>
+                                <select
+                                  value={variable.type}
+                                  onChange={(event) =>
+                                    updateVariableAt(index, {
+                                      type: event.target.value as ArtifactVariable["type"],
+                                    })
+                                  }
+                                  className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
+                                >
+                                  <option value="string">string</option>
+                                  <option value="text">text</option>
+                                  <option value="number">number</option>
+                                  <option value="boolean">boolean</option>
+                                  <option value="enum">enum</option>
+                                  <option value="list">list</option>
+                                </select>
+                              </div>
+                              <div className="flex items-end gap-2">
+                                <label className="flex items-center gap-2 text-xs text-slate-500">
+                                  <input
+                                    type="checkbox"
+                                    checked={variable.required ?? true}
+                                    onChange={(event) =>
+                                      updateVariableAt(index, {
+                                        required: event.target.checked,
+                                      })
+                                    }
+                                  />
+                                  必填
+                                </label>
+                              </div>
+                              {variable.type === "enum" ? (
+                                <div className="md:col-span-2">
+                                  <label className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
+                                    选项（逗号分隔）
+                                  </label>
+                                  <input
+                                    value={(variable.options ?? []).join(", ")}
+                                    onChange={(event) =>
+                                      updateVariableAt(index, {
+                                        options: parseListValue(event.target.value),
+                                      })
+                                    }
+                                    placeholder="例如：严肃, 活泼"
+                                    className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
+                                  />
+                                </div>
+                              ) : null}
+                              {variable.type === "boolean" ? (
+                                <div className="md:col-span-2 grid gap-3 md:grid-cols-2">
+                                  <div>
+                                    <label className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
+                                      True 文案
+                                    </label>
+                                    <input
+                                      value={variable.true_label ?? ""}
+                                      onChange={(event) =>
+                                        updateVariableAt(index, {
+                                          true_label: event.target.value,
+                                        })
+                                      }
+                                      placeholder="例如：需要"
+                                      className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
+                                      False 文案
+                                    </label>
+                                    <input
+                                      value={variable.false_label ?? ""}
+                                      onChange={(event) =>
+                                        updateVariableAt(index, {
+                                          false_label: event.target.value,
+                                        })
+                                      }
+                                      placeholder="例如：不需要"
+                                      className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
+                                    />
+                                  </div>
+                                </div>
+                              ) : null}
+                              {variable.type === "list" ? (
+                                <div className="md:col-span-2 grid gap-3 md:grid-cols-2">
+                                  <div>
+                                    <label className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
+                                      分隔符
+                                    </label>
+                                    <input
+                                      value={variable.joiner ?? ""}
+                                      onChange={(event) =>
+                                        updateVariableAt(index, {
+                                          joiner: event.target.value,
+                                        })
+                                      }
+                                      placeholder="默认：、"
+                                      className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
+                                      默认值（逗号分隔）
+                                    </label>
+                                    <input
+                                      value={formatVariableDefault(variable)}
+                                      onChange={(event) =>
+                                        updateVariableAt(index, {
+                                          default: parseListValue(event.target.value),
+                                        })
+                                      }
+                                      placeholder="例如：要点1, 要点2"
+                                      className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
+                                    />
+                                  </div>
+                                </div>
+                              ) : null}
+                              {variable.type !== "list" ? (
+                                <div className="md:col-span-2 grid gap-3 md:grid-cols-2">
+                                  <div>
+                                    <label className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
+                                      默认值
+                                    </label>
+                                    {variable.type === "boolean" ? (
+                                      <select
+                                        value={formatVariableDefault(variable)}
+                                        onChange={(event) =>
+                                          updateVariableAt(index, {
+                                            default:
+                                              event.target.value === ""
+                                                ? undefined
+                                                : event.target.value === "true",
+                                          })
+                                        }
+                                        className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
+                                      >
+                                        <option value="">无</option>
+                                        <option value="true">true</option>
+                                        <option value="false">false</option>
+                                      </select>
+                                    ) : (
+                                      <input
+                                        value={formatVariableDefault(variable)}
+                                        onChange={(event) => {
+                                          const value = event.target.value;
+                                          const nextValue =
+                                            variable.type === "number"
+                                              ? value === ""
+                                                ? undefined
+                                                : Number(value)
+                                              : value;
+                                          if (
+                                            variable.type === "number" &&
+                                            typeof nextValue === "number" &&
+                                            Number.isNaN(nextValue)
+                                          ) {
+                                            return;
+                                          }
+                                          updateVariableAt(index, {
+                                            default: nextValue,
+                                          });
+                                        }}
+                                        placeholder="可选"
+                                        className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
+                                      />
+                                    )}
+                                  </div>
+                                  <div>
+                                    <label className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
+                                      提示文案
+                                    </label>
+                                    <input
+                                      value={variable.placeholder ?? ""}
+                                      onChange={(event) =>
+                                        updateVariableAt(index, {
+                                          placeholder: event.target.value,
+                                        })
+                                      }
+                                      placeholder="输入提示"
+                                      className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
+                                    />
+                                  </div>
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-4 text-xs text-slate-400">
+                        暂无变量配置，可从模板提取或手动添加。
+                      </p>
+                    )}
                   </div>
                 </div>
 

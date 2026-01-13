@@ -231,6 +231,7 @@ export default function ArtifactChatPage() {
                 artifactId={artifactId}
                 sessionId={currentSessionId}
                 initialMessages={initialMessages}
+                variables={artifact?.variables}
               />
             ) : null}
           </section>
