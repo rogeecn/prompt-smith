@@ -208,7 +208,7 @@ export default function ChatInterface({
     }
 
     listRef.current.scrollTop = listRef.current.scrollHeight;
-  }, [messages, pendingQuestions, finalPrompt, deliberations]);
+  }, [messages]);
 
   useEffect(() => {
     if (!projectId || !sessionId) {
@@ -698,7 +698,7 @@ export default function ChatInterface({
     return (
       <details
         open
-        className="mt-4 rounded-2xl border border-slate-200 bg-white/80 p-4"
+        className="rounded-2xl border border-slate-200 bg-white/80 p-4"
       >
         <summary className="cursor-pointer text-sm font-semibold text-slate-900">
           多 Agent 评分过程（可收起）
@@ -828,90 +828,78 @@ export default function ChatInterface({
             );
           })
         )}
+      </div>
 
-        {isLoading ? (
-          <div className="flex justify-start">
-            <div className="flex items-center gap-2 rounded-2xl bg-slate-100 px-4 py-2 text-xs text-slate-500">
-              AI 正在思考
-              <span className="typing-dot" />
-              <span className="typing-dot typing-dot-delay-1" />
-              <span className="typing-dot typing-dot-delay-2" />
-            </div>
+      {pendingQuestions.length > 0 ? (
+        <form
+          onSubmit={handleAnswerSubmit}
+          className="mt-4 max-h-[45vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white/70 p-4"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+            <p className="uppercase tracking-[0.32em]">请完成以下问题</p>
+            <span>
+              已填写 {answeredCount}/{totalQuestions}
+            </span>
           </div>
-        ) : null}
+          <div className="mt-3 divide-y divide-slate-200/60">
+            {pendingQuestions.map((question, index) => {
+              const key = getQuestionKey(question, index);
+              const draft = draftAnswers[key];
+              const allowOther = question.allow_other ?? question.type !== "text";
+              const allowNone = question.allow_none ?? question.type !== "text";
+              const options = normalizeOptions(question, allowOther, allowNone);
+              const selectedCount =
+                question.type === "multi" && Array.isArray(draft?.value)
+                  ? draft.value.length
+                  : 0;
 
-        {renderDeliberations()}
-
-        {pendingQuestions.length > 0 ? (
-          <form
-            onSubmit={handleAnswerSubmit}
-            className="mt-2 rounded-2xl border border-slate-200 bg-white/70 p-4"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
-              <p className="uppercase tracking-[0.32em]">请完成以下问题</p>
-              <span>
-                已填写 {answeredCount}/{totalQuestions}
-              </span>
-            </div>
-            <div className="mt-3 divide-y divide-slate-200/60">
-              {pendingQuestions.map((question, index) => {
-                const key = getQuestionKey(question, index);
-                const draft = draftAnswers[key];
-                const allowOther = question.allow_other ?? question.type !== "text";
-                const allowNone = question.allow_none ?? question.type !== "text";
-                const options = normalizeOptions(question, allowOther, allowNone);
-                const selectedCount =
-                  question.type === "multi" && Array.isArray(draft?.value)
-                    ? draft.value.length
-                    : 0;
-
-                return (
-                  <div key={key} className="py-4 first:pt-0 last:pb-0">
-                    {shouldShowStep(question.step) ? (
-                      <p className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
-                        {question.step}
-                      </p>
-                    ) : null}
-                    <p className="mt-1 text-sm font-semibold text-slate-900">
-                      {question.text}
+              return (
+                <div key={key} className="py-4 first:pt-0 last:pb-0">
+                  {shouldShowStep(question.step) ? (
+                    <p className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
+                      {question.step}
                     </p>
-                    {question.type === "multi" ? (
-                      <div className="mt-2 flex items-center justify-between text-xs text-slate-400">
-                        <span>
-                          {question.max_select
-                            ? `已选 ${selectedCount}/${question.max_select}`
-                            : "可多选"}
-                        </span>
-                        {options.length > 0 ? (
-                          <button
-                            type="button"
-                            onClick={() => handleSelectAll(key, options)}
-                            className="rounded-md bg-slate-100 px-2 py-1 text-[11px] text-slate-600 transition hover:bg-slate-200"
-                          >
-                            全选
-                          </button>
-                        ) : null}
-                      </div>
-                    ) : null}
-                    {question.type === "multi" && question.max_select ? (
-                      <p className="mt-1 text-[11px] text-slate-400">
-                        全选可超过上限，提交时仍会带上全部选择。
-                      </p>
-                    ) : null}
+                  ) : null}
+                  <p className="mt-1 text-sm font-semibold text-slate-900">
+                    {question.text}
+                  </p>
+                  {question.type === "multi" ? (
+                    <div className="mt-2 flex items-center justify-between text-xs text-slate-400">
+                      <span>
+                        {question.max_select
+                          ? `已选 ${selectedCount}/${question.max_select}`
+                          : "可多选"}
+                      </span>
+                      {options.length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => handleSelectAll(key, options)}
+                          className="rounded-md bg-slate-100 px-2 py-1 text-[11px] text-slate-600 transition hover:bg-slate-200"
+                        >
+                          全选
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {question.type === "multi" && question.max_select ? (
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      全选可超过上限，提交时仍会带上全部选择。
+                    </p>
+                  ) : null}
 
-                    {question.type === "text" ? (
-                      <input
-                        name={`question-${key}`}
-                        value={typeof draft?.value === "string" ? draft.value : ""}
-                        onChange={(event) => handleTextChange(key, event.target.value)}
-                        placeholder={
-                          question.placeholder ?? "请用简短短语回答（最多 120 字）"
-                        }
-                        maxLength={120}
-                        className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
-                        disabled={isLoading || isDisabled}
-                      />
-                    ) : (
+                  {question.type === "text" ? (
+                    <input
+                      name={`question-${key}`}
+                      value={typeof draft?.value === "string" ? draft.value : ""}
+                      onChange={(event) => handleTextChange(key, event.target.value)}
+                      placeholder={
+                        question.placeholder ?? "请用简短短语回答（最多 120 字）"
+                      }
+                      maxLength={120}
+                      className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                      disabled={isLoading || isDisabled}
+                    />
+                  ) : (
                     <div className="mt-3 grid gap-2 sm:grid-cols-2">
                       {options.length === 0 ? (
                         <p className="text-xs text-slate-400">
@@ -934,147 +922,99 @@ export default function ChatInterface({
                                 : "bg-slate-50 text-slate-700 hover:bg-slate-100",
                             ].join(" ")}
                           >
-                              <input
-                                type={question.type === "single" ? "radio" : "checkbox"}
-                                name={`question-${key}`}
-                                value={option.id}
-                                className="sr-only"
-                                checked={isSelected}
-                                onChange={() => {
-                                  if (question.type === "single") {
-                                    handleSingleSelect(key, option.id);
-                                  } else {
-                                    handleMultiToggle(key, option.id, question.max_select);
-                                  }
-                                }}
-                                disabled={isLoading || isDisabled}
-                              />
-                              {option.label}
-                            </label>
-                          );
-                        })}
-                      </div>
-                    )}
+                            <input
+                              type={question.type === "single" ? "radio" : "checkbox"}
+                              name={`question-${key}`}
+                              value={option.id}
+                              className="sr-only"
+                              checked={isSelected}
+                              onChange={() => {
+                                if (question.type === "single") {
+                                  handleSingleSelect(key, option.id);
+                                } else {
+                                  handleMultiToggle(key, option.id, question.max_select);
+                                }
+                              }}
+                              disabled={isLoading || isDisabled}
+                            />
+                            {option.label}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
 
-                    {question.type !== "text" ? (
-                      <>
-                        {question.type === "single" &&
-                        draft?.value === OTHER_OPTION_ID ? (
-                          <input
-                            name={`question-${key}-other`}
-                            value={draft?.other ?? ""}
-                            onChange={(event) =>
-                              handleOtherChange(key, event.target.value)
-                            }
-                            placeholder="简单说明即可（最多 80 字）"
-                            maxLength={80}
-                            className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
-                            disabled={isLoading || isDisabled}
-                          />
-                        ) : null}
-                        {question.type === "multi" &&
-                        Array.isArray(draft?.value) &&
-                        draft.value.includes(OTHER_OPTION_ID) ? (
-                          <input
-                            name={`question-${key}-other`}
-                            value={draft?.other ?? ""}
-                            onChange={(event) =>
-                              handleOtherChange(key, event.target.value)
-                            }
-                            placeholder="简单说明即可（最多 80 字）"
-                            maxLength={80}
-                            className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
-                            disabled={isLoading || isDisabled}
-                          />
-                        ) : null}
-                      </>
-                    ) : null}
+                  {question.type !== "text" ? (
+                    <>
+                      {question.type === "single" &&
+                      draft?.value === OTHER_OPTION_ID ? (
+                        <input
+                          name={`question-${key}-other`}
+                          value={draft?.other ?? ""}
+                          onChange={(event) =>
+                            handleOtherChange(key, event.target.value)
+                          }
+                          placeholder="简单说明即可（最多 80 字）"
+                          maxLength={80}
+                          className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                          disabled={isLoading || isDisabled}
+                        />
+                      ) : null}
+                      {question.type === "multi" &&
+                      Array.isArray(draft?.value) &&
+                      draft.value.includes(OTHER_OPTION_ID) ? (
+                        <input
+                          name={`question-${key}-other`}
+                          value={draft?.other ?? ""}
+                          onChange={(event) =>
+                            handleOtherChange(key, event.target.value)
+                          }
+                          placeholder="简单说明即可（最多 80 字）"
+                          maxLength={80}
+                          className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                          disabled={isLoading || isDisabled}
+                        />
+                      ) : null}
+                    </>
+                  ) : null}
 
-                    {fieldErrors[key] ? (
-                      <p className="mt-2 text-xs text-rose-500">
-                        {fieldErrors[key]}
-                      </p>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-            <div className="mt-4 flex items-center justify-between gap-3">
-              {formError ? (
-                <div className="flex items-center gap-2 text-xs text-rose-500">
-                  <span>{formError}</span>
-                  {retryPayload ? (
-                    <button
-                      type="button"
-                      onClick={handleRetry}
-                      className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] text-rose-600 transition hover:bg-rose-100"
-                      disabled={isLoading || isDisabled}
-                    >
-                      重试
-                    </button>
+                  {fieldErrors[key] ? (
+                    <p className="mt-2 text-xs text-rose-500">
+                      {fieldErrors[key]}
+                    </p>
                   ) : null}
                 </div>
-              ) : (
-                <span className="text-xs text-slate-400">{saveStatusLabel}</span>
-              )}
-              <button
-                type="submit"
-                disabled={isLoading || isDisabled}
-                className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-              >
-                确认提交
-              </button>
-            </div>
-          </form>
-        ) : null}
-
-        {finalPrompt ? (
-          <section className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-xs uppercase tracking-[0.32em] text-emerald-700">
-                最终 Prompt
-              </p>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleCopyFinalPrompt}
-                  className="rounded-lg border border-emerald-300 bg-white px-3 py-1 text-xs font-medium text-emerald-800 transition hover:bg-emerald-100"
-                >
-                  {copyState === "success"
-                    ? "已复制"
-                    : copyState === "error"
-                      ? "复制失败"
-                      : "复制"}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDownloadFinalPrompt}
-                  className="rounded-lg border border-emerald-200 bg-white px-3 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100"
-                >
-                  下载
-                </button>
-                <button
-                  type="button"
-                  onClick={handleExportSession}
-                  className="rounded-lg border border-emerald-200 bg-white px-3 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100"
-                >
-                  导出 JSON
-                </button>
+              );
+            })}
+          </div>
+          <div className="mt-4 flex items-center justify-between gap-3">
+            {formError ? (
+              <div className="flex items-center gap-2 text-xs text-rose-500">
+                <span>{formError}</span>
+                {retryPayload ? (
+                  <button
+                    type="button"
+                    onClick={handleRetry}
+                    className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] text-rose-600 transition hover:bg-rose-100"
+                    disabled={isLoading || isDisabled}
+                  >
+                    重试
+                  </button>
+                ) : null}
               </div>
-            </div>
-            {copyState === "error" ? (
-              <p className="mt-2 text-xs text-rose-500">
-                复制失败，请手动选择文本复制。
-              </p>
-            ) : null}
-            <pre className="mt-3 max-h-56 overflow-y-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-emerald-900">
-              {finalPrompt}
-            </pre>
-          </section>
-        ) : null}
-      </div>
-
-      {pendingQuestions.length === 0 ? (
+            ) : (
+              <span className="text-xs text-slate-400">{saveStatusLabel}</span>
+            )}
+            <button
+              type="submit"
+              disabled={isLoading || isDisabled}
+              className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+            >
+              确认提交
+            </button>
+          </div>
+        </form>
+      ) : (
         <form onSubmit={handleStartSubmit} className="mt-4 flex flex-col gap-3">
           <div className="rounded-2xl border border-slate-200 bg-white/70 p-4">
             <label className="text-xs uppercase tracking-[0.32em] text-slate-400">
@@ -1124,6 +1064,66 @@ export default function ChatInterface({
             </div>
           ) : null}
         </form>
+      )}
+
+      {(isLoading || deliberations.length > 0 || finalPrompt) ? (
+        <div className="mt-4 space-y-4">
+          {isLoading ? (
+            <div className="flex justify-start">
+              <div className="flex items-center gap-2 rounded-2xl bg-slate-100 px-4 py-2 text-xs text-slate-500">
+                AI 正在思考
+                <span className="typing-dot" />
+                <span className="typing-dot typing-dot-delay-1" />
+                <span className="typing-dot typing-dot-delay-2" />
+              </div>
+            </div>
+          ) : null}
+          {renderDeliberations()}
+          {finalPrompt ? (
+            <section className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs uppercase tracking-[0.32em] text-emerald-700">
+                  最终 Prompt
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCopyFinalPrompt}
+                    className="rounded-lg border border-emerald-300 bg-white px-3 py-1 text-xs font-medium text-emerald-800 transition hover:bg-emerald-100"
+                  >
+                    {copyState === "success"
+                      ? "已复制"
+                      : copyState === "error"
+                        ? "复制失败"
+                        : "复制"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDownloadFinalPrompt}
+                    className="rounded-lg border border-emerald-200 bg-white px-3 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100"
+                  >
+                    下载
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExportSession}
+                    className="rounded-lg border border-emerald-200 bg-white px-3 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100"
+                  >
+                    导出 JSON
+                  </button>
+                </div>
+              </div>
+              {copyState === "error" ? (
+                <p className="mt-2 text-xs text-rose-500">
+                  复制失败，请手动选择文本复制。
+                </p>
+              ) : null}
+              <pre className="mt-3 max-h-56 overflow-y-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-emerald-900">
+                {finalPrompt}
+              </pre>
+            </section>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );
