@@ -145,6 +145,22 @@ export default function Home() {
     }
   }, [projectId, isCreatingSession, createSession]);
 
+  const handleSessionTitleUpdate = useCallback(
+    (title: string) => {
+      if (!currentSessionId) {
+        return;
+      }
+      setSessions((prev) =>
+        prev.map((session) =>
+          session.id === currentSessionId
+            ? { ...session, last_message: title }
+            : session
+        )
+      );
+    },
+    [currentSessionId]
+  );
+
   const handleDeleteSession = useCallback(
     async (sessionId: string) => {
       if (!projectId) {
@@ -246,6 +262,7 @@ export default function Home() {
                 sessionId={currentSessionId}
                 initialMessages={initialMessages}
                 initialState={initialState ?? undefined}
+                onSessionTitleUpdate={handleSessionTitleUpdate}
               />
             ) : null}
           </section>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -13,7 +14,8 @@ import {
   type Question,
   type SessionState,
 } from "../lib/schemas";
-import { updateSessionState } from "../src/app/actions";
+import { createArtifactFromPrompt, updateSessionState } from "../src/app/actions";
+import { deriveTitleFromPrompt } from "../lib/template";
 
 const OTHER_OPTION_ID = "__other__";
 const NONE_OPTION_ID = "__none__";
@@ -37,6 +39,7 @@ type ChatInterfaceProps = {
   initialMessages?: HistoryItem[];
   initialState?: SessionState;
   isDisabled?: boolean;
+  onSessionTitleUpdate?: (title: string) => void;
 };
 
 const getQuestionKey = (question: Question, index: number) =>
@@ -148,7 +151,9 @@ export default function ChatInterface({
   initialMessages = [],
   initialState,
   isDisabled = false,
+  onSessionTitleUpdate,
 }: ChatInterfaceProps) {
+  const router = useRouter();
   const [messages, setMessages] = useState<HistoryItem[]>(initialMessages);
   const [pendingQuestions, setPendingQuestions] = useState<Question[]>([]);
   const [draftAnswers, setDraftAnswers] = useState<Record<string, DraftAnswer>>({});
@@ -171,6 +176,10 @@ export default function ChatInterface({
   const [deliberations, setDeliberations] = useState<
     LLMResponse["deliberations"]
   >([]);
+  const [exportStatus, setExportStatus] = useState<
+    "idle" | "saving" | "success" | "error"
+  >("idle");
+  const [exportError, setExportError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -190,7 +199,17 @@ export default function ChatInterface({
     setCopyState("idle");
     setDeliberations(initialState?.deliberations ?? []);
     setSaveStatus("idle");
+    setExportStatus("idle");
+    setExportError(null);
   }, [projectId, sessionId, initialMessages, initialState]);
+
+  useEffect(() => {
+    if (!finalPrompt) {
+      return;
+    }
+    const title = deriveTitleFromPrompt(finalPrompt);
+    onSessionTitleUpdate?.(title);
+  }, [finalPrompt, onSessionTitleUpdate]);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -691,6 +710,27 @@ export default function ChatInterface({
     URL.revokeObjectURL(url);
   };
 
+  const handleExportArtifact = async () => {
+    if (!finalPrompt || exportStatus === "saving") {
+      return;
+    }
+
+    setExportStatus("saving");
+    setExportError(null);
+
+    try {
+      const artifact = await createArtifactFromPrompt(projectId, finalPrompt);
+      setExportStatus("success");
+      router.push(`/artifacts/${artifact.id}?projectId=${projectId}`);
+    } catch (error) {
+      logDebug("导出制品失败", error);
+      setExportStatus("error");
+      setExportError(
+        error instanceof Error ? error.message : "导出制品失败，请重试。"
+      );
+    }
+  };
+
   const renderDeliberations = () => {
     if (!deliberations || deliberations.length === 0) {
       return null;
@@ -1068,6 +1108,14 @@ export default function ChatInterface({
                 </button>
                 <button
                   type="button"
+                  onClick={handleExportArtifact}
+                  className="rounded-lg border border-emerald-300 bg-white px-3 py-1 text-xs font-medium text-emerald-800 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={exportStatus === "saving"}
+                >
+                  {exportStatus === "saving" ? "导出中..." : "导出为制品"}
+                </button>
+                <button
+                  type="button"
                   onClick={handleDownloadFinalPrompt}
                   className="rounded-lg border border-emerald-200 bg-white px-3 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100"
                 >
@@ -1085,6 +1133,16 @@ export default function ChatInterface({
             {copyState === "error" ? (
               <p className="mt-2 text-xs text-rose-500">
                 复制失败，请手动选择文本复制。
+              </p>
+            ) : null}
+            {exportStatus === "error" ? (
+              <p className="mt-2 text-xs text-rose-500">
+                {exportError ?? "导出制品失败，请重试。"}
+              </p>
+            ) : null}
+            {exportStatus === "success" ? (
+              <p className="mt-2 text-xs text-emerald-700">
+                已导出为制品，正在打开详情页。
               </p>
             ) : null}
             <pre className="mt-3 max-h-56 overflow-y-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-emerald-900">

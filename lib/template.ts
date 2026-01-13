@@ -36,3 +36,31 @@ export const renderTemplate = (
 
   return replaced.replaceAll(ESCAPED_LEFT_BRACE, "{{");
 };
+
+const TITLE_LABEL_REGEX =
+  /^(role|角色|title|标题|system prompt|prompt|任务|目标)[:：]\s*/i;
+
+export const deriveTitleFromPrompt = (prompt: string) => {
+  const lines = prompt
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length === 0) {
+    return "新对话";
+  }
+
+  const cleaned = lines.map((line) =>
+    line
+      .replace(/^#+\s*/, "")
+      .replace(/^[-*]\s*/, "")
+      .replace(TITLE_LABEL_REGEX, "")
+      .trim()
+  );
+
+  const candidate = cleaned.find((line) => line.length > 1) ?? cleaned[0] ?? "";
+  if (!candidate) {
+    return "新对话";
+  }
+
+  return candidate.length > 24 ? `${candidate.slice(0, 24)}…` : candidate;
+};

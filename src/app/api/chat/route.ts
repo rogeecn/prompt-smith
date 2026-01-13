@@ -8,6 +8,7 @@ import {
   LLMResponseSchema,
   SessionStateSchema,
 } from "../../../../lib/schemas";
+import { deriveTitleFromPrompt } from "../../../../lib/template";
 
 const historyArraySchema = HistoryItemSchema.array();
 const isDebug = process.env.NODE_ENV !== "production";
@@ -337,6 +338,9 @@ export async function POST(req: Request) {
       deliberations: normalizedResponse.deliberations,
       final_prompt: normalizedResponse.final_prompt,
       is_finished: normalizedResponse.is_finished,
+      title: normalizedResponse.final_prompt
+        ? deriveTitleFromPrompt(normalizedResponse.final_prompt)
+        : null,
     });
 
     if (isDebug) {

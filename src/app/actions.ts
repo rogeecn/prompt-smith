@@ -13,6 +13,7 @@ import {
   type SessionState,
 } from "../../lib/schemas";
 import { z } from "zod";
+import { deriveTitleFromPrompt, extractTemplateVariables } from "../../lib/template";
 
 const projectIdSchema = z.string().uuid();
 const sessionIdSchema = z.string().min(1);
@@ -20,7 +21,14 @@ const artifactIdSchema = z.string().min(1);
 const isDebug =
   process.env.DEBUG_ACTIONS === "true" || process.env.DEBUG_ACTIONS === "1";
 
-const formatSessionSummary = (history: unknown) => {
+const formatSessionSummary = (history: unknown, state?: unknown) => {
+  if (state && typeof state === "object" && !Array.isArray(state)) {
+    const record = state as Record<string, unknown>;
+    if (typeof record.title === "string" && record.title.trim()) {
+      return record.title.trim();
+    }
+  }
+
   const parsed = HistoryItemSchema.array().safeParse(history);
   if (!parsed.success || parsed.data.length === 0) {
     return "未开始";
@@ -104,6 +112,7 @@ const normalizeSessionState = (value: unknown): SessionState => {
     final_prompt:
       typeof record.final_prompt === "string" ? record.final_prompt : null,
     is_finished: typeof record.is_finished === "boolean" ? record.is_finished : false,
+    title: typeof record.title === "string" ? record.title : null,
     draft_answers: normalizeDraftAnswers(record.draft_answers),
   };
 };
@@ -195,6 +204,49 @@ export async function createArtifact(projectId: string) {
   });
 
   logDebug("createArtifact:done", { artifactId: artifact.id });
+  return {
+    ...artifact,
+    variables: normalizeArtifactVariables(artifact.variables),
+  };
+}
+
+export async function createArtifactFromPrompt(
+  projectId: string,
+  promptContent: string,
+  title?: string
+) {
+  const parsedProjectId = projectIdSchema.safeParse(projectId);
+  if (!parsedProjectId.success) {
+    logDebug("createArtifactFromPrompt:invalid", { projectId });
+    throw new Error("Invalid projectId");
+  }
+
+  const trimmedPrompt = promptContent.trim();
+  if (!trimmedPrompt) {
+    logDebug("createArtifactFromPrompt:empty");
+    throw new Error("Prompt content is required");
+  }
+
+  const derivedTitle =
+    title?.trim() || deriveTitleFromPrompt(trimmedPrompt) || "未命名制品";
+  const variables = extractTemplateVariables(trimmedPrompt).map((key) => ({
+    key,
+    label: key,
+    type: "string" as const,
+    required: true,
+  }));
+
+  const artifact = await prisma.artifact.create({
+    data: {
+      projectId: parsedProjectId.data,
+      title: derivedTitle,
+      problem: "由最终 Prompt 导出",
+      prompt_content: trimmedPrompt,
+      variables,
+    },
+  });
+
+  logDebug("createArtifactFromPrompt:done", { artifactId: artifact.id });
   return {
     ...artifact,
     variables: normalizeArtifactVariables(artifact.variables),
@@ -432,6 +484,7 @@ export async function createSession(projectId: string) {
       projectId: parsedProjectId.data,
       history: [],
     },
+    select: { id: true, created_at: true, history: true, state: true },
   });
 
   logDebug("createSession:done", { sessionId: session.id });
@@ -476,7 +529,7 @@ export async function loadProjectContext(projectId: string) {
   let sessions = await prisma.session.findMany({
     where: { projectId: project.id },
     orderBy: { created_at: "desc" },
-    select: { id: true, created_at: true, history: true },
+    select: { id: true, created_at: true, history: true, state: true },
   });
 
   if (sessions.length === 0) {
@@ -513,7 +566,7 @@ export async function loadProjectContext(projectId: string) {
     sessions: sessions.map((session) => ({
       id: session.id,
       created_at: session.created_at,
-      last_message: formatSessionSummary(session.history),
+      last_message: formatSessionSummary(session.history, session.state),
     })),
     currentSessionId,
     state,

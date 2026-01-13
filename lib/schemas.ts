@@ -124,6 +124,7 @@ export const SessionStateSchema = z.object({
   deliberations: z.array(DeliberationStageSchema).default([]),
   final_prompt: z.string().nullable().default(null),
   is_finished: z.boolean().default(false),
+  title: z.string().nullable().default(null),
   draft_answers: DraftAnswerRecordSchema,
 });
 
