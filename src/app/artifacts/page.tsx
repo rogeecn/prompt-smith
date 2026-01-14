@@ -15,7 +15,7 @@ import type {
   ArtifactUpdate,
   ArtifactVariable,
 } from "../../../lib/schemas";
-import { extractTemplateVariables } from "../../../lib/template";
+import { parseTemplateVariables } from "../../../lib/template";
 
 const projectIdSchema = z.string().uuid();
 
@@ -136,9 +136,13 @@ export default function ArtifactsPage() {
     () => artifacts.find((item) => item.id === currentArtifactId) ?? null,
     [artifacts, currentArtifactId]
   );
-  const templateKeys = useMemo(
-    () => extractTemplateVariables(form.prompt_content),
+  const templateVariables = useMemo(
+    () => parseTemplateVariables(form.prompt_content),
     [form.prompt_content]
+  );
+  const templateKeys = useMemo(
+    () => templateVariables.map((item) => item.key),
+    [templateVariables]
   );
   const hasTemplateMarkers = form.prompt_content.includes("{{");
 
@@ -197,7 +201,9 @@ export default function ArtifactsPage() {
           label: variable.label.trim() || variable.key.trim(),
         })),
       };
-      const templateKeysLocal = extractTemplateVariables(trimmed.prompt_content);
+      const templateKeysLocal = parseTemplateVariables(
+        trimmed.prompt_content
+      ).map((item) => item.key);
       const variableKeys = trimmed.variables.map((variable) => variable.key);
       const uniqueKeys = new Set(variableKeys.filter(Boolean));
       if (uniqueKeys.size !== variableKeys.filter(Boolean).length) {
@@ -267,7 +273,7 @@ export default function ArtifactsPage() {
   };
 
   const handleExtractVariables = () => {
-    if (templateKeys.length === 0) {
+    if (templateVariables.length === 0) {
       setError("模板中未检测到变量占位符。");
       return;
     }
@@ -277,16 +283,37 @@ export default function ArtifactsPage() {
       const existing = new Map(
         (prev.variables ?? []).map((variable) => [variable.key, variable])
       );
-      const nextVariables = templateKeys.map((key) => {
-        const existingVariable = existing.get(key);
+      const nextVariables = templateVariables.map((variable) => {
+        const existingVariable = existing.get(variable.key);
         if (existingVariable) {
-          return existingVariable;
+          return {
+            ...existingVariable,
+            label: existingVariable.label || variable.label || variable.key,
+            type: existingVariable.type || variable.type || "string",
+            required:
+              existingVariable.required ?? variable.required ?? true,
+            placeholder:
+              existingVariable.placeholder ?? variable.placeholder,
+            default: existingVariable.default ?? variable.default,
+            options: existingVariable.options ?? variable.options,
+            joiner: existingVariable.joiner ?? variable.joiner,
+            true_label:
+              existingVariable.true_label ?? variable.true_label,
+            false_label:
+              existingVariable.false_label ?? variable.false_label,
+          };
         }
         return {
-          key,
-          label: key,
-          type: "string" as const,
-          required: true,
+          key: variable.key,
+          label: variable.label ?? variable.key,
+          type: variable.type ?? "string",
+          required: variable.required ?? true,
+          placeholder: variable.placeholder,
+          default: variable.default,
+          options: variable.options,
+          joiner: variable.joiner,
+          true_label: variable.true_label,
+          false_label: variable.false_label,
         };
       });
       return { ...prev, variables: nextVariables };

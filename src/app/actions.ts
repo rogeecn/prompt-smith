@@ -13,7 +13,7 @@ import {
   type SessionState,
 } from "../../lib/schemas";
 import { z } from "zod";
-import { deriveTitleFromPrompt, extractTemplateVariables } from "../../lib/template";
+import { deriveTitleFromPrompt, parseTemplateVariables } from "../../lib/template";
 
 const projectIdSchema = z.string().uuid();
 const sessionIdSchema = z.string().min(1);
@@ -229,11 +229,18 @@ export async function createArtifactFromPrompt(
 
   const derivedTitle =
     title?.trim() || deriveTitleFromPrompt(trimmedPrompt) || "未命名制品";
-  const variables = extractTemplateVariables(trimmedPrompt).map((key) => ({
-    key,
-    label: key,
-    type: "string" as const,
-    required: true,
+  const parsedVariables = parseTemplateVariables(trimmedPrompt);
+  const variables = parsedVariables.map((variable) => ({
+    key: variable.key,
+    label: variable.label ?? variable.key,
+    type: variable.type ?? ("string" as const),
+    required: variable.required ?? true,
+    placeholder: variable.placeholder,
+    default: variable.default,
+    options: variable.options,
+    joiner: variable.joiner,
+    true_label: variable.true_label,
+    false_label: variable.false_label,
   }));
 
   const artifact = await prisma.artifact.create({

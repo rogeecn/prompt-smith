@@ -12,6 +12,7 @@ import {
 import {
   deriveTitleFromPrompt,
   extractTemplateVariables,
+  parseTemplateVariables,
 } from "../../../../lib/template";
 
 const historyArraySchema = HistoryItemSchema.array();
@@ -260,10 +261,13 @@ const buildSystemPrompt = ({
     "- deliberations 用于展示多 Agent 评分过程：建议 1-2 个阶段、2-3 个 Agent，分数 0-10。",
     "- 每次响应至少返回 1 个 deliberation。",
     "- answers 内部约定：value 为 '__other__' 表示选择了“其他”，此时 other 字段为用户输入；value 为 '__none__' 表示“不需要此功能”。严禁向用户解释这些约定。",
-    "- final_prompt 必须是“制品模板”，包含可配置变量占位符，格式为 {{variable_name}}。",
+    "- final_prompt 必须是“制品模板”，变量占位符需携带元信息。",
+    "- 语法：{{key|label:字段名|type:string|default:默认值|placeholder:输入提示|required:true}}。",
+    "- enum 变量必须提供 options（逗号分隔），示例：{{tone|label:语气|type:enum|options:专业,亲切,幽默|default:专业}}。",
     `- final_prompt 至少包含 ${Number.isFinite(MIN_PROMPT_VARIABLES) ? MIN_PROMPT_VARIABLES : 3} 个占位符，变量名只能使用英文字母、数字与下划线，且以字母开头。`,
+    "- 每个变量必须至少包含 label 与 type；enum 需包含 options。",
     "- 变量建议覆盖：主题/目标、受众/角色、输出格式/风格、约束/规则、输入/示例等（至少覆盖三类）。",
-    "- 即使已确定具体值，也应保留占位符，并可在括号中写默认值示例。",
+    "- 即使已确定具体值，也应保留占位符，并在 default 中写建议值。",
     forceFinalize
       ? "- 已到追问上限：必须输出 final_prompt（不可为 null/空字符串），is_finished=true，questions=[]。"
       : "- 若信息已足够，请直接输出 final_prompt 并将 questions 设为空数组。",
@@ -276,7 +280,8 @@ const buildGuardPrompt = (minVariables: number) =>
     "你是制品 Prompt 的 Guard Prompt 审核器。",
     "目标：确保 final_prompt 是可复用模板，包含足够的 {{variable}} 占位符用于方向控制。",
     "审核要点：",
-    "- 必须使用 {{variable_name}} 语法。",
+    "- 变量必须使用扩展语法：{{key|label:字段名|type:string|default:默认值|placeholder:输入提示|required:true}}。",
+    "- 每个变量必须包含 label 与 type；enum 必须包含 options。",
     "- 至少包含指定数量的占位符。",
     "- 变量名仅允许英文字母/数字/下划线，且以字母开头。",
     "- 变量应覆盖至少三类：主题/目标、受众/角色、输出格式/风格、约束/规则、输入/示例（可自行判断类别映射）。",
@@ -293,6 +298,26 @@ const buildGuardPrompt = (minVariables: number) =>
     "不要输出任何额外文本。",
   ].join("\n");
 
+const buildGuardFixPrompt = (minVariables: number) =>
+  [
+    "你是制品 Prompt 的模板修复器。",
+    "任务：根据输入 Prompt 修复变量占位符的元信息缺失问题，输出完整可用的模板。",
+    "要求：",
+    "- 使用扩展语法：{{key|label:字段名|type:string|default:默认值|placeholder:输入提示|required:true}}。",
+    "- 每个变量必须包含 label 与 type；enum 必须包含 options。",
+    "- 变量名仅允许英文字母/数字/下划线，且以字母开头。",
+    "- 保持原有结构与内容逻辑，只补齐变量信息或必要的占位符。",
+    `- 至少包含 ${Number.isFinite(minVariables) ? minVariables : 3} 个变量占位符。`,
+    "输出严格 JSON：",
+    "{",
+    '  "pass": boolean,',
+    '  "issues": string[],',
+    '  "revised_prompt": string,',
+    '  "variables": string[]',
+    "}",
+    "不要输出任何额外文本。",
+  ].join("\n");
+
 const runGuardReview = async (prompt: string) => {
   const guardPrompt = buildGuardPrompt(MIN_PROMPT_VARIABLES);
   const guardResponse = await generateWithRetry({
@@ -304,6 +329,49 @@ const runGuardReview = async (prompt: string) => {
     output: { schema: GuardPromptReviewSchema },
   });
   return guardResponse.output;
+};
+
+const runGuardFix = async (prompt: string, issues: string[]) => {
+  const guardPrompt = buildGuardFixPrompt(MIN_PROMPT_VARIABLES);
+  const guardResponse = await generateWithRetry({
+    model: getCompatModel(process.env.OPENAI_MODEL),
+    messages: [
+      { role: "system", content: [{ text: guardPrompt }] },
+      {
+        role: "user",
+        content: [
+          {
+            text: [
+              "PROMPT:",
+              prompt,
+              "",
+              "ISSUES:",
+              ...issues.map((issue) => `- ${issue}`),
+            ].join("\n"),
+          },
+        ],
+      },
+    ],
+    output: { schema: GuardPromptReviewSchema },
+  });
+  return guardResponse.output;
+};
+
+const validateTemplateMeta = (prompt: string) => {
+  const parsed = parseTemplateVariables(prompt);
+  const missing: string[] = [];
+  parsed.forEach((item) => {
+    if (!item.label) {
+      missing.push(`变量 ${item.key} 缺少 label`);
+    }
+    if (!item.type) {
+      missing.push(`变量 ${item.key} 缺少 type`);
+    }
+    if (item.type === "enum" && (!item.options || item.options.length === 0)) {
+      missing.push(`变量 ${item.key} enum 缺少 options`);
+    }
+  });
+  return { variables: parsed, missing };
 };
 
 const normalizeLlmResponse = (raw: unknown) => {
@@ -521,6 +589,37 @@ export async function POST(req: Request) {
         if (!secondReview.pass) {
           console.error("[api/chat] guard revision failed", {
             issues: secondReview.issues,
+          });
+          throw new Error("Prompt guard failed");
+        }
+        finalPrompt = revised;
+        review = secondReview;
+      }
+
+      const metaCheck = validateTemplateMeta(finalPrompt);
+      if (metaCheck.missing.length > 0) {
+        console.warn("[api/chat] guard meta missing", {
+          missing: metaCheck.missing,
+        });
+        const fixReview = await runGuardFix(finalPrompt, metaCheck.missing);
+        const revised = fixReview.revised_prompt?.trim() ?? "";
+        if (!revised) {
+          console.error("[api/chat] guard fix failed without revision", {
+            issues: fixReview.issues,
+          });
+          throw new Error("Prompt guard failed");
+        }
+        const secondReview = await runGuardReview(revised);
+        if (!secondReview.pass) {
+          console.error("[api/chat] guard fix revision failed", {
+            issues: secondReview.issues,
+          });
+          throw new Error("Prompt guard failed");
+        }
+        const secondMetaCheck = validateTemplateMeta(revised);
+        if (secondMetaCheck.missing.length > 0) {
+          console.error("[api/chat] guard meta still missing", {
+            missing: secondMetaCheck.missing,
           });
           throw new Error("Prompt guard failed");
         }
