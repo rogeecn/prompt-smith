@@ -80,6 +80,7 @@ export default function ArtifactChat({
   const [isLoading, setIsLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [retryMessage, setRetryMessage] = useState<string | null>(null);
+  const [isConfigHidden, setIsConfigHidden] = useState(false);
   const listRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -89,6 +90,7 @@ export default function ArtifactChat({
     setIsLoading(false);
     setFormError(null);
     setRetryMessage(null);
+    setIsConfigHidden(false);
   }, [projectId, artifactId, sessionId, initialMessages]);
 
   useEffect(() => {
@@ -131,14 +133,14 @@ export default function ArtifactChat({
   const sendMessage = async (
     message: string,
     options?: { appendUser?: boolean }
-  ) => {
+  ): Promise<boolean> => {
     if (isLoading || isDisabled || !sessionId) {
-      return;
+      return false;
     }
 
     const trimmed = message.trim();
     if (!trimmed) {
-      return;
+      return false;
     }
 
     const appendUser = options?.appendUser ?? true;
@@ -209,7 +211,7 @@ export default function ArtifactChat({
     setVariableErrors(inputErrors);
     if (Object.keys(inputErrors).length > 0) {
       setFormError("请先完善变量配置。");
-      return;
+      return false;
     }
 
     if (appendUser) {
@@ -284,6 +286,7 @@ export default function ArtifactChat({
     } finally {
       setIsLoading(false);
     }
+    return true;
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -299,14 +302,22 @@ export default function ArtifactChat({
   };
 
   const handleInitialGenerate = async () => {
-    await sendMessage(INITIAL_DRAFT_MESSAGE, { appendUser: false });
+    const didStart = await sendMessage(INITIAL_DRAFT_MESSAGE, {
+      appendUser: false,
+    });
+    if (didStart) {
+      setIsConfigHidden(true);
+    }
   };
 
   const hasConversation = messages.length > 0;
+  const shouldShowConfig =
+    variables.length > 0 && !isConfigHidden && !hasConversation;
+  const shouldShowChat = hasConversation || isConfigHidden;
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
-      {variables.length > 0 ? (
+      {shouldShowConfig ? (
         <section
           className={[
             "mb-4 rounded-2xl bg-white/70 p-4 shadow-sm",
@@ -460,7 +471,7 @@ export default function ArtifactChat({
           ) : null}
         </section>
       ) : null}
-      {hasConversation ? (
+      {shouldShowChat ? (
         <>
           <div
             ref={listRef}
@@ -500,64 +511,70 @@ export default function ArtifactChat({
                   <span className="typing-dot typing-dot-delay-2" />
                 </div>
               </div>
+            ) : messages.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-xs text-slate-400">
+                正在生成初稿...
+              </div>
             ) : null}
           </div>
 
-          <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-3">
-            <div className="rounded-2xl border border-slate-200/60 bg-white/70 p-4">
-              <label className="text-xs uppercase tracking-[0.32em] text-slate-400">
-                继续对话
-              </label>
-              <textarea
-                ref={textareaRef}
-                name="artifact-message"
-                value={input}
-                onChange={(event) => setInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    void sendMessage(input);
-                  }
-                }}
-                placeholder="输入你的需求或补充信息..."
-                maxLength={1000}
-                rows={1}
-                className="mt-2 w-full resize-none rounded-xl border border-slate-200/60 bg-white px-4 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
-                disabled={isLoading || isDisabled}
-              />
-              <p className="mt-2 text-[11px] text-slate-400">
-                回车发送，Shift+Enter 换行
-              </p>
-            </div>
-            <div className="flex items-center justify-between">
-              {formError ? (
-                <div className="flex items-center gap-2 text-xs text-rose-500">
-                  <span>{formError}</span>
-                  {retryMessage ? (
-                    <button
-                      type="button"
-                      onClick={handleRetry}
-                      className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] text-rose-600 transition hover:bg-rose-100"
-                      disabled={isLoading || isDisabled}
-                    >
-                      重试
-                    </button>
-                  ) : null}
-                </div>
-              ) : (
-                <span className="text-xs text-slate-400">
-                  {isLoading ? "正在调用制品..." : ""}
-                </span>
-              )}
-              <button
-                type="submit"
-                disabled={isLoading || isDisabled}
-                className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-              >
-                发送
-              </button>
-            </div>
-          </form>
+          {hasConversation ? (
+            <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-3">
+              <div className="rounded-2xl border border-slate-200/60 bg-white/70 p-4">
+                <label className="text-xs uppercase tracking-[0.32em] text-slate-400">
+                  继续对话
+                </label>
+                <textarea
+                  ref={textareaRef}
+                  name="artifact-message"
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.shiftKey) {
+                      event.preventDefault();
+                      void sendMessage(input);
+                    }
+                  }}
+                  placeholder="输入你的需求或补充信息..."
+                  maxLength={1000}
+                  rows={1}
+                  className="mt-2 w-full resize-none rounded-xl border border-slate-200/60 bg-white px-4 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                  disabled={isLoading || isDisabled}
+                />
+                <p className="mt-2 text-[11px] text-slate-400">
+                  回车发送，Shift+Enter 换行
+                </p>
+              </div>
+              <div className="flex items-center justify-between">
+                {formError ? (
+                  <div className="flex items-center gap-2 text-xs text-rose-500">
+                    <span>{formError}</span>
+                    {retryMessage ? (
+                      <button
+                        type="button"
+                        onClick={handleRetry}
+                        className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] text-rose-600 transition hover:bg-rose-100"
+                        disabled={isLoading || isDisabled}
+                      >
+                        重试
+                      </button>
+                    ) : null}
+                  </div>
+                ) : (
+                  <span className="text-xs text-slate-400">
+                    {isLoading ? "正在调用制品..." : ""}
+                  </span>
+                )}
+                <button
+                  type="submit"
+                  disabled={isLoading || isDisabled}
+                  className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  发送
+                </button>
+              </div>
+            </form>
+          ) : null}
         </>
       ) : null}
     </div>
