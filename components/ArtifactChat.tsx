@@ -52,6 +52,8 @@ const buildInitialInputs = (variables: ArtifactVariable[]) =>
     return acc;
   }, {});
 
+const INITIAL_DRAFT_MESSAGE = "请根据当前变量生成初稿。";
+
 type ArtifactChatProps = {
   projectId: string;
   artifactId: string;
@@ -296,10 +298,21 @@ export default function ArtifactChat({
     await sendMessage(retryMessage, { appendUser: false });
   };
 
+  const handleInitialGenerate = async () => {
+    await sendMessage(INITIAL_DRAFT_MESSAGE, { appendUser: false });
+  };
+
+  const hasConversation = messages.length > 0;
+
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
       {variables.length > 0 ? (
-        <section className="mb-4 rounded-2xl bg-white/70 p-4 shadow-sm">
+        <section
+          className={[
+            "mb-4 rounded-2xl bg-white/70 p-4 shadow-sm",
+            !hasConversation ? "flex min-h-0 flex-1 flex-col" : "",
+          ].join(" ")}
+        >
           <div className="flex items-center justify-between">
             <p className="text-xs uppercase tracking-[0.32em] text-slate-400">
               变量配置
@@ -308,7 +321,12 @@ export default function ArtifactChat({
               用于替换制品模板中的占位符
             </span>
           </div>
-          <div className="mt-3 max-h-48 space-y-3 overflow-y-auto">
+          <div
+            className={[
+              "mt-4 grid gap-3 sm:grid-cols-2",
+              !hasConversation ? "min-h-0 flex-1 overflow-y-auto pr-1" : "",
+            ].join(" ")}
+          >
             {variables.map((variable) => {
               const label = variable.label || variable.key;
               const value = variableInputs[variable.key] ?? "";
@@ -317,7 +335,10 @@ export default function ArtifactChat({
               return (
                 <div
                   key={variable.key}
-                  className="rounded-xl bg-white/80 p-3 shadow-sm"
+                  className={[
+                    "rounded-xl bg-white/80 p-3 shadow-sm",
+                    variable.type === "text" ? "sm:col-span-2" : "",
+                  ].join(" ")}
                 >
                   <div className="flex items-center justify-between text-xs text-slate-500">
                     <span className="font-semibold text-slate-700">{label}</span>
@@ -406,110 +427,139 @@ export default function ArtifactChat({
               );
             })}
           </div>
+          {!hasConversation ? (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+              {formError ? (
+                <div className="flex items-center gap-2 text-xs text-rose-500">
+                  <span>{formError}</span>
+                  {retryMessage ? (
+                    <button
+                      type="button"
+                      onClick={handleRetry}
+                      className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] text-rose-600 transition hover:bg-rose-100"
+                      disabled={isLoading || isDisabled}
+                    >
+                      重试
+                    </button>
+                  ) : null}
+                </div>
+              ) : (
+                <span className="text-xs text-slate-400">
+                  配置完成后可直接生成初稿
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={handleInitialGenerate}
+                disabled={isLoading || isDisabled}
+                className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+              >
+                {isLoading ? "生成中..." : "开始生成"}
+              </button>
+            </div>
+          ) : null}
         </section>
       ) : null}
-      <div
-        ref={listRef}
-        className="flex-1 min-h-0 space-y-4 overflow-y-auto rounded-2xl border border-slate-200/60 bg-white/70 p-4"
-      >
-        {messages.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-sm text-slate-400">
-            请输入你的需求，让制品开始工作。
-          </div>
-        ) : (
-          messages.map((item, index) => {
-            const isUser = item.role === "user";
-            return (
-              <div
-                key={`${item.timestamp}-${index}`}
-                className={isUser ? "flex justify-end" : "flex justify-start"}
-              >
+      {hasConversation ? (
+        <>
+          <div
+            ref={listRef}
+            className="flex-1 min-h-0 space-y-4 overflow-y-auto rounded-2xl border border-slate-200/60 bg-white/70 p-4"
+          >
+            {messages.map((item, index) => {
+              const isUser = item.role === "user";
+              return (
                 <div
-                  className={[
-                    "max-w-[80%] rounded-2xl px-4 py-3 text-sm shadow-sm",
-                    isUser
-                      ? "bg-slate-900 text-white"
-                      : "bg-slate-100 text-slate-900",
-                  ].join(" ")}
+                  key={`${item.timestamp}-${index}`}
+                  className={isUser ? "flex justify-end" : "flex justify-start"}
                 >
-                  <div className="whitespace-pre-wrap break-words leading-relaxed [&_code]:rounded [&_code]:bg-slate-200/80 [&_code]:px-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {item.content}
-                    </ReactMarkdown>
+                  <div
+                    className={[
+                      "max-w-[80%] rounded-2xl px-4 py-3 text-sm shadow-sm",
+                      isUser
+                        ? "bg-slate-900 text-white"
+                        : "bg-slate-100 text-slate-900",
+                    ].join(" ")}
+                  >
+                    <div className="whitespace-pre-wrap break-words leading-relaxed [&_code]:rounded [&_code]:bg-slate-200/80 [&_code]:px-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {item.content}
+                      </ReactMarkdown>
+                    </div>
                   </div>
                 </div>
+              );
+            })}
+
+            {isLoading ? (
+              <div className="flex justify-start">
+                <div className="flex items-center gap-2 rounded-2xl bg-slate-100 px-4 py-2 text-xs text-slate-500">
+                  AI 正在思考
+                  <span className="typing-dot" />
+                  <span className="typing-dot typing-dot-delay-1" />
+                  <span className="typing-dot typing-dot-delay-2" />
+                </div>
               </div>
-            );
-          })
-        )}
-
-        {isLoading ? (
-          <div className="flex justify-start">
-            <div className="flex items-center gap-2 rounded-2xl bg-slate-100 px-4 py-2 text-xs text-slate-500">
-              AI 正在思考
-              <span className="typing-dot" />
-              <span className="typing-dot typing-dot-delay-1" />
-              <span className="typing-dot typing-dot-delay-2" />
-            </div>
+            ) : null}
           </div>
-        ) : null}
-      </div>
 
-      <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-3">
-        <div className="rounded-2xl border border-slate-200/60 bg-white/70 p-4">
-          <label className="text-xs uppercase tracking-[0.32em] text-slate-400">
-            继续对话
-          </label>
-          <textarea
-            ref={textareaRef}
-            name="artifact-message"
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                void sendMessage(input);
-              }
-            }}
-            placeholder="输入你的需求或补充信息..."
-            maxLength={1000}
-            rows={1}
-            className="mt-2 w-full resize-none rounded-xl border border-slate-200/60 bg-white px-4 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
-            disabled={isLoading || isDisabled}
-          />
-          <p className="mt-2 text-[11px] text-slate-400">
-            回车发送，Shift+Enter 换行
-          </p>
-        </div>
-        <div className="flex items-center justify-between">
-          {formError ? (
-            <div className="flex items-center gap-2 text-xs text-rose-500">
-              <span>{formError}</span>
-              {retryMessage ? (
-                <button
-                  type="button"
-                  onClick={handleRetry}
-                  className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] text-rose-600 transition hover:bg-rose-100"
-                  disabled={isLoading || isDisabled}
-                >
-                  重试
-                </button>
-              ) : null}
+          <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-3">
+            <div className="rounded-2xl border border-slate-200/60 bg-white/70 p-4">
+              <label className="text-xs uppercase tracking-[0.32em] text-slate-400">
+                继续对话
+              </label>
+              <textarea
+                ref={textareaRef}
+                name="artifact-message"
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    void sendMessage(input);
+                  }
+                }}
+                placeholder="输入你的需求或补充信息..."
+                maxLength={1000}
+                rows={1}
+                className="mt-2 w-full resize-none rounded-xl border border-slate-200/60 bg-white px-4 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                disabled={isLoading || isDisabled}
+              />
+              <p className="mt-2 text-[11px] text-slate-400">
+                回车发送，Shift+Enter 换行
+              </p>
             </div>
-          ) : (
-            <span className="text-xs text-slate-400">
-              {isLoading ? "正在调用制品..." : ""}
-            </span>
-          )}
-          <button
-            type="submit"
-            disabled={isLoading || isDisabled}
-            className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-          >
-            发送
-          </button>
-        </div>
-      </form>
+            <div className="flex items-center justify-between">
+              {formError ? (
+                <div className="flex items-center gap-2 text-xs text-rose-500">
+                  <span>{formError}</span>
+                  {retryMessage ? (
+                    <button
+                      type="button"
+                      onClick={handleRetry}
+                      className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] text-rose-600 transition hover:bg-rose-100"
+                      disabled={isLoading || isDisabled}
+                    >
+                      重试
+                    </button>
+                  ) : null}
+                </div>
+              ) : (
+                <span className="text-xs text-slate-400">
+                  {isLoading ? "正在调用制品..." : ""}
+                </span>
+              )}
+              <button
+                type="submit"
+                disabled={isLoading || isDisabled}
+                className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+              >
+                发送
+              </button>
+            </div>
+          </form>
+        </>
+      ) : null}
     </div>
   );
 }
