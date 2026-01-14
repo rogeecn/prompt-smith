@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { z } from "zod";
-import TopNav from "../../../components/TopNav";
+import { Plus, Search, Layers, Box, Settings2, Play, Save, Trash2, ArrowLeft } from "lucide-react";
+import TopNav from "../../components/TopNav";
 import {
   createArtifact,
   createProject,
@@ -14,8 +15,8 @@ import type {
   Artifact,
   ArtifactUpdate,
   ArtifactVariable,
-} from "../../../lib/schemas";
-import { parseTemplateVariables } from "../../../lib/template";
+} from "../../lib/schemas";
+import { parseTemplateVariables } from "../../lib/template";
 
 const projectIdSchema = z.string().uuid();
 
@@ -34,15 +35,9 @@ const parseListValue = (value: string) =>
 
 const formatVariableDefault = (variable: ArtifactVariable) => {
   const fallback = variable.default;
-  if (fallback === undefined || fallback === null) {
-    return "";
-  }
-  if (variable.type === "boolean") {
-    return fallback === true ? "true" : fallback === false ? "false" : "";
-  }
-  if (variable.type === "list") {
-    return Array.isArray(fallback) ? fallback.join(", ") : String(fallback);
-  }
+  if (fallback === undefined || fallback === null) return "";
+  if (variable.type === "boolean") return fallback === true ? "true" : fallback === false ? "false" : "";
+  if (variable.type === "list") return Array.isArray(fallback) ? fallback.join(", ") : String(fallback);
   return String(fallback);
 };
 
@@ -59,18 +54,12 @@ export default function ArtifactsPage() {
   const hasRequestedRef = useRef(false);
 
   const rawProjectId = searchParams.get("projectId");
-  const validProjectId = projectIdSchema.safeParse(rawProjectId).success
-    ? rawProjectId
-    : null;
+  const validProjectId = projectIdSchema.safeParse(rawProjectId).success ? rawProjectId : null;
 
   const createAndRedirect = useCallback(async () => {
-    if (isCreating) {
-      return;
-    }
-
+    if (isCreating) return;
     setIsCreating(true);
     setError(null);
-
     try {
       const newProjectId = await createProject();
       setProjectId(newProjectId);
@@ -88,47 +77,37 @@ export default function ArtifactsPage() {
       setError(null);
       return;
     }
-
-    if (hasRequestedRef.current) {
-      return;
-    }
-
+    if (hasRequestedRef.current) return;
     hasRequestedRef.current = true;
     void createAndRedirect();
   }, [validProjectId, createAndRedirect]);
 
-  const refreshArtifacts = useCallback(
-    async (activeProjectId: string) => {
-      setError(null);
-      try {
-        let items = await listArtifacts(activeProjectId);
-        if (items.length === 0) {
-          await createArtifact(activeProjectId);
-          items = await listArtifacts(activeProjectId);
-        }
-        setArtifacts(items);
-        const first = items[0];
-        if (first) {
-          setCurrentArtifactId(first.id);
-          setForm({
-            title: first.title,
-            problem: first.problem,
-            prompt_content: first.prompt_content,
-            variables: first.variables ?? [],
-          });
-        }
-      } catch {
-        setError("加载制品失败，请重试。");
+  const refreshArtifacts = useCallback(async (activeProjectId: string) => {
+    setError(null);
+    try {
+      let items = await listArtifacts(activeProjectId);
+      if (items.length === 0) {
+        await createArtifact(activeProjectId);
+        items = await listArtifacts(activeProjectId);
       }
-    },
-    [listArtifacts, createArtifact]
-  );
+      setArtifacts(items);
+      const first = items[0];
+      if (first) {
+        setCurrentArtifactId(first.id);
+        setForm({
+          title: first.title,
+          problem: first.problem,
+          prompt_content: first.prompt_content,
+          variables: first.variables ?? [],
+        });
+      }
+    } catch {
+      setError("加载制品失败，请重试。");
+    }
+  }, [listArtifacts, createArtifact]);
 
   useEffect(() => {
-    if (!projectId) {
-      return;
-    }
-
+    if (!projectId) return;
     void refreshArtifacts(projectId);
   }, [projectId, refreshArtifacts]);
 
@@ -157,13 +136,9 @@ export default function ArtifactsPage() {
   };
 
   const handleCreateArtifact = async () => {
-    if (!projectId || isCreating) {
-      return;
-    }
-
+    if (!projectId || isCreating) return;
     setIsCreating(true);
     setError(null);
-
     try {
       const artifact = await createArtifact(projectId);
       const items = await listArtifacts(projectId);
@@ -183,13 +158,9 @@ export default function ArtifactsPage() {
   };
 
   const handleSave = async () => {
-    if (!projectId || !currentArtifactId || isSaving) {
-      return;
-    }
-
+    if (!projectId || !currentArtifactId || isSaving) return;
     setIsSaving(true);
     setError(null);
-
     try {
       const trimmed = {
         title: form.title.trim(),
@@ -201,10 +172,8 @@ export default function ArtifactsPage() {
           label: variable.label.trim() || variable.key.trim(),
         })),
       };
-      const templateKeysLocal = parseTemplateVariables(
-        trimmed.prompt_content
-      ).map((item) => item.key);
-      const variableKeys = trimmed.variables.map((variable) => variable.key);
+      const templateKeysLocal = parseTemplateVariables(trimmed.prompt_content).map(i => i.key);
+      const variableKeys = trimmed.variables.map(v => v.key);
       const uniqueKeys = new Set(variableKeys.filter(Boolean));
       if (uniqueKeys.size !== variableKeys.filter(Boolean).length) {
         setError("变量名重复，请检查配置。");
@@ -214,12 +183,11 @@ export default function ArtifactsPage() {
         setError("检测到模板变量，请先配置变量或清理占位符。");
         return;
       }
-      const missingKeys = templateKeysLocal.filter((key) => !uniqueKeys.has(key));
+      const missingKeys = templateKeysLocal.filter(k => !uniqueKeys.has(k));
       if (missingKeys.length > 0) {
         setError(`缺少变量配置：${missingKeys.join(", ")}`);
         return;
       }
-
       await updateArtifact(projectId, currentArtifactId, trimmed);
       const items = await listArtifacts(projectId);
       setArtifacts(items);
@@ -231,41 +199,25 @@ export default function ArtifactsPage() {
   };
 
   const handleUseArtifact = () => {
-    if (!projectId || !currentArtifactId) {
-      return;
-    }
+    if (!projectId || !currentArtifactId) return;
     router.push(`/artifacts/${currentArtifactId}?projectId=${projectId}`);
   };
 
-  const updateVariableAt = (
-    index: number,
-    patch: Partial<ArtifactVariable>
-  ) => {
+  const updateVariableAt = (index: number, patch: Partial<ArtifactVariable>) => {
     setForm((prev) => {
       const nextVariables = [...(prev.variables ?? [])];
-      const current = nextVariables[index] ?? {
-        key: "",
-        label: "",
-        type: "string",
-        required: true,
-      };
+      const current = nextVariables[index] ?? { key: "", label: "", type: "string", required: true };
       nextVariables[index] = { ...current, ...patch };
       return { ...prev, variables: nextVariables };
     });
   };
 
   const handleAddVariable = () => {
-    setForm((prev) => ({
-      ...prev,
-      variables: [
-        ...(prev.variables ?? []),
-        { key: "", label: "", type: "string", required: true },
-      ],
-    }));
+    setForm(prev => ({ ...prev, variables: [...(prev.variables ?? []), { key: "", label: "", type: "string", required: true }] }));
   };
 
   const handleRemoveVariable = (index: number) => {
-    setForm((prev) => {
+    setForm(prev => {
       const nextVariables = [...(prev.variables ?? [])];
       nextVariables.splice(index, 1);
       return { ...prev, variables: nextVariables };
@@ -277,43 +229,36 @@ export default function ArtifactsPage() {
       setError("模板中未检测到变量占位符。");
       return;
     }
-
     setError(null);
-    setForm((prev) => {
-      const existing = new Map(
-        (prev.variables ?? []).map((variable) => [variable.key, variable])
-      );
-      const nextVariables = templateVariables.map((variable) => {
-        const existingVariable = existing.get(variable.key);
-        if (existingVariable) {
+    setForm(prev => {
+      const existing = new Map((prev.variables ?? []).map(v => [v.key, v]));
+      const nextVariables = templateVariables.map(v => {
+        const exist = existing.get(v.key);
+        if (exist) {
           return {
-            ...existingVariable,
-            label: existingVariable.label || variable.label || variable.key,
-            type: existingVariable.type || variable.type || "string",
-            required:
-              existingVariable.required ?? variable.required ?? true,
-            placeholder:
-              existingVariable.placeholder ?? variable.placeholder,
-            default: existingVariable.default ?? variable.default,
-            options: existingVariable.options ?? variable.options,
-            joiner: existingVariable.joiner ?? variable.joiner,
-            true_label:
-              existingVariable.true_label ?? variable.true_label,
-            false_label:
-              existingVariable.false_label ?? variable.false_label,
+            ...exist,
+            label: exist.label || v.label || v.key,
+            type: exist.type || v.type || "string",
+            required: exist.required ?? v.required ?? true,
+            placeholder: exist.placeholder ?? v.placeholder,
+            default: exist.default ?? v.default,
+            options: exist.options ?? v.options,
+            joiner: exist.joiner ?? v.joiner,
+            true_label: exist.true_label ?? v.true_label,
+            false_label: exist.false_label ?? v.false_label,
           };
         }
         return {
-          key: variable.key,
-          label: variable.label ?? variable.key,
-          type: variable.type ?? "string",
-          required: variable.required ?? true,
-          placeholder: variable.placeholder,
-          default: variable.default,
-          options: variable.options,
-          joiner: variable.joiner,
-          true_label: variable.true_label,
-          false_label: variable.false_label,
+          key: v.key,
+          label: v.label ?? v.key,
+          type: v.type ?? "string",
+          required: v.required ?? true,
+          placeholder: v.placeholder,
+          default: v.default,
+          options: v.options,
+          joiner: v.joiner,
+          true_label: v.true_label,
+          false_label: v.false_label,
         };
       });
       return { ...prev, variables: nextVariables };
@@ -322,24 +267,16 @@ export default function ArtifactsPage() {
 
   if (!projectId) {
     return (
-      <div className="flex min-h-screen flex-col bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_45%,#e2e8f0_100%)]">
+      <div className="flex min-h-screen flex-col bg-slate-50">
         <TopNav />
         <div className="flex flex-1 items-center justify-center px-6">
-        <div className="w-full max-w-md rounded-3xl border border-slate-200/60 bg-white/90 p-6 text-center shadow-[0_20px_50px_-35px_rgba(15,23,42,0.5)]">
+          <div className="w-full max-w-md rounded-3xl border border-white bg-white/60 p-8 text-center shadow-xl backdrop-blur-xl">
             <p className="text-sm text-slate-500">
               {isCreating ? "正在创建新项目..." : "准备创建你的新项目。"}
             </p>
-            <button
-              type="button"
-              onClick={createAndRedirect}
-              disabled={isCreating}
-              className="mt-5 w-full rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
-            >
-              {isCreating ? "正在创建..." : "开始新项目"}
+            <button disabled className="mt-6 w-full rounded-2xl bg-indigo-600 px-5 py-4 text-sm font-semibold text-white shadow-lg shadow-indigo-200 transition hover:bg-indigo-700 disabled:opacity-70">
+              加载中...
             </button>
-            {error ? (
-              <p className="mt-3 text-xs text-rose-500">{error}</p>
-            ) : null}
           </div>
         </div>
       </div>
@@ -347,461 +284,281 @@ export default function ArtifactsPage() {
   }
 
   return (
-    <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_45%,#e2e8f0_100%)]">
+    <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-slate-50">
       <TopNav />
-      <main className="flex flex-1 min-h-0 w-full flex-col gap-6 overflow-hidden px-4 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.32em] text-slate-400">
-              制品列表
-            </p>
-            <h1 className="text-lg font-semibold text-slate-900">Prompt 制品库</h1>
-            <p className="mt-1 text-xs text-slate-500">
-              新建空白制品后可在右侧直接编辑并保存，也可粘贴已有 Prompt
-              作为制品内容。
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => router.push(`/?projectId=${projectId}`)}
-              className="rounded-xl border border-slate-200/60 bg-white px-4 py-2 text-sm text-slate-600 transition hover:bg-slate-100"
-            >
-              返回向导
-            </button>
-            <button
-              type="button"
-              onClick={handleCreateArtifact}
-              disabled={isCreating}
-              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-            >
-              新建空白制品
-            </button>
-          </div>
-        </div>
-
-        <div className="grid h-full min-h-0 flex-1 gap-6 lg:grid-cols-[1fr_2fr]">
-          <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl bg-white/70 shadow-sm">
-            <div className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">
-              制品
+      <main className="flex flex-1 min-h-0 w-full overflow-hidden">
+        {/* Sidebar: Artifact List */}
+        <aside className="flex w-80 flex-col bg-white border-r border-slate-100 z-10 shadow-sm">
+          <div className="flex flex-col h-full">
+            <div className="p-5 border-b border-slate-100 bg-white">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2 text-slate-900 font-bold">
+                  <Layers className="h-5 w-5 text-indigo-600" />
+                  <span>制品库</span>
+                </div>
+                <button
+                  onClick={handleCreateArtifact}
+                  disabled={isCreating}
+                  className="p-2 rounded-lg bg-slate-50 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <input 
+                  placeholder="搜索制品..." 
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all"
+                />
+              </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-3">
+            
+            <div className="flex-1 overflow-y-auto p-3 space-y-2">
               {artifacts.length === 0 ? (
-                <div className="rounded-xl bg-white/80 px-4 py-6 text-center text-sm text-slate-500 shadow-sm">
-                  <p>暂无制品。</p>
-                  <button
-                    type="button"
-                    onClick={handleCreateArtifact}
-                    disabled={isCreating}
-                    className="mt-3 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-                  >
-                    立即新建
-                  </button>
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <Box className="h-10 w-10 text-slate-300 mb-2" />
+                  <p className="text-xs text-slate-400">暂无制品</p>
+                  <button onClick={handleCreateArtifact} className="mt-3 text-xs font-bold text-indigo-600 hover:text-indigo-700">立即新建</button>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {artifacts.map((item) => {
-                    const isActive = item.id === currentArtifactId;
-                      return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => handleSelectArtifact(item)}
-                        className={[
-                          "w-full rounded-xl px-3 py-3 text-left transition",
-                          isActive
-                            ? "bg-slate-900 text-white shadow-sm"
-                            : "bg-white/80 text-slate-700 hover:bg-white",
-                        ].join(" ")}
-                      >
-                        <p className="text-sm font-semibold">{item.title}</p>
-                        <p
-                          className={
-                            isActive
-                              ? "mt-1 text-xs text-slate-200"
-                              : "mt-1 text-xs text-slate-500"
-                          }
-                        >
-                          {item.problem}
-                        </p>
-                      </button>
-                    );
-                  })}
-                </div>
+                artifacts.map((item) => {
+                  const isActive = item.id === currentArtifactId;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => handleSelectArtifact(item)}
+                      className={`
+                        w-full text-left p-3 rounded-xl transition-all group border border-transparent
+                        ${isActive 
+                          ? "bg-indigo-50 border-indigo-100 shadow-sm" 
+                          : "hover:bg-slate-50 hover:border-slate-100"
+                        }
+                      `}
+                    >
+                      <h4 className={`text-sm font-bold ${isActive ? "text-indigo-900" : "text-slate-700"}`}>
+                        {item.title || "未命名制品"}
+                      </h4>
+                      <p className={`text-xs mt-1 line-clamp-2 ${isActive ? "text-indigo-600/80" : "text-slate-400"}`}>
+                        {item.problem || "暂无描述"}
+                      </p>
+                    </button>
+                  );
+                })
               )}
             </div>
-          </section>
+          </div>
+        </aside>
 
-          <section className="flex min-h-0 flex-col gap-4 overflow-y-auto rounded-2xl bg-white/70 p-4 shadow-sm">
-            {currentArtifact ? (
-              <>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
-                      制品详情
-                    </p>
-                    <h2 className="text-lg font-semibold text-slate-900">
-                      {currentArtifact.title}
-                    </h2>
-                    <p className="mt-1 text-xs text-slate-500">
-                      在此编辑标题、解决问题与 Prompt 内容，保存后即可用于对话。
-                    </p>
+        {/* Main Content: Artifact Editor */}
+        <section className="flex-1 flex flex-col min-w-0 bg-slate-50/50 overflow-hidden relative">
+          {currentArtifact ? (
+            <>
+              {/* Header */}
+              <header className="flex items-center justify-between px-8 py-5 bg-white border-b border-slate-100 shadow-sm z-10">
+                <div className="flex items-center gap-4">
+                  <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+                    <Box className="h-5 w-5" />
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleUseArtifact}
-                    className="rounded-xl border border-slate-200/60 bg-white px-4 py-2 text-sm text-slate-600 transition hover:bg-slate-100"
-                  >
-                    使用制品
-                  </button>
-                </div>
-
-                <div className="grid gap-4">
                   <div>
-                    <label className="text-xs uppercase tracking-[0.28em] text-slate-400">
-                      标题
-                    </label>
-                    <input
+                    <input 
                       value={form.title}
-                      onChange={(event) =>
-                        setForm((prev) => ({ ...prev, title: event.target.value }))
-                      }
-                      className="mt-2 w-full rounded-xl border border-slate-200/60 bg-white px-4 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                      onChange={(e) => setForm(p => ({ ...p, title: e.target.value }))}
+                      className="text-lg font-bold text-slate-900 bg-transparent outline-none placeholder:text-slate-300 w-full"
+                      placeholder="输入制品标题"
                     />
-                  </div>
-                  <div>
-                    <label className="text-xs uppercase tracking-[0.28em] text-slate-400">
-                      解决问题
-                    </label>
-                    <input
+                    <input 
                       value={form.problem}
-                      onChange={(event) =>
-                        setForm((prev) => ({ ...prev, problem: event.target.value }))
-                      }
-                      className="mt-2 w-full rounded-xl border border-slate-200/60 bg-white px-4 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                      onChange={(e) => setForm(p => ({ ...p, problem: e.target.value }))}
+                      className="text-xs text-slate-500 bg-transparent outline-none placeholder:text-slate-300 w-full mt-0.5"
+                      placeholder="简要描述该制品解决的问题..."
                     />
-                  </div>
-                  <div className="flex min-h-0 flex-1 flex-col">
-                    <label className="text-xs uppercase tracking-[0.28em] text-slate-400">
-                      制品 Prompt
-                    </label>
-                    <textarea
-                      value={form.prompt_content}
-                      onChange={(event) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          prompt_content: event.target.value,
-                        }))
-                      }
-                      className="mt-2 min-h-[220px] flex-1 rounded-xl border border-slate-200/60 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
-                    />
-                  </div>
-                  <div className="rounded-2xl bg-slate-50/80 p-4 shadow-sm">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
-                          变量配置
-                        </p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          模板占位符格式：{"{{variable_key}}"}
-                        </p>
-                        {templateKeys.length > 0 ? (
-                          <p className="mt-1 text-xs text-slate-500">
-                            检测到 {templateKeys.length} 个变量：{" "}
-                            {templateKeys.join(", ")}
-                          </p>
-                        ) : hasTemplateMarkers ? (
-                          <p className="mt-1 text-xs text-amber-600">
-                            检测到 {{}} 但变量名不符合规范（仅英文字母/数字/下划线）。
-                          </p>
-                        ) : null}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={handleExtractVariables}
-                          className="rounded-lg border border-slate-200/60 bg-white px-3 py-1 text-xs text-slate-600 transition hover:bg-slate-100"
-                        >
-                          从模板提取
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleAddVariable}
-                          className="rounded-lg bg-slate-900 px-3 py-1 text-xs font-semibold text-white transition hover:bg-slate-800"
-                        >
-                          添加变量
-                        </button>
-                      </div>
-                    </div>
-
-                    {form.variables && form.variables.length > 0 ? (
-                      <div className="mt-4 space-y-3">
-                        {form.variables.map((variable, index) => (
-                          <div
-                            key={`${variable.key}-${index}`}
-                            className="rounded-xl bg-white/80 p-3 shadow-sm"
-                          >
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <p className="text-xs font-semibold text-slate-700">
-                                变量 {index + 1}
-                              </p>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveVariable(index)}
-                                className="text-xs text-rose-500 hover:text-rose-600"
-                              >
-                                删除
-                              </button>
-                            </div>
-                            <div className="mt-3 grid gap-3 md:grid-cols-2">
-                              <div>
-                                <label className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
-                                  变量名
-                                </label>
-                                <input
-                                  value={variable.key}
-                                  onChange={(event) =>
-                                    updateVariableAt(index, {
-                                      key: event.target.value,
-                                    })
-                                  }
-                                  placeholder="例如 target_audience"
-                                  className="mt-2 w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
-                                />
-                              </div>
-                              <div>
-                                <label className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
-                                  显示名称
-                                </label>
-                                <input
-                                  value={variable.label}
-                                  onChange={(event) =>
-                                    updateVariableAt(index, {
-                                      label: event.target.value,
-                                    })
-                                  }
-                                  placeholder="如：受众"
-                                  className="mt-2 w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
-                                />
-                              </div>
-                              <div>
-                                <label className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
-                                  类型
-                                </label>
-                                <select
-                                  value={variable.type}
-                                  onChange={(event) =>
-                                    updateVariableAt(index, {
-                                      type: event.target.value as ArtifactVariable["type"],
-                                    })
-                                  }
-                                  className="mt-2 w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
-                                >
-                                  <option value="string">string</option>
-                                  <option value="text">text</option>
-                                  <option value="number">number</option>
-                                  <option value="boolean">boolean</option>
-                                  <option value="enum">enum</option>
-                                  <option value="list">list</option>
-                                </select>
-                              </div>
-                              <div className="flex items-end gap-2">
-                                <label className="flex items-center gap-2 text-xs text-slate-500">
-                                  <input
-                                    type="checkbox"
-                                    checked={variable.required ?? true}
-                                    onChange={(event) =>
-                                      updateVariableAt(index, {
-                                        required: event.target.checked,
-                                      })
-                                    }
-                                  />
-                                  必填
-                                </label>
-                              </div>
-                              {variable.type === "enum" ? (
-                                <div className="md:col-span-2">
-                                  <label className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
-                                    选项（逗号分隔）
-                                  </label>
-                                  <input
-                                    value={(variable.options ?? []).join(", ")}
-                                    onChange={(event) =>
-                                      updateVariableAt(index, {
-                                        options: parseListValue(event.target.value),
-                                      })
-                                    }
-                                    placeholder="例如：严肃, 活泼"
-                                    className="mt-2 w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
-                                  />
-                                </div>
-                              ) : null}
-                              {variable.type === "boolean" ? (
-                                <div className="md:col-span-2 grid gap-3 md:grid-cols-2">
-                                  <div>
-                                    <label className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
-                                      True 文案
-                                    </label>
-                                    <input
-                                      value={variable.true_label ?? ""}
-                                      onChange={(event) =>
-                                        updateVariableAt(index, {
-                                          true_label: event.target.value,
-                                        })
-                                      }
-                                      placeholder="例如：需要"
-                                      className="mt-2 w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
-                                      False 文案
-                                    </label>
-                                    <input
-                                      value={variable.false_label ?? ""}
-                                      onChange={(event) =>
-                                        updateVariableAt(index, {
-                                          false_label: event.target.value,
-                                        })
-                                      }
-                                      placeholder="例如：不需要"
-                                      className="mt-2 w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
-                                    />
-                                  </div>
-                                </div>
-                              ) : null}
-                              {variable.type === "list" ? (
-                                <div className="md:col-span-2 grid gap-3 md:grid-cols-2">
-                                  <div>
-                                    <label className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
-                                      分隔符
-                                    </label>
-                                    <input
-                                      value={variable.joiner ?? ""}
-                                      onChange={(event) =>
-                                        updateVariableAt(index, {
-                                          joiner: event.target.value,
-                                        })
-                                      }
-                                      placeholder="默认：、"
-                                      className="mt-2 w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
-                                      默认值（逗号分隔）
-                                    </label>
-                                    <input
-                                      value={formatVariableDefault(variable)}
-                                      onChange={(event) =>
-                                        updateVariableAt(index, {
-                                          default: parseListValue(event.target.value),
-                                        })
-                                      }
-                                      placeholder="例如：要点1, 要点2"
-                                      className="mt-2 w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
-                                    />
-                                  </div>
-                                </div>
-                              ) : null}
-                              {variable.type !== "list" ? (
-                                <div className="md:col-span-2 grid gap-3 md:grid-cols-2">
-                                  <div>
-                                    <label className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
-                                      默认值
-                                    </label>
-                                    {variable.type === "boolean" ? (
-                                      <select
-                                        value={formatVariableDefault(variable)}
-                                        onChange={(event) =>
-                                          updateVariableAt(index, {
-                                            default:
-                                              event.target.value === ""
-                                                ? undefined
-                                                : event.target.value === "true",
-                                          })
-                                        }
-                                        className="mt-2 w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
-                                      >
-                                        <option value="">无</option>
-                                        <option value="true">true</option>
-                                        <option value="false">false</option>
-                                      </select>
-                                    ) : (
-                                      <input
-                                        value={formatVariableDefault(variable)}
-                                        onChange={(event) => {
-                                          const value = event.target.value;
-                                          const nextValue =
-                                            variable.type === "number"
-                                              ? value === ""
-                                                ? undefined
-                                                : Number(value)
-                                              : value;
-                                          if (
-                                            variable.type === "number" &&
-                                            typeof nextValue === "number" &&
-                                            Number.isNaN(nextValue)
-                                          ) {
-                                            return;
-                                          }
-                                          updateVariableAt(index, {
-                                            default: nextValue,
-                                          });
-                                        }}
-                                        placeholder="可选"
-                                        className="mt-2 w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
-                                      />
-                                    )}
-                                  </div>
-                                  <div>
-                                    <label className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
-                                      提示文案
-                                    </label>
-                                    <input
-                                      value={variable.placeholder ?? ""}
-                                      onChange={(event) =>
-                                        updateVariableAt(index, {
-                                          placeholder: event.target.value,
-                                        })
-                                      }
-                                      placeholder="输入提示"
-                                      className="mt-2 w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-400"
-                                    />
-                                  </div>
-                                </div>
-                              ) : null}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="mt-4 text-xs text-slate-400">
-                        暂无变量配置，可从模板提取或手动添加。
-                      </p>
-                    )}
                   </div>
                 </div>
-
-                <div className="flex items-center justify-between">
-                  {error ? <p className="text-xs text-rose-500">{error}</p> : null}
-                  <button
-                    type="button"
+                <div className="flex items-center gap-3">
+                  {error && <span className="text-xs font-bold text-rose-500 animate-pulse">{error}</span>}
+                  <button 
+                    onClick={() => router.push(`/?projectId=${projectId}`)}
+                    className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
+                    title="返回生成向导"
+                  >
+                    <ArrowLeft className="h-5 w-5" />
+                  </button>
+                  <button 
                     onClick={handleSave}
                     disabled={isSaving}
-                    className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors"
                   >
-                    {isSaving ? "保存中..." : "保存修改"}
+                    <Save className="h-4 w-4" />
+                    {isSaving ? "保存中..." : "保存草稿"}
+                  </button>
+                  <button 
+                    onClick={handleUseArtifact}
+                    className="flex items-center gap-2 px-5 py-2 rounded-xl bg-indigo-600 text-xs font-bold text-white shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:translate-y-[-1px] transition-all"
+                  >
+                    <Play className="h-4 w-4 fill-current" />
+                    立即使用
                   </button>
                 </div>
-              </>
-            ) : (
-              <div className="flex flex-1 items-center justify-center text-sm text-slate-400">
-                请选择或新建一个制品。
+              </header>
+
+              {/* Editor Area */}
+              <div className="flex-1 overflow-y-auto p-8">
+                <div className="max-w-5xl mx-auto grid gap-8 lg:grid-cols-[1.5fr_1fr]">
+                  {/* Left: Prompt Editor */}
+                  <div className="flex flex-col gap-4">
+                    <div className="bg-white rounded-3xl p-1 shadow-sm ring-1 ring-slate-100">
+                      <div className="px-5 py-3 border-b border-slate-50 flex items-center gap-2">
+                        <Layers className="h-4 w-4 text-slate-400" />
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Prompt 模板内容</span>
+                      </div>
+                      <textarea 
+                        value={form.prompt_content}
+                        onChange={(e) => setForm(p => ({ ...p, prompt_content: e.target.value }))}
+                        className="w-full min-h-[500px] p-5 text-sm font-mono text-slate-800 leading-relaxed outline-none resize-none bg-transparent"
+                        placeholder="在此输入 Prompt 模板，使用 {{variable}} 标记变量..."
+                      />
+                    </div>
+                  </div>
+
+                  {/* Right: Variable Configuration */}
+                  <div className="flex flex-col gap-4">
+                    <div className="bg-white rounded-3xl shadow-sm ring-1 ring-slate-100 overflow-hidden">
+                      <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Settings2 className="h-4 w-4 text-indigo-500" />
+                          <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">变量配置</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={handleExtractVariables}
+                            className="text-[10px] font-bold text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded transition-colors"
+                          >
+                            自动提取
+                          </button>
+                          <button 
+                            onClick={handleAddVariable}
+                            className="p-1 rounded hover:bg-slate-200 text-slate-400 transition-colors"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="p-4 space-y-4 max-h-[calc(100vh-240px)] overflow-y-auto">
+                        {templateKeys.length > 0 && (
+                          <div className="p-3 rounded-xl bg-amber-50 border border-amber-100 text-amber-800 text-xs">
+                            <p className="font-bold mb-1">检测到模板变量：</p>
+                            <div className="flex flex-wrap gap-1">
+                              {templateKeys.map(k => (
+                                <span key={k} className="px-1.5 py-0.5 bg-amber-100 rounded text-[10px] font-mono">{k}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {form.variables && form.variables.length > 0 ? (
+                          form.variables.map((variable, index) => (
+                            <div key={index} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 group hover:border-indigo-200 hover:shadow-sm transition-all">
+                              <div className="flex items-center justify-between mb-3">
+                                <span className="text-xs font-bold text-slate-400">Variable {index + 1}</span>
+                                <button onClick={() => handleRemoveVariable(index)} className="text-slate-300 hover:text-rose-500 transition-colors">
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                              
+                              <div className="grid gap-3">
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="text-[10px] font-bold text-slate-400 mb-1 block">变量名 (Key)</label>
+                                    <input 
+                                      value={variable.key}
+                                      onChange={(e) => updateVariableAt(index, { key: e.target.value })}
+                                      className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-indigo-500 font-mono"
+                                      placeholder="key_name"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] font-bold text-slate-400 mb-1 block">显示名称 (Label)</label>
+                                    <input 
+                                      value={variable.label}
+                                      onChange={(e) => updateVariableAt(index, { label: e.target.value })}
+                                      className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-indigo-500"
+                                      placeholder="显示标签"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="text-[10px] font-bold text-slate-400 mb-1 block">类型</label>
+                                    <select 
+                                      value={variable.type}
+                                      onChange={(e) => updateVariableAt(index, { type: e.target.value as any })}
+                                      className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-indigo-500"
+                                    >
+                                      <option value="string">单行文本</option>
+                                      <option value="text">多行文本</option>
+                                      <option value="number">数字</option>
+                                      <option value="boolean">布尔值</option>
+                                      <option value="enum">枚举 (Enum)</option>
+                                      <option value="list">列表 (List)</option>
+                                    </select>
+                                  </div>
+                                  <div className="flex items-end pb-2">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                      <input 
+                                        type="checkbox"
+                                        checked={variable.required ?? true}
+                                        onChange={(e) => updateVariableAt(index, { required: e.target.checked })}
+                                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                      />
+                                      <span className="text-xs font-medium text-slate-600">必填项</span>
+                                    </label>
+                                  </div>
+                                </div>
+
+                                {variable.type === "enum" && (
+                                  <div>
+                                    <label className="text-[10px] font-bold text-slate-400 mb-1 block">选项 (逗号分隔)</label>
+                                    <input 
+                                      value={(variable.options ?? []).join(", ")}
+                                      onChange={(e) => updateVariableAt(index, { options: parseListValue(e.target.value) })}
+                                      className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-indigo-500"
+                                      placeholder="选项A, 选项B"
+                                    />
+                                  </div>
+                                )}
+
+                                <div>
+                                  <label className="text-[10px] font-bold text-slate-400 mb-1 block">输入提示 (Placeholder)</label>
+                                  <input 
+                                    value={variable.placeholder ?? ""}
+                                    onChange={(e) => updateVariableAt(index, { placeholder: e.target.value })}
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-indigo-500"
+                                    placeholder="给用户的输入提示..."
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="py-8 text-center">
+                            <p className="text-xs text-slate-400">暂无变量，请点击上方“自动提取”或手动添加。</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-            )}
-          </section>
-        </div>
+            </>
+          ) : (
+            <div className="flex flex-1 flex-col items-center justify-center text-slate-400">
+              <Box className="h-12 w-12 mb-4 text-slate-200" />
+              <p>请选择左侧制品或新建一个开始编辑</p>
+            </div>
+          )}
+        </section>
       </main>
     </div>
   );

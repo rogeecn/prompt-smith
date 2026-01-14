@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { z } from "zod";
+import { Sparkles, Layers } from "lucide-react";
 
 const projectIdSchema = z.string().uuid();
 
 const navItems = [
-  { label: "生成", href: "/" },
-  { label: "制品", href: "/artifacts" },
+  { label: "生成向导", href: "/", icon: Sparkles },
+  { label: "制品库", href: "/artifacts", icon: Layers },
 ];
 
 const buildHref = (href: string, projectId: string | null) => {
@@ -27,31 +28,38 @@ export default function TopNav() {
     : null;
 
   return (
-    <header className="border-b border-slate-200 bg-white/80 backdrop-blur">
-      <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-3">
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.32em] text-slate-400">
-            Prompt Smith
-          </p>
-          <h1 className="text-sm font-semibold text-slate-900">智能提示词构建</h1>
+    <header className="sticky top-0 z-40 border-b border-slate-200/50 bg-white/80 backdrop-blur-xl">
+      <div className="mx-auto flex w-full items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-200">
+            <Sparkles className="h-4 w-4" />
+          </div>
+          <div>
+            <h1 className="text-sm font-bold text-slate-900 tracking-tight">Prompt Smith</h1>
+            <p className="hidden text-[10px] font-medium text-slate-500 sm:block">智能提示词构建工具</p>
+          </div>
         </div>
-        <nav className="flex items-center gap-2">
+        
+        <nav className="flex items-center gap-1 rounded-full bg-slate-100/50 p-1 shadow-inner">
           {navItems.map((item) => {
             const isActive =
               item.href === "/"
                 ? pathname === "/"
                 : pathname.startsWith(item.href);
+            const Icon = item.icon;
+            
             return (
               <Link
                 key={item.href}
                 href={buildHref(item.href, projectId)}
                 className={[
-                  "rounded-full px-4 py-2 text-sm font-medium transition",
+                  "flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-bold transition-all duration-200",
                   isActive
-                    ? "bg-slate-900 text-white"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200",
+                    ? "bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200"
+                    : "text-slate-500 hover:bg-white/50 hover:text-slate-700",
                 ].join(" ")}
               >
+                <Icon className={`h-3.5 w-3.5 ${isActive ? "text-indigo-500" : "text-slate-400"}`} />
                 {item.label}
               </Link>
             );
