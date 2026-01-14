@@ -184,26 +184,6 @@ export default function ArtifactChatPage() {
 
         <div className="grid h-full min-h-0 flex-1 gap-6 lg:grid-cols-[2fr_1fr]">
           <section className="flex min-h-0 flex-1 flex-col gap-4">
-            <div className="rounded-2xl border border-slate-200 bg-white/70 p-4">
-              <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
-                制品信息
-              </p>
-              <p className="mt-2 text-sm font-semibold text-slate-900">
-                {artifact?.title ?? ""}
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                {artifact?.problem ?? ""}
-              </p>
-              <details className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
-                <summary className="cursor-pointer text-xs font-semibold text-slate-600">
-                  查看制品 Prompt
-                </summary>
-                <pre className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap break-words text-xs text-slate-600">
-                  {artifact?.prompt_content ?? ""}
-                </pre>
-              </details>
-            </div>
-
             {contextError ? (
               <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white/80 px-6 text-center">
                 <p className="text-sm text-slate-500">{contextError}</p>
@@ -237,13 +217,24 @@ export default function ArtifactChatPage() {
           </section>
 
           <aside className="flex min-h-0 flex-col gap-4">
-            <div className="rounded-2xl border border-slate-200 bg-white/80 px-4 py-4">
-              <p className="text-xs uppercase tracking-[0.32em] text-slate-400">
-                历史记录
+            <div className="rounded-2xl border border-slate-200 bg-white/70 p-4">
+              <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
+                制品信息
               </p>
-              <p className="mt-3 text-sm text-slate-600">
-                选择会话查看历史内容
+              <p className="mt-2 text-sm font-semibold text-slate-900">
+                {artifact?.title ?? ""}
               </p>
+              <p className="mt-1 text-xs text-slate-500">
+                {artifact?.problem ?? ""}
+              </p>
+              <details className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
+                <summary className="cursor-pointer text-xs font-semibold text-slate-600">
+                  查看制品 Prompt
+                </summary>
+                <pre className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap break-words text-xs text-slate-600">
+                  {artifact?.prompt_content ?? ""}
+                </pre>
+              </details>
             </div>
             <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white/70">
               <div className="max-h-full overflow-y-auto p-3">
