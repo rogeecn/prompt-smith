@@ -37,6 +37,22 @@ const formatDefaultValue = (variable: ArtifactVariable) => {
   if (variable.type === "boolean") {
     return fallback === true ? "true" : fallback === false ? "false" : "";
   }
+  if (variable.type === "enum") {
+    if (typeof fallback === "string") {
+      const candidate = fallback
+        .split(/[,，]/)
+        .map((item) => item.trim())
+        .filter(Boolean)[0];
+      if (candidate && variable.options?.includes(candidate)) {
+        return candidate;
+      }
+      if (variable.options && variable.options.length > 0) {
+        return variable.options[0];
+      }
+      return candidate ?? "";
+    }
+    return "";
+  }
   if (variable.type === "list") {
     if (Array.isArray(fallback)) {
       return fallback.join(", ");

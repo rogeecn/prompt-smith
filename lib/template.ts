@@ -100,6 +100,9 @@ const parseTemplateVariable = (raw: string): TemplateVariableMeta | null => {
       } else if (meta.type === "boolean") {
         const parsed = parseBoolean(rawValue);
         meta.default = parsed ?? rawValue;
+      } else if (meta.type === "enum") {
+        const values = splitValueList(rawValue);
+        meta.default = values.length > 0 ? values[0] : rawValue;
       } else if (meta.type === "list") {
         meta.default = splitValueList(rawValue);
       } else {

@@ -247,11 +247,22 @@ const resolveInputs = (
         errors.push(`变量 ${key} 必须为字符串`);
         return;
       }
-      if (variable.options && !variable.options.includes(rawValue)) {
+      let resolvedValue = rawValue;
+      if (resolvedValue.includes(",") || resolvedValue.includes("，")) {
+        const candidates = parseListValue(resolvedValue);
+        if (
+          candidates.length > 0 &&
+          (!variable.options ||
+            candidates.every((item) => variable.options?.includes(item)))
+        ) {
+          resolvedValue = candidates[0];
+        }
+      }
+      if (variable.options && !variable.options.includes(resolvedValue)) {
         errors.push(`变量 ${key} 不在可选项中`);
         return;
       }
-      renderedValues[key] = rawValue;
+      renderedValues[key] = resolvedValue;
       return;
     }
 
