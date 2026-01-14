@@ -3,8 +3,6 @@ import { NextResponse } from "next/server";
 import { ai, getCompatModel } from "../../../../../lib/genkit";
 import { prisma } from "../../../../../lib/prisma";
 import {
-  ArtifactChatRequestSchema,
-  ArtifactChatResponseSchema,
   ArtifactVariablesSchema,
   HistoryItemSchema,
 } from "../../../../../lib/schemas";
@@ -15,6 +13,77 @@ const isDebug = process.env.NODE_ENV !== "production";
 const REQUEST_TIMEOUT_MS = Number(process.env.OPENAI_TIMEOUT_MS ?? "180000");
 const MAX_RETRIES = Number(process.env.OPENAI_MAX_RETRIES ?? "2");
 const MAX_HISTORY_ITEMS = Number(process.env.MAX_HISTORY_ITEMS ?? "60");
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+const isValidInputValue = (value: unknown) => {
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return true;
+  }
+
+  if (Array.isArray(value)) {
+    return value.every((item) => typeof item === "string");
+  }
+
+  return false;
+};
+
+const parseArtifactChatRequest = (value: unknown) => {
+  if (!isRecord(value)) {
+    return { success: false, error: "Invalid request" } as const;
+  }
+
+  const projectId = typeof value.projectId === "string" ? value.projectId : "";
+  if (!UUID_REGEX.test(projectId)) {
+    return { success: false, error: "Invalid projectId" } as const;
+  }
+
+  const artifactId = typeof value.artifactId === "string" ? value.artifactId : "";
+  if (!artifactId) {
+    return { success: false, error: "Invalid artifactId" } as const;
+  }
+
+  const sessionId =
+    typeof value.sessionId === "string" && value.sessionId.trim()
+      ? value.sessionId
+      : undefined;
+
+  const message = typeof value.message === "string" ? value.message.trim() : "";
+  if (!message || message.length > 4000) {
+    return { success: false, error: "Invalid message" } as const;
+  }
+
+  const traceId =
+    typeof value.traceId === "string" && value.traceId.trim()
+      ? value.traceId
+      : undefined;
+
+  let inputs: Record<string, unknown> | undefined;
+  if (value.inputs !== undefined) {
+    if (!isRecord(value.inputs)) {
+      return { success: false, error: "Invalid inputs" } as const;
+    }
+    for (const entry of Object.values(value.inputs)) {
+      if (!isValidInputValue(entry)) {
+        return { success: false, error: "Invalid inputs" } as const;
+      }
+    }
+    inputs = value.inputs;
+  }
+
+  return {
+    success: true,
+    data: { projectId, artifactId, sessionId, message, traceId, inputs },
+  } as const;
+};
 
 const isRetryableError = (error: unknown) => {
   if (!error || typeof error !== "object") {
@@ -213,9 +282,9 @@ export async function POST(req: Request) {
     return jsonWithTrace({ error: "Invalid JSON" }, { status: 400 }, traceId);
   }
 
-  const parsed = ArtifactChatRequestSchema.safeParse(body);
+  const parsed = parseArtifactChatRequest(body);
   if (!parsed.success) {
-    console.error("[api/artifacts/chat] Invalid request", parsed.error.flatten());
+    console.error("[api/artifacts/chat] Invalid request", parsed.error);
     return jsonWithTrace({ error: "Invalid request" }, { status: 400 }, traceId);
   }
 
@@ -246,7 +315,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const { projectId, artifactId, sessionId, message } = parsed.data;
+  const { projectId, artifactId, sessionId, message, inputs } = parsed.data;
   traceId = parsed.data.traceId ?? traceId;
   if (isDebug) {
     console.info("[api/artifacts/chat] request", {
@@ -294,7 +363,7 @@ export async function POST(req: Request) {
 
     const { renderedValues, errors } = resolveInputs(
       variables,
-      parsed.data.inputs
+      inputs
     );
     if (errors.length > 0) {
       return jsonWithTrace(
@@ -384,13 +453,8 @@ export async function POST(req: Request) {
       });
     }
 
-    const responseBody = ArtifactChatResponseSchema.parse({
-      reply,
-      sessionId: session.id,
-    });
-
     console.info("[api/artifacts/chat] done", { ms: Date.now() - startedAt });
-    return jsonWithTrace(responseBody, undefined, traceId);
+    return jsonWithTrace({ reply, sessionId: session.id }, undefined, traceId);
   } catch (error) {
     console.error("[api/artifacts/chat] error", { traceId, error });
     const isTimeout =
