@@ -4,11 +4,15 @@ import { ai, getCompatModel } from "../../../../lib/genkit";
 import { prisma } from "../../../../lib/prisma";
 import {
   ChatRequestSchema,
+  GuardPromptReviewSchema,
   HistoryItemSchema,
   LLMResponseSchema,
   SessionStateSchema,
 } from "../../../../lib/schemas";
-import { deriveTitleFromPrompt } from "../../../../lib/template";
+import {
+  deriveTitleFromPrompt,
+  extractTemplateVariables,
+} from "../../../../lib/template";
 
 const historyArraySchema = HistoryItemSchema.array();
 const isDebug = process.env.NODE_ENV !== "production";
@@ -16,6 +20,7 @@ const REQUEST_TIMEOUT_MS = Number(process.env.OPENAI_TIMEOUT_MS ?? "180000");
 const MAX_RETRIES = Number(process.env.OPENAI_MAX_RETRIES ?? "2");
 const MAX_HISTORY_ITEMS = Number(process.env.MAX_HISTORY_ITEMS ?? "60");
 const MAX_QUESTION_ROUNDS = Number(process.env.MAX_QUESTION_ROUNDS ?? "3");
+const MIN_PROMPT_VARIABLES = Number(process.env.MIN_PROMPT_VARIABLES ?? "3");
 const FORM_MESSAGE_PREFIX = "__FORM__:";
 
 const resolveOptionLabel = (
@@ -255,11 +260,50 @@ const buildSystemPrompt = ({
     "- deliberations 用于展示多 Agent 评分过程：建议 1-2 个阶段、2-3 个 Agent，分数 0-10。",
     "- 每次响应至少返回 1 个 deliberation。",
     "- answers 内部约定：value 为 '__other__' 表示选择了“其他”，此时 other 字段为用户输入；value 为 '__none__' 表示“不需要此功能”。严禁向用户解释这些约定。",
+    "- final_prompt 必须是“制品模板”，包含可配置变量占位符，格式为 {{variable_name}}。",
+    `- final_prompt 至少包含 ${Number.isFinite(MIN_PROMPT_VARIABLES) ? MIN_PROMPT_VARIABLES : 3} 个占位符，变量名只能使用英文字母、数字与下划线，且以字母开头。`,
+    "- 变量建议覆盖：主题/目标、受众/角色、输出格式/风格、约束/规则、输入/示例等（至少覆盖三类）。",
+    "- 即使已确定具体值，也应保留占位符，并可在括号中写默认值示例。",
     forceFinalize
       ? "- 已到追问上限：必须输出 final_prompt（不可为 null/空字符串），is_finished=true，questions=[]。"
       : "- 若信息已足够，请直接输出 final_prompt 并将 questions 设为空数组。",
     "不要输出任何额外文本。",
   ].join("\n");
+};
+
+const buildGuardPrompt = (minVariables: number) =>
+  [
+    "你是制品 Prompt 的 Guard Prompt 审核器。",
+    "目标：确保 final_prompt 是可复用模板，包含足够的 {{variable}} 占位符用于方向控制。",
+    "审核要点：",
+    "- 必须使用 {{variable_name}} 语法。",
+    "- 至少包含指定数量的占位符。",
+    "- 变量名仅允许英文字母/数字/下划线，且以字母开头。",
+    "- 变量应覆盖至少三类：主题/目标、受众/角色、输出格式/风格、约束/规则、输入/示例（可自行判断类别映射）。",
+    "- 不要移除关键结构，只在必要时把固定内容替换为占位符。",
+    "若不通过，请给出 revised_prompt（修复后的完整 prompt）。",
+    "输出严格 JSON：",
+    "{",
+    '  "pass": boolean,',
+    '  "issues": string[],',
+    '  "revised_prompt": string | null,',
+    '  "variables": string[]',
+    "}",
+    `最低占位符数量: ${Number.isFinite(minVariables) ? minVariables : 3}`,
+    "不要输出任何额外文本。",
+  ].join("\n");
+
+const runGuardReview = async (prompt: string) => {
+  const guardPrompt = buildGuardPrompt(MIN_PROMPT_VARIABLES);
+  const guardResponse = await generateWithRetry({
+    model: getCompatModel(process.env.OPENAI_MODEL),
+    messages: [
+      { role: "system", content: [{ text: guardPrompt }] },
+      { role: "user", content: [{ text: prompt }] },
+    ],
+    output: { schema: GuardPromptReviewSchema },
+  });
+  return guardResponse.output;
 };
 
 const normalizeLlmResponse = (raw: unknown) => {
@@ -453,6 +497,54 @@ export async function POST(req: Request) {
         output: { schema: LLMResponseSchema },
       });
       normalizedResponse = normalizeLlmResponse(retryResponse.output);
+    }
+
+    if (normalizedResponse.final_prompt?.trim()) {
+      const resolvedMinVariables =
+        Number.isFinite(MIN_PROMPT_VARIABLES) && MIN_PROMPT_VARIABLES > 0
+          ? MIN_PROMPT_VARIABLES
+          : 3;
+      const initialPrompt = normalizedResponse.final_prompt.trim();
+      const guardReview = await runGuardReview(initialPrompt);
+      let finalPrompt = initialPrompt;
+      let review = guardReview;
+
+      if (!guardReview.pass) {
+        const revised = guardReview.revised_prompt?.trim() ?? "";
+        if (!revised) {
+          console.error("[api/chat] guard failed without revision", {
+            issues: guardReview.issues,
+          });
+          throw new Error("Prompt guard failed");
+        }
+        const secondReview = await runGuardReview(revised);
+        if (!secondReview.pass) {
+          console.error("[api/chat] guard revision failed", {
+            issues: secondReview.issues,
+          });
+          throw new Error("Prompt guard failed");
+        }
+        finalPrompt = revised;
+        review = secondReview;
+      }
+
+      const variables = extractTemplateVariables(finalPrompt);
+      if (variables.length < resolvedMinVariables) {
+        console.error("[api/chat] guard variable count insufficient", {
+          variables,
+          resolvedMinVariables,
+        });
+        throw new Error("Prompt guard failed");
+      }
+
+      if (isDebug) {
+        console.info("[api/chat] guard review", review);
+      }
+
+      normalizedResponse = {
+        ...normalizedResponse,
+        final_prompt: finalPrompt,
+      };
     }
     const sessionState = SessionStateSchema.parse({
       questions: normalizedResponse.questions,

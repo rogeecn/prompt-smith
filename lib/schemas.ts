@@ -140,6 +140,15 @@ export const LLMResponseSchema = z.object({
 
 export type LLMResponse = z.infer<typeof LLMResponseSchema>;
 
+export const GuardPromptReviewSchema = z.object({
+  pass: z.boolean(),
+  issues: z.array(z.string()).default([]),
+  revised_prompt: z.string().nullable().default(null),
+  variables: z.array(z.string()).default([]),
+});
+
+export type GuardPromptReview = z.infer<typeof GuardPromptReviewSchema>;
+
 export const HistoryItemSchema = z.object({
   role: z.enum(["user", "assistant"]),
   content: z.string(),
