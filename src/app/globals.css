@@ -1,8 +1,61 @@
 @import "tailwindcss";
 
+@plugin "tailwindcss-animate";
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Base - Clean Slate Background */
+  --background: #f8fafc; /* slate-50 */
+  --foreground: #0f172a; /* slate-900 */
+
+  /* Primary Brand - Indigo */
+  --primary: #4f46e5; /* indigo-600 */
+  --primary-foreground: #ffffff;
+  --primary-hover: #4338ca; /* indigo-700 */
+  --primary-light: #e0e7ff; /* indigo-100 */
+
+  /* Semantic Surfaces */
+  --surface: #ffffff;
+  --surface-muted: #f1f5f9; /* slate-100 */
+  --surface-highlight: #f8fafc; /* slate-50 */
+  
+  /* Message Blocks (Forum Style) */
+  --block-user: #f1f5f9; /* slate-100 */
+  --block-ai: #ffffff;
+  --block-system: #eff6ff; /* blue-50 */
+  --block-system-foreground: #1e3a8a; /* blue-900 */
+
+  /* Borders & Dividers */
+  --border: #e2e8f0; /* slate-200 */
+  --ring: #cbd5e1; /* slate-300 */
+
+  /* Status */
+  --destructive: #ef4444; /* red-500 */
+  --destructive-foreground: #ffffff;
+}
+
+/* Dark mode overrides (Soft Dark) */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #020617; /* slate-950 */
+    --foreground: #f8fafc; /* slate-50 */
+
+    --primary: #6366f1; /* indigo-500 */
+    --primary-foreground: #ffffff;
+    --primary-hover: #818cf8; /* indigo-400 */
+    --primary-light: #1e1b4b; /* indigo-950 */
+
+    --surface: #0f172a; /* slate-900 */
+    --surface-muted: #1e293b; /* slate-800 */
+    --surface-highlight: #1e293b; /* slate-800 */
+
+    --block-user: #1e293b; /* slate-800 */
+    --block-ai: #0f172a; /* slate-900 */
+    --block-system: #172554; /* blue-950 */
+    --block-system-foreground: #dbeafe; /* blue-100 */
+
+    --border: #1e293b; /* slate-800 */
+    --ring: #475569; /* slate-600 */
+  }
 }
 
 html,
@@ -11,25 +64,41 @@ body {
   overflow: hidden;
 }
 
+body {
+  margin: 0;
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-light: var(--primary-light);
+
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-highlight: var(--surface-highlight);
+  
+  --color-block-user: var(--block-user);
+  --color-block-ai: var(--block-ai);
+  --color-block-system: var(--block-system);
+  --color-block-system-foreground: var(--block-system-foreground);
+
+  --color-border-custom: var(--border);
+  --color-destructive: var(--destructive);
+  
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  margin: 0;
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  
+  /* Custom Spacing for Forum Layout */
+  --spacing-block: 2rem; /* 32px */
 }
 
 @keyframes typing-dot {
@@ -60,4 +129,20 @@ body {
 
 .typing-dot-delay-2 {
   animation-delay: 0.4s;
+}
+
+/* Scrollbar refinement */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--surface-muted);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ring);
 }
