@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { Plus, Search, Layers, Box, Settings2, Play, Save, Trash2, ArrowLeft } from "lucide-react";
-import TopNav from "../../components/TopNav";
+import TopNav from "../../../components/TopNav";
 import {
   createArtifact,
   createProject,
@@ -15,8 +15,8 @@ import type {
   Artifact,
   ArtifactUpdate,
   ArtifactVariable,
-} from "../../lib/schemas";
-import { parseTemplateVariables } from "../../lib/template";
+} from "../../../lib/schemas";
+import { parseTemplateVariables } from "../../../lib/template";
 
 const projectIdSchema = z.string().uuid();
 
