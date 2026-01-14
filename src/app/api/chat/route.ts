@@ -24,6 +24,15 @@ const MAX_QUESTION_ROUNDS = Number(process.env.MAX_QUESTION_ROUNDS ?? "3");
 const MIN_PROMPT_VARIABLES = Number(process.env.MIN_PROMPT_VARIABLES ?? "3");
 const FORM_MESSAGE_PREFIX = "__FORM__:";
 
+const cleanJsonOutput = (raw: string) => {
+  const jsonBlockRegex = /```json\s*([\s\S]*?)\s*```/;
+  const match = raw.match(jsonBlockRegex);
+  if (match) {
+    return match[1].trim();
+  }
+  return raw.trim();
+};
+
 const resolveOptionLabel = (
   options: { id?: string; label?: string }[] | undefined,
   value: string
@@ -239,7 +248,7 @@ const buildSystemPrompt = ({
     '      "max_select"?: number,',
     '      "placeholder"?: string',
     "    }",
-    "  ]",
+    "  ],",
     '  "deliberations": [',
     "    {",
     '      "stage": string,',
@@ -248,7 +257,7 @@ const buildSystemPrompt = ({
     "      ],",
     '      "synthesis": string',
     "    }",
-    "  ]",
+    "  ],",
     "}",
     "规则：",
     "- questions 必须存在，可为空数组表示无问题。",
@@ -375,8 +384,20 @@ const validateTemplateMeta = (prompt: string) => {
 };
 
 const normalizeLlmResponse = (raw: unknown) => {
-  const responsePayload = LLMResponseSchema.parse(raw);
-  const normalizedQuestions = responsePayload.questions.map((question, index) => {
+  let responsePayload: unknown = raw;
+  
+  // Try to parse if it's a string, cleaning JSON markdown blocks first
+  if (typeof raw === 'string') {
+    try {
+      responsePayload = JSON.parse(cleanJsonOutput(raw));
+    } catch {
+      // If parsing fails, fall back to original raw value to let zod handle the error (or re-throw)
+      responsePayload = raw;
+    }
+  }
+
+  const parsed = LLMResponseSchema.parse(responsePayload);
+  const normalizedQuestions = parsed.questions.map((question, index) => {
     const id = question.id ?? `q${index + 1}`;
     if (question.type === "text") {
       return {
@@ -405,7 +426,7 @@ const normalizeLlmResponse = (raw: unknown) => {
   });
 
   return {
-    ...responsePayload,
+    ...parsed,
     questions: normalizedQuestions,
   };
 };
@@ -502,7 +523,7 @@ export async function POST(req: Request) {
     const formattedFormMessage =
       typeof message === "string" ? formatFormMessageForLLM(message) : null;
     const userContent = answers
-      ? `用户回答(JSON): ${JSON.stringify(answers)}${
+      ? `用户回答(JSON): ${JSON.stringify(answers)}${ 
           formattedFormMessage
             ? `\n${formattedFormMessage}`
             : message && !isFormMessage
