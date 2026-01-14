@@ -207,12 +207,6 @@ export async function POST(req: Request) {
   let traceId = randomUUID();
   let body: unknown;
   try {
-    console.info("[api/artifacts/chat] request", {
-      projectId,
-      artifactId,
-      sessionId,
-      traceId,
-    });
     body = await req.json();
   } catch {
     console.error("[api/artifacts/chat] Invalid JSON");
@@ -254,6 +248,15 @@ export async function POST(req: Request) {
 
   const { projectId, artifactId, sessionId, message } = parsed.data;
   traceId = parsed.data.traceId ?? traceId;
+  if (isDebug) {
+    console.info("[api/artifacts/chat] request", {
+      projectId,
+      artifactId,
+      sessionId,
+      hasMessage: Boolean(message),
+      traceId,
+    });
+  }
 
   try {
     const artifact = await prisma.artifact.findFirst({

@@ -153,7 +153,7 @@ export default function ArtifactChatPage() {
   return (
     <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_45%,#e2e8f0_100%)]">
       <TopNav />
-      <main className="flex flex-1 min-h-0 w-full flex-col gap-6 overflow-hidden px-4 py-4">
+      <main className="flex flex-1 min-h-0 w-full flex-col gap-6 overflow-y-auto px-4 py-4">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.32em] text-slate-400">

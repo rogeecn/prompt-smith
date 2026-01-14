@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import {
-  ArtifactChatRequestSchema,
-  ArtifactChatResponseSchema,
-  type ArtifactVariable,
-  type HistoryItem,
+import type {
+  ArtifactChatRequest,
+  ArtifactChatResponse,
+  ArtifactVariable,
+  HistoryItem,
 } from "../lib/schemas";
 
 const isDebug = process.env.NODE_ENV !== "production";
@@ -228,14 +228,14 @@ export default function ArtifactChat({
         : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
     try {
-      const requestBody = ArtifactChatRequestSchema.parse({
+      const requestBody: ArtifactChatRequest = {
         projectId,
         artifactId,
         sessionId,
         message: trimmed,
         traceId,
         inputs: inputPayload,
-      });
+      };
 
       const response = await fetch("/api/artifacts/chat", {
         method: "POST",
@@ -259,7 +259,18 @@ export default function ArtifactChat({
         throw new Error(errorMessage);
       }
 
-      const payload = ArtifactChatResponseSchema.parse(await response.json());
+      const rawPayload = (await response.json()) as Partial<ArtifactChatResponse>;
+      if (
+        !rawPayload ||
+        typeof rawPayload.reply !== "string" ||
+        typeof rawPayload.sessionId !== "string"
+      ) {
+        throw new Error("响应格式异常");
+      }
+      const payload: ArtifactChatResponse = {
+        reply: rawPayload.reply,
+        sessionId: rawPayload.sessionId,
+      };
       if (payload.sessionId && payload.sessionId !== sessionId) {
         onSessionIdChange?.(payload.sessionId);
       }
