@@ -98,7 +98,7 @@ export default function ChatInterface({
   useEffect(() => {
     setMessages(initialMessages);
     setPendingQuestions(initialState?.questions ?? []);
-    setDraftAnswers(initialState?.draft_answers ?? {});
+    setDraftAnswers((initialState?.draft_answers as Record<string, DraftAnswer>) ?? {});
     setFinalPrompt(initialState?.final_prompt ?? null);
     setIsFinished(initialState?.is_finished ?? false);
     setDeliberations(initialState?.deliberations ?? []);
@@ -136,6 +136,7 @@ export default function ChatInterface({
       final_prompt: finalPrompt,
       is_finished: isFinished,
       draft_answers: draftAnswers,
+      title: finalPrompt ? deriveTitleFromPrompt(finalPrompt) : (initialState?.title ?? null),
     };
     latestStateRef.current = state;
     pendingSaveRef.current = true;
@@ -149,7 +150,7 @@ export default function ChatInterface({
     }, 1000);
 
     return () => { if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current); };
-  }, [projectId, sessionId, pendingQuestions, draftAnswers, deliberations, finalPrompt, isFinished]);
+  }, [projectId, sessionId, pendingQuestions, draftAnswers, deliberations, finalPrompt, isFinished, initialState?.title]);
 
   const sendRequest = async ({
     message,
