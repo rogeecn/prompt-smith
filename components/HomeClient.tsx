@@ -265,12 +265,12 @@ export default function HomeClient({ initialProjectId = null }: HomeClientProps)
           
           <aside 
             className={`
-              fixed inset-y-0 left-0 z-50 flex w-72 transform flex-col bg-white shadow-2xl transition-transform duration-300 ease-in-out lg:static lg:z-0 lg:w-80 lg:translate-x-0 lg:bg-transparent lg:shadow-none
+              fixed inset-y-0 left-0 z-50 flex w-72 transform flex-col border-r border-slate-200 bg-white shadow-2xl transition-transform duration-300 ease-in-out lg:static lg:z-0 lg:w-80 lg:translate-x-0 lg:shadow-none
               ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}
             `}
           >
-            <div className="flex h-full flex-col lg:p-6 lg:pr-0">
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-r-3xl bg-white lg:rounded-2xl lg:border lg:border-white/50 lg:bg-white/60 lg:shadow-sm lg:backdrop-blur-xl">
+            <div className="flex h-full flex-col">
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
                 {/* Sidebar Header */}
                 <div className="flex items-center justify-between p-4 lg:p-5">
                   <div className="flex items-center gap-2 text-slate-500">
@@ -360,8 +360,8 @@ export default function HomeClient({ initialProjectId = null }: HomeClientProps)
         </>
 
         {/* Main Chat Area - Island Style */}
-        <section className="flex min-w-0 flex-1 flex-col overflow-hidden lg:py-6 lg:pr-6">
-          <div className="flex h-full flex-col overflow-hidden bg-white lg:rounded-2xl lg:border lg:border-white/50 lg:shadow-xl lg:shadow-slate-200/40">
+        <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="flex h-full flex-col overflow-hidden bg-white">
             {contextError ? (
               <div className="flex h-full flex-col items-center justify-center p-8 text-center">
                 <div className="mb-4 rounded-full bg-rose-50 p-4">
