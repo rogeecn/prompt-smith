@@ -98,6 +98,7 @@ export const ChatRequestSchema = z
     message: z.string().min(1).max(12000).optional(),
     answers: z.array(AnswerSchema).max(40).optional(),
     traceId: z.string().min(1).optional(),
+    targetModel: z.string().min(1).optional(),
   })
   .refine(
     (data) => Boolean(data.message) || (data.answers?.length ?? 0) > 0,

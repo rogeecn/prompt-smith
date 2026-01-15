@@ -78,6 +78,7 @@ export const useChatSession = ({
     "idle" | "saving" | "saved" | "error"
   >("idle");
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const targetModelRef = useRef<string | null>(null);
 
   useEffect(() => {
     setMessages(initialMessages);
@@ -92,6 +93,14 @@ export const useChatSession = ({
     setRetryPayload(null);
     setIsLoading(false);
   }, [projectId, sessionId, initialMessages, initialState]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    targetModelRef.current = params.get("targetModel");
+  }, [projectId, sessionId]);
 
   useEffect(() => {
     if (!projectId || !sessionId || pendingQuestions.length === 0) {
@@ -157,7 +166,13 @@ export const useChatSession = ({
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, sessionId, message, answers }),
+        body: JSON.stringify({
+          projectId,
+          sessionId,
+          message,
+          answers,
+          targetModel: targetModelRef.current ?? undefined,
+        }),
       });
 
       if (!response.ok) {
