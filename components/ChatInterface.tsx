@@ -1,34 +1,24 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Send, Copy, Download, Archive, Share2, Sparkles, AlertCircle } from "lucide-react";
 import MessageStream from "./chat/MessageStream";
 import QuestionForm from "./chat/QuestionForm";
 import {
-  ChatRequestSchema,
-  LLMResponseSchema,
   type Answer,
   type DraftAnswer,
-  type LLMResponse,
   type HistoryItem,
   type Question,
   type SessionState,
 } from "../lib/schemas";
-import { createArtifactFromPrompt, updateSessionState } from "../src/app/actions";
-import { deriveTitleFromPrompt } from "../lib/template";
+import { createArtifactFromPrompt } from "../src/app/actions";
+import { useChatSession } from "../hooks/useChatSession";
 
 const OTHER_OPTION_ID = "__other__";
 const NONE_OPTION_ID = "__none__";
 const DEFAULT_START_MESSAGE = "开始向导";
 const FORM_MESSAGE_PREFIX = "__FORM__:";
-const isDebug = process.env.NODE_ENV !== "production";
-
-const logDebug = (label: string, payload?: unknown) => {
-  if (!isDebug) return;
-  console.log(`[ChatInterface] ${label}`, payload || "");
-};
-
 type ChatInterfaceProps = {
   projectId: string;
   sessionId: string;
@@ -70,48 +60,41 @@ export default function ChatInterface({
   onSessionTitleUpdate,
 }: ChatInterfaceProps) {
   const router = useRouter();
-  const [messages, setMessages] = useState<HistoryItem[]>(initialMessages);
-  const [pendingQuestions, setPendingQuestions] = useState<Question[]>([]);
-  const [draftAnswers, setDraftAnswers] = useState<Record<string, DraftAnswer>>({});
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [retryPayload, setRetryPayload] = useState<{
-    message?: string;
-    answers?: Answer[];
-  } | null>(null);
-  const [finalPrompt, setFinalPrompt] = useState<string | null>(null);
-  const [isFinished, setIsFinished] = useState(false);
   const [copyState, setCopyState] = useState<"idle" | "success" | "error">("idle");
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const [deliberations, setDeliberations] = useState<LLMResponse["deliberations"]>([]);
   const [exportStatus, setExportStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
   const [exportError, setExportError] = useState<string | null>(null);
   
   const listRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const latestStateRef = useRef<SessionState | null>(null);
-  const pendingSaveRef = useRef(false);
+  const {
+    messages,
+    pendingQuestions,
+    draftAnswers,
+    setDraftAnswers,
+    setPendingQuestions,
+    isLoading,
+    formError,
+    retryPayload,
+    finalPrompt,
+    isFinished,
+    deliberations,
+    saveStatus,
+    sendRequest,
+  } = useChatSession({
+    projectId,
+    sessionId,
+    initialMessages,
+    initialState,
+    isDisabled,
+    onSessionTitleUpdate,
+  });
 
   useEffect(() => {
-    setMessages(initialMessages);
-    setPendingQuestions(initialState?.questions ?? []);
-    setDraftAnswers((initialState?.draft_answers as Record<string, DraftAnswer>) ?? {});
-    setFinalPrompt(initialState?.final_prompt ?? null);
-    setIsFinished(initialState?.is_finished ?? false);
-    setDeliberations(initialState?.deliberations ?? []);
-    setFormError(null);
     setInput("");
     setFieldErrors({});
   }, [projectId, sessionId, initialMessages, initialState]);
-
-  useEffect(() => {
-    if (finalPrompt) {
-      onSessionTitleUpdate?.(deriveTitleFromPrompt(finalPrompt));
-    }
-  }, [finalPrompt, onSessionTitleUpdate]);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -126,81 +109,11 @@ export default function ChatInterface({
     }
   }, [messages, isLoading, deliberations, finalPrompt, pendingQuestions]);
 
-  // Auto-save draft logic
-  useEffect(() => {
-    if (!projectId || !sessionId || pendingQuestions.length === 0) return;
-
-    const state: SessionState = {
-      questions: pendingQuestions,
-      deliberations,
-      final_prompt: finalPrompt,
-      is_finished: isFinished,
-      draft_answers: draftAnswers,
-      title: finalPrompt ? deriveTitleFromPrompt(finalPrompt) : (initialState?.title ?? null),
-    };
-    latestStateRef.current = state;
-    pendingSaveRef.current = true;
-    setSaveStatus("saving");
-
-    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    saveTimeoutRef.current = setTimeout(() => {
-      void updateSessionState(projectId, sessionId, state)
-        .then(() => setSaveStatus("saved"))
-        .catch(() => setSaveStatus("error"));
-    }, 1000);
-
-    return () => { if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current); };
-  }, [projectId, sessionId, pendingQuestions, draftAnswers, deliberations, finalPrompt, isFinished, initialState?.title]);
-
-  const sendRequest = async ({
-    message,
-    answers,
-    optimisticUserMessage,
-    appendUserMessage = true,
-  }: {
-    message?: string;
-    answers?: Answer[];
-    optimisticUserMessage?: HistoryItem;
-    appendUserMessage?: boolean;
-  }) => {
-    if (isLoading || isDisabled) return;
-
-    if (appendUserMessage && optimisticUserMessage) {
-      setMessages((prev) => [...prev, optimisticUserMessage]);
-    }
-    setIsLoading(true);
-    setFormError(null);
-    setDeliberations([]);
-    
-    try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, sessionId, message, answers }),
-      });
-
-      if (!response.ok) throw new Error("Request failed");
-      const payload = LLMResponseSchema.parse(await response.json());
-
-      if (payload.final_prompt) setFinalPrompt(payload.final_prompt);
-      setIsFinished(payload.is_finished);
-      setDeliberations(payload.deliberations ?? []);
-      setMessages((prev) => [...prev, { role: "assistant", content: payload.reply, timestamp: Date.now() }]);
-      setPendingQuestions(payload.questions ?? []);
-      setDraftAnswers({});
-      setInput("");
-    } catch (error) {
-      setFormError(error instanceof Error ? error.message : "请求失败");
-      setRetryPayload({ message, answers });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleStartSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const finalMessage = input.trim() || DEFAULT_START_MESSAGE;
     await sendRequest({ message: finalMessage, optimisticUserMessage: { role: "user", content: finalMessage, timestamp: Date.now() } });
+    setInput("");
   };
 
   const handleAnswerSubmit = async (e: React.FormEvent) => {
@@ -219,6 +132,7 @@ export default function ChatInterface({
     const displayMessage = serializeFormMessage({ questions: pendingQuestions, answers: draftAnswers });
     setPendingQuestions([]);
     await sendRequest({ answers, message: displayMessage, optimisticUserMessage: { role: "user", content: displayMessage, timestamp: Date.now() } });
+    setInput("");
   };
 
   const handleCopyFinalPrompt = async () => {
@@ -247,15 +161,23 @@ export default function ChatInterface({
 
   const showChatInput = !isLoading && pendingQuestions.length === 0 && (messages.length === 0 || isFinished || !!finalPrompt);
   const showQuestionForm = pendingQuestions.length > 0 && !finalPrompt && !isFinished;
+  const saveStatusLabel =
+    saveStatus === "saving"
+      ? "正在保存草稿..."
+      : saveStatus === "saved"
+        ? "草稿已保存"
+        : saveStatus === "error"
+          ? "草稿保存失败"
+          : "";
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-white">
       {/* Scrollable Content */}
       <div ref={listRef} className="flex-1 overflow-y-auto">
-        <MessageStream 
-          messages={messages} 
-          deliberations={deliberations} 
-          isLoading={isLoading} 
+        <MessageStream
+          messages={messages}
+          deliberations={deliberations}
+          isLoading={isLoading}
           parseFormMessage={parseFormMessage}
         />
 
@@ -266,7 +188,7 @@ export default function ChatInterface({
             fieldErrors={fieldErrors}
             isLoading={isLoading}
             isDisabled={isDisabled}
-            saveStatusLabel={saveStatus === "saving" ? "正在保存草稿..." : saveStatus === "saved" ? "草稿已保存" : ""}
+            saveStatusLabel={saveStatusLabel}
             formError={formError}
             onTextChange={(k, v) => setDraftAnswers(p => ({ ...p, [k]: { type: "text", value: v } }))}
             onSingleSelect={(k, v) => setDraftAnswers(p => ({ ...p, [k]: { type: "single", value: v, other: v === OTHER_OPTION_ID ? p[k]?.other : undefined } }))}
