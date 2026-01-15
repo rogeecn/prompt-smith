@@ -7,6 +7,7 @@ import {
   DraftAnswerSchema,
   HistoryItemSchema,
   QuestionSchema,
+  OutputFormatSchema,
   ArtifactVariablesSchema,
   ArtifactUpdateSchema,
   type DraftAnswer,
@@ -70,6 +71,8 @@ const normalizeSessionState = (value: unknown): SessionState => {
     final_prompt: null,
     is_finished: false,
     target_model: null,
+    model_id: null,
+    output_format: null,
     title: null,
     draft_answers: {},
   };
@@ -102,6 +105,8 @@ const normalizeSessionState = (value: unknown): SessionState => {
     []
   );
 
+  const outputFormatParsed = OutputFormatSchema.safeParse(record.output_format);
+
   return {
     questions,
     deliberations,
@@ -109,6 +114,8 @@ const normalizeSessionState = (value: unknown): SessionState => {
       typeof record.final_prompt === "string" ? record.final_prompt : null,
     is_finished: typeof record.is_finished === "boolean" ? record.is_finished : false,
     target_model: typeof record.target_model === "string" ? record.target_model : null,
+    model_id: typeof record.model_id === "string" ? record.model_id : null,
+    output_format: outputFormatParsed.success ? outputFormatParsed.data : null,
     title: typeof record.title === "string" ? record.title : null,
     draft_answers: normalizeDraftAnswers(record.draft_answers),
   };
@@ -725,4 +732,56 @@ export async function updateSessionTargetModel(
   });
 
   return nextTargetModel;
+}
+
+export async function updateSessionModelConfig(
+  projectId: string,
+  sessionId: string,
+  modelId: string | null,
+  outputFormat: string | null
+) {
+  const parsedProjectId = projectIdSchema.safeParse(projectId);
+  const parsedSessionId = sessionIdSchema.safeParse(sessionId);
+  if (!parsedProjectId.success || !parsedSessionId.success) {
+    logDebug("updateSessionModelConfig:invalid", { projectId, sessionId });
+    throw new Error("Invalid session");
+  }
+
+  const normalizedModelId = typeof modelId === "string" ? modelId.trim() : "";
+  const nextModelId = normalizedModelId ? normalizedModelId : null;
+  const parsedOutputFormat = OutputFormatSchema.safeParse(outputFormat);
+  const nextOutputFormat = parsedOutputFormat.success ? parsedOutputFormat.data : null;
+
+  const session = await prisma.session.findFirst({
+    where: { id: parsedSessionId.data, projectId: parsedProjectId.data },
+    select: { state: true },
+  });
+
+  if (!session) {
+    logDebug("updateSessionModelConfig:not-found", { projectId, sessionId });
+    throw new Error("Session not found");
+  }
+
+  const normalizedState = normalizeSessionState(session.state ?? {});
+  const nextState: SessionState = {
+    ...normalizedState,
+    model_id: nextModelId,
+    output_format: nextOutputFormat,
+  };
+
+  await prisma.session.update({
+    where: { id: parsedSessionId.data },
+    data: { state: nextState },
+  });
+
+  logDebug("updateSessionModelConfig:done", {
+    sessionId: parsedSessionId.data,
+    model_id: nextModelId,
+    output_format: nextOutputFormat,
+  });
+
+  return {
+    modelId: nextModelId,
+    outputFormat: nextOutputFormat,
+  };
 }

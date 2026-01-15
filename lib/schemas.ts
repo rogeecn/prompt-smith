@@ -91,6 +91,10 @@ export const DraftAnswerRecordSchema = z.preprocess(
   z.record(z.string(), DraftAnswerSchema).default({})
 );
 
+export const OutputFormatSchema = z.enum(["markdown", "xml"]);
+
+export type OutputFormat = z.infer<typeof OutputFormatSchema>;
+
 export const ChatRequestSchema = z
   .object({
     projectId: z.string().uuid(),
@@ -98,6 +102,8 @@ export const ChatRequestSchema = z
     message: z.string().min(1).max(12000).optional(),
     answers: z.array(AnswerSchema).max(40).optional(),
     traceId: z.string().min(1).optional(),
+    modelId: z.string().min(1).optional(),
+    outputFormat: OutputFormatSchema.optional(),
     targetModel: z.string().min(1).optional(),
   })
   .refine(
@@ -126,11 +132,27 @@ export const SessionStateSchema = z.object({
   final_prompt: z.string().nullable().default(null),
   is_finished: z.boolean().default(false),
   target_model: z.string().nullable().default(null),
+  model_id: z.string().nullable().default(null),
+  output_format: OutputFormatSchema.nullable().default(null),
   title: z.string().nullable().default(null),
   draft_answers: DraftAnswerRecordSchema,
 });
 
 export type SessionState = z.infer<typeof SessionStateSchema>;
+
+export const ModelOptionSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+});
+
+export const ModelCatalogSchema = z.object({
+  models: z.array(ModelOptionSchema).min(1),
+  defaultModelId: z.string().min(1),
+  formats: z.array(OutputFormatSchema).min(1),
+  defaultFormat: OutputFormatSchema,
+});
+
+export type ModelCatalog = z.infer<typeof ModelCatalogSchema>;
 
 export const LLMResponseSchema = z.object({
   reply: z.string(),

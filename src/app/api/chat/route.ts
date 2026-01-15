@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ai, getCompatModel } from "../../../../lib/genkit";
+import { resolveModelConfig } from "../../../../lib/model-config";
 import { prisma } from "../../../../lib/prisma";
 import {
   ChatRequestSchema,
@@ -9,6 +10,7 @@ import {
   GuardPromptReviewSchema,
   HistoryItemSchema,
   LLMResponseSchema,
+  OutputFormatSchema,
   SessionStateSchema,
 } from "../../../../lib/schemas";
 import {
@@ -37,19 +39,18 @@ const INJECTION_PATTERNS = [
 
 type PromptFormat = "markdown" | "xml";
 
-const normalizeTargetModel = (value?: string | null) =>
-  value ? value.trim() : null;
+const normalizeModelId = (value?: string | null) => (value ? value.trim() : null);
 
-const resolvePromptFormat = (targetModel?: string | null): PromptFormat => {
-  if (!targetModel) {
-    return "markdown";
+const normalizeOutputFormat = (value?: string | null): PromptFormat | null => {
+  if (!value) {
+    return null;
   }
-  const lower = targetModel.toLowerCase();
-  if (lower.includes("claude") || lower.includes("anthropic")) {
-    return "xml";
-  }
-  return "markdown";
+  const parsed = OutputFormatSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
 };
+
+const resolvePromptFormat = (value?: PromptFormat | null): PromptFormat =>
+  value ?? "markdown";
 
 const buildFinalPromptRules = (promptFormat: PromptFormat) => {
   const structureRules =
@@ -117,14 +118,6 @@ const CriticReviewSchema = z.object({
 const SynthesisSchema = z.object({
   final_prompt: z.string().min(1),
 });
-
-const getModelName = () => {
-  const modelName = process.env.OPENAI_MODEL;
-  if (!modelName) {
-    throw new Error("Missing OPENAI_MODEL");
-  }
-  return modelName;
-};
 
 const cleanJsonOutput = (raw: string) => {
   const jsonBlockRegex = /```json\s*([\s\S]*?)\s*```/;
@@ -318,13 +311,13 @@ const buildSystemPrompt = ({
   roundLimit,
   forceFinalize,
   promptFormat,
-  targetModel,
+  modelLabel,
 }: {
   completedRounds: number;
   roundLimit: number;
   forceFinalize: boolean;
   promptFormat: PromptFormat;
-  targetModel: string | null;
+  modelLabel: string | null;
 }) => {
   const hasLimit = Number.isFinite(roundLimit) && roundLimit > 0;
   const roundHint = hasLimit
@@ -333,9 +326,9 @@ const buildSystemPrompt = ({
       : `当前已完成 ${completedRounds}/${roundLimit} 轮追问，请尽量在剩余轮次内完成信息收集。`
     : "请尽量减少轮次，优先覆盖所有关键问题。";
   const formatLabel = promptFormat === "xml" ? "XML" : "Markdown";
-  const targetHint = targetModel
-    ? `目标模型: ${targetModel}（final_prompt 使用 ${formatLabel} 格式）。`
-    : `目标模型: 默认 GPT 风格（final_prompt 使用 ${formatLabel} 格式）。`;
+  const targetHint = modelLabel
+    ? `当前模型: ${modelLabel}。输出格式: ${formatLabel}（与模型选择独立）。`
+    : `当前模型: 默认模型。输出格式: ${formatLabel}（与模型选择独立）。`;
   const modeInstructions = forceFinalize
     ? [
         "[MODE: GENERATION]",
@@ -427,15 +420,13 @@ const buildConversationContext = (
 const buildVariantSystemPrompt = ({
   variant,
   promptFormat,
-  targetModel,
+  modelLabel,
 }: {
   variant: "A" | "B" | "C";
   promptFormat: PromptFormat;
-  targetModel: string | null;
+  modelLabel: string | null;
 }) => {
-  const targetHint = targetModel
-    ? `目标模型: ${targetModel}`
-    : "目标模型: 默认 GPT 风格";
+  const targetHint = modelLabel ? `当前模型: ${modelLabel}` : "当前模型: 默认模型";
   const variantHint =
     variant === "A"
       ? "方案 A（结构化）：强调结构清晰、条目化、可执行流程。"
@@ -495,24 +486,25 @@ const buildSynthesisPrompt = (promptFormat: PromptFormat) =>
   ].join("\n");
 
 const runAlchemyGeneration = async ({
+  model,
+  modelLabel,
   promptFormat,
-  targetModel,
   history,
   latestUserContent,
 }: {
+  model: ReturnType<typeof getCompatModel>;
+  modelLabel: string | null;
   promptFormat: PromptFormat;
-  targetModel: string | null;
   history: { role: string; content: string }[];
   latestUserContent: string;
 }) => {
   const context = buildConversationContext(history, latestUserContent);
-  const model = getCompatModel(getModelName());
   const variants = await Promise.all(
     (["A", "B", "C"] as const).map(async (variant) => {
       const systemPrompt = buildVariantSystemPrompt({
         variant,
         promptFormat,
-        targetModel,
+        modelLabel,
       });
       const response = await generateWithRetry({
         model,
@@ -670,10 +662,14 @@ const buildGuardFixPrompt = (minVariables: number, promptFormat: PromptFormat) =
   ].join("\n");
 };
 
-const runGuardReview = async (prompt: string, promptFormat: PromptFormat) => {
+const runGuardReview = async (
+  prompt: string,
+  promptFormat: PromptFormat,
+  model: ReturnType<typeof getCompatModel>
+) => {
   const guardPrompt = buildGuardPrompt(MIN_PROMPT_VARIABLES, promptFormat);
   const guardResponse = await generateWithRetry({
-    model: getCompatModel(getModelName()),
+    model,
     messages: [
       { role: "system", content: [{ text: guardPrompt }] },
       { role: "user", content: [{ text: prompt }] },
@@ -686,11 +682,12 @@ const runGuardReview = async (prompt: string, promptFormat: PromptFormat) => {
 const runGuardFix = async (
   prompt: string,
   issues: string[],
-  promptFormat: PromptFormat
+  promptFormat: PromptFormat,
+  model: ReturnType<typeof getCompatModel>
 ) => {
   const guardPrompt = buildGuardFixPrompt(MIN_PROMPT_VARIABLES, promptFormat);
   const guardResponse = await generateWithRetry({
-    model: getCompatModel(getModelName()),
+    model,
     messages: [
       { role: "system", content: [{ text: guardPrompt }] },
       {
@@ -786,9 +783,10 @@ const detectInjectionIssues = (prompt: string) =>
 const applyGuardFix = async (
   prompt: string,
   issues: string[],
-  promptFormat: PromptFormat
+  promptFormat: PromptFormat,
+  model: ReturnType<typeof getCompatModel>
 ) => {
-  const fixReview = await runGuardFix(prompt, issues, promptFormat);
+  const fixReview = await runGuardFix(prompt, issues, promptFormat, model);
   const revised = fixReview.revised_prompt?.trim() ?? "";
   if (!revised) {
     console.error("[api/chat] guard fix failed without revision", {
@@ -796,7 +794,7 @@ const applyGuardFix = async (
     });
     throw new Error("Prompt guard failed");
   }
-  const secondReview = await runGuardReview(revised, promptFormat);
+  const secondReview = await runGuardReview(revised, promptFormat, model);
   if (!secondReview.pass) {
     console.error("[api/chat] guard fix revision failed", {
       issues: secondReview.issues,
@@ -903,18 +901,11 @@ export async function POST(req: Request) {
     );
   }
 
-  if (!process.env.OPENAI_MODEL) {
-    console.error("[api/chat] Missing OPENAI_MODEL");
-    return jsonWithTrace(
-      { error: "Missing OPENAI_MODEL" },
-      { status: 500 },
-      traceId
-    );
-  }
-
   const { projectId, sessionId, message, answers } = parsed.data;
-  const targetModel = normalizeTargetModel(parsed.data.targetModel);
-  const promptFormat = resolvePromptFormat(targetModel);
+  const requestedModelId = normalizeModelId(
+    parsed.data.modelId ?? parsed.data.targetModel
+  );
+  const requestedOutputFormat = normalizeOutputFormat(parsed.data.outputFormat);
   traceId = parsed.data.traceId ?? traceId;
 
   console.info("[api/chat] request", {
@@ -922,6 +913,8 @@ export async function POST(req: Request) {
     sessionId,
     hasMessage: Boolean(message),
     answersCount: answers?.length ?? 0,
+    requestedModelId,
+    requestedOutputFormat,
     traceId,
   });
 
@@ -938,6 +931,34 @@ export async function POST(req: Request) {
         traceId
       );
     }
+
+    const sessionStateParsed = SessionStateSchema.safeParse(session.state ?? {});
+    const storedSessionState = sessionStateParsed.success
+      ? sessionStateParsed.data
+      : null;
+    const sessionModelId =
+      storedSessionState?.model_id ?? storedSessionState?.target_model ?? null;
+    const sessionOutputFormat = storedSessionState?.output_format ?? null;
+    const promptFormat = resolvePromptFormat(
+      requestedOutputFormat ?? sessionOutputFormat
+    );
+
+    let modelConfig: ReturnType<typeof resolveModelConfig>;
+    try {
+      modelConfig = resolveModelConfig(requestedModelId ?? sessionModelId);
+    } catch (error) {
+      console.error("[api/chat] Missing OPENAI_MODELS or OPENAI_MODEL", {
+        error,
+      });
+      return jsonWithTrace(
+        { error: "Missing OPENAI_MODELS or OPENAI_MODEL" },
+        { status: 500 },
+        traceId
+      );
+    }
+
+    const modelRef = getCompatModel(modelConfig.model);
+    const modelLabel = modelConfig.label || modelConfig.id;
 
     const historyParsed = historyArraySchema.safeParse(session.history);
     const history = historyParsed.success ? historyParsed.data : [];
@@ -956,7 +977,7 @@ export async function POST(req: Request) {
       roundLimit: MAX_QUESTION_ROUNDS,
       forceFinalize: shouldForceFinalize,
       promptFormat,
-      targetModel,
+      modelLabel,
     });
 
     const isFormMessage =
@@ -974,7 +995,7 @@ export async function POST(req: Request) {
       : formattedFormMessage ?? message ?? "";
 
     const llmResponse = await generateWithRetry({
-      model: getCompatModel(getModelName()),
+      model: modelRef,
       messages: [
         { role: "system", content: [{ text: systemPrompt }] },
         ...trimmedHistory.map((item) => {
@@ -1008,10 +1029,10 @@ export async function POST(req: Request) {
         roundLimit: MAX_QUESTION_ROUNDS,
         forceFinalize: true,
         promptFormat,
-        targetModel,
+        modelLabel,
       });
       const retryResponse = await generateWithRetry({
-        model: getCompatModel(getModelName()),
+        model: modelRef,
         messages: [
           { role: "system", content: [{ text: retryPrompt }] },
           ...trimmedHistory.map((item) => {
@@ -1039,8 +1060,9 @@ export async function POST(req: Request) {
 
     if (shouldRunAlchemy) {
       const alchemy = await runAlchemyGeneration({
+        model: modelRef,
+        modelLabel,
         promptFormat,
-        targetModel,
         history: trimmedHistory,
         latestUserContent: userContent,
       });
@@ -1059,7 +1081,11 @@ export async function POST(req: Request) {
           ? MIN_PROMPT_VARIABLES
           : 3;
       const initialPrompt = normalizedResponse.final_prompt.trim();
-      const guardReview = await runGuardReview(initialPrompt, promptFormat);
+      const guardReview = await runGuardReview(
+        initialPrompt,
+        promptFormat,
+        modelRef
+      );
       let finalPrompt = initialPrompt;
       let review = guardReview;
 
@@ -1076,12 +1102,17 @@ export async function POST(req: Request) {
           const fixResult = await applyGuardFix(
             initialPrompt,
             baseIssues,
-            promptFormat
+            promptFormat,
+            modelRef
           );
           finalPrompt = fixResult.finalPrompt;
           review = fixResult.review;
         } else {
-          const secondReview = await runGuardReview(revised, promptFormat);
+          const secondReview = await runGuardReview(
+            revised,
+            promptFormat,
+            modelRef
+          );
           if (secondReview.pass) {
             finalPrompt = revised;
             review = secondReview;
@@ -1095,7 +1126,8 @@ export async function POST(req: Request) {
             const fixResult = await applyGuardFix(
               initialPrompt,
               mergedIssues,
-              promptFormat
+              promptFormat,
+              modelRef
             );
             finalPrompt = fixResult.finalPrompt;
             review = fixResult.review;
@@ -1111,7 +1143,8 @@ export async function POST(req: Request) {
         const fixResult = await applyGuardFix(
           finalPrompt,
           metaCheck.missing,
-          promptFormat
+          promptFormat,
+          modelRef
         );
         finalPrompt = fixResult.finalPrompt;
         review = fixResult.review;
@@ -1129,7 +1162,8 @@ export async function POST(req: Request) {
         const fixResult = await applyGuardFix(
           finalPrompt,
           structureIssues,
-          promptFormat
+          promptFormat,
+          modelRef
         );
         finalPrompt = fixResult.finalPrompt;
         review = fixResult.review;
@@ -1143,7 +1177,8 @@ export async function POST(req: Request) {
         const fixResult = await applyGuardFix(
           finalPrompt,
           injectionIssues,
-          promptFormat
+          promptFormat,
+          modelRef
         );
         finalPrompt = fixResult.finalPrompt;
         review = fixResult.review;
@@ -1172,9 +1207,13 @@ export async function POST(req: Request) {
       deliberations: normalizedResponse.deliberations,
       final_prompt: normalizedResponse.final_prompt,
       is_finished: normalizedResponse.is_finished,
+      target_model: storedSessionState?.target_model ?? null,
+      model_id: modelConfig.id,
+      output_format: promptFormat,
       title: normalizedResponse.final_prompt
         ? deriveTitleFromPrompt(normalizedResponse.final_prompt)
         : null,
+      draft_answers: storedSessionState?.draft_answers ?? {},
     });
 
     if (isDebug) {

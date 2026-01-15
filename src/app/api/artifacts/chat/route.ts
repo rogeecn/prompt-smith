@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { ai, getCompatModel } from "../../../../../lib/genkit";
+import { resolveModelConfig } from "../../../../../lib/model-config";
 import { prisma } from "../../../../../lib/prisma";
 import {
   ArtifactVariablesSchema,
@@ -317,15 +318,22 @@ export async function POST(req: Request) {
     );
   }
 
-  const modelName = process.env.OPENAI_MODEL;
-  if (!modelName) {
-    console.error("[api/artifacts/chat] Missing OPENAI_MODEL");
+  let modelConfig: ReturnType<typeof resolveModelConfig>;
+  try {
+    modelConfig = resolveModelConfig(null);
+  } catch (error) {
+    console.error(
+      "[api/artifacts/chat] Missing OPENAI_MODELS or OPENAI_MODEL",
+      { error }
+    );
     return jsonWithTrace(
-      { error: "Missing OPENAI_MODEL" },
+      { error: "Missing OPENAI_MODELS or OPENAI_MODEL" },
       { status: 500 },
       traceId
     );
   }
+
+  const modelRef = getCompatModel(modelConfig.model);
 
   const { projectId, artifactId, sessionId, message, inputs } = parsed.data;
   traceId = parsed.data.traceId ?? traceId;
@@ -428,7 +436,7 @@ export async function POST(req: Request) {
         : history;
 
     const llmResponse = await generateWithRetry({
-      model: getCompatModel(modelName),
+      model: modelRef,
       messages: [
         { role: "system", content: [{ text: systemPrompt }] },
         ...trimmedHistory.map((item) => ({
