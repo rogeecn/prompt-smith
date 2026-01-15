@@ -12,7 +12,6 @@ import {
   type Question,
 } from "../lib/schemas";
 import { updateSessionState } from "../src/app/actions";
-import { deriveTitleFromPrompt } from "../lib/template";
 
 export type SendRequestPayload = {
   message?: string;
@@ -93,12 +92,6 @@ export const useChatSession = ({
     setRetryPayload(null);
     setIsLoading(false);
   }, [projectId, sessionId, initialMessages, initialState]);
-
-  useEffect(() => {
-    if (finalPrompt) {
-      onSessionTitleUpdate?.(deriveTitleFromPrompt(finalPrompt));
-    }
-  }, [finalPrompt, onSessionTitleUpdate]);
 
   useEffect(() => {
     if (!projectId || !sessionId || pendingQuestions.length === 0) {

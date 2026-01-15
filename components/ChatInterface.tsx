@@ -129,7 +129,8 @@ export default function ChatInterface({
     const derived = deriveTitleFromPrompt(finalPrompt);
     setSessionTitle(derived);
     setTitleDraft(derived);
-  }, [finalPrompt]);
+    onSessionTitleUpdate?.(derived);
+  }, [finalPrompt, onSessionTitleUpdate]);
 
   const handleStartSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
