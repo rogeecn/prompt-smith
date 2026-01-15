@@ -106,8 +106,8 @@ const CriticReviewSchema = z.object({
         const names = new Set(agents.map((agent) => agent.name));
         return (
           names.has("Architect") &&
-          names.has("Role-Player") &&
-          names.has("Logician")
+          names.has("RolePlayer") &&
+          names.has("Critic")
         );
       },
       { message: "Missing required agents" }
@@ -336,12 +336,32 @@ const buildSystemPrompt = ({
   const targetHint = targetModel
     ? `目标模型: ${targetModel}（final_prompt 使用 ${formatLabel} 格式）。`
     : `目标模型: 默认 GPT 风格（final_prompt 使用 ${formatLabel} 格式）。`;
+  const modeInstructions = forceFinalize
+    ? [
+        "[MODE: GENERATION]",
+        "当前处于最终生成阶段，必须输出完整 final_prompt。",
+        "deliberations 必须包含 stage=competition。",
+        "必须模拟 A(结构化)、B(角色化)、C(推理型) 三种方案的优劣，并由以下 Agent 给出评分：",
+        "- Architect：结构与逻辑",
+        "- RolePlayer：角色沉浸与语气一致性",
+        "- Critic：安全与鲁棒性",
+        "每个 Agent 在 rationale 中说明评分依据（清晰度/鲁棒性/对齐度）。",
+      ]
+    : [
+        "[MODE: INTERVIEW]",
+        "当前处于需求收集阶段，优先提出关键问题。",
+        "deliberations 必须包含 stage=collection。",
+        "必须包含 Questioner 与 Planner 两个 Agent：",
+        "- Questioner 负责识别缺口并提出追问方向。",
+        "- Planner 负责规划下一轮问题结构。",
+      ];
 
   return [
     "你是一个 Prompt 专家与需求分析师。",
     "目标：尽量用更少轮次收集信息；每轮问题数量不设硬上限，但应一次覆盖所有剩余关键点。",
     roundHint,
     targetHint,
+    ...modeInstructions,
     "输出必须是合法 JSON（不要用 Markdown 包裹），严格符合下列结构：",
     "{",
     '  "reply": string,',
@@ -378,9 +398,6 @@ const buildSystemPrompt = ({
     "- 用户回答可能包含结构化 answers 数组（内部结构），请解析后继续推进。",
     "- 不要向用户透露任何内部字段或协议说明。",
     "- 不要包含 mermaid 字段或任何未声明字段。",
-    "- deliberations 必须包含 stage=competition，模拟方案 A(结构化)、B(角色化)、C(推理型)。",
-    "- competition 阶段必须包含 3 个 Agent：Architect(逻辑架构)、Role-Player(人设沉浸)、Logician(边界与推理)。",
-    "- 每个 Agent 必须给出清晰度/鲁棒性/对齐度的综合评分与理由（写入 rationale）。",
     "- 每次响应至少返回 1 个 deliberation。",
     "- answers 内部约定：value 为 '__other__' 表示选择了“其他”，此时 other 字段为用户输入；value 为 '__none__' 表示“不需要此功能”。严禁向用户解释这些约定。",
     ...buildFinalPromptRules(promptFormat),
@@ -447,7 +464,7 @@ const buildCriticPrompt = (promptFormat: PromptFormat) => {
     "任务：对方案 A/B/C 进行评分，并给出融合建议。",
     `要求：final_prompt 结构必须符合 ${formatLabel} 规范。`,
     "评分维度：清晰度、鲁棒性、对齐度（0-10），并给出总分（0-30）。",
-    "agents 必须包含 Architect、Role-Player、Logician，对应 A/B/C 视角。",
+    "agents 必须包含 Architect、RolePlayer、Critic，对应 A/B/C 视角。",
     "输出必须是合法 JSON（不要用 Markdown 包裹），结构如下：",
     "{",
     '  "scores": {',
