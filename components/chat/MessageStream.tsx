@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import { useEffect, useState } from "react";
 import MessageBlock from "./MessageBlock";
 import AgentDeliberation from "./AgentDeliberation";
 import { Activity } from "lucide-react";
@@ -22,6 +22,31 @@ export default function MessageStream({
   isLoading,
   parseFormMessage,
 }: MessageStreamProps) {
+  const [visibleDeliberations, setVisibleDeliberations] = useState<
+    LLMResponse["deliberations"]
+  >([]);
+
+  useEffect(() => {
+    if (!deliberations || deliberations.length === 0) {
+      setVisibleDeliberations([]);
+      return;
+    }
+
+    let index = 0;
+    setVisibleDeliberations([]);
+    const timer = setInterval(() => {
+      index += 1;
+      setVisibleDeliberations(deliberations.slice(0, index));
+      if (index >= deliberations.length) {
+        clearInterval(timer);
+      }
+    }, 450);
+
+    return () => {
+      clearInterval(timer);
+    };
+  }, [deliberations]);
+
   if (messages.length === 0) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center p-12 text-center">
@@ -37,7 +62,7 @@ export default function MessageStream({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="flex-1">
       <div className="flex flex-col">
         {messages.map((item, index) => {
           const formPayload = parseFormMessage(item.content);
@@ -52,7 +77,7 @@ export default function MessageStream({
             />
           );
         })}
-        <AgentDeliberation deliberations={deliberations} />
+        <AgentDeliberation deliberations={visibleDeliberations} />
 
         {/* AI Loading Block */}
         {isLoading && (
