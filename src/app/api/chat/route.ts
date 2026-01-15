@@ -735,6 +735,11 @@ const validatePromptStructure = (
   promptFormat: PromptFormat
 ) => {
   const missing: string[] = [];
+  const issues: string[] = [];
+  const missingThinking = !prompt.includes("<thinking>");
+  if (missingThinking) {
+    issues.push("缺少 <thinking> 思考指令");
+  }
   if (promptFormat === "xml") {
     const checks = [
       { label: "Role", regex: /<Role>[\s\S]*?<\/Role>/i },
@@ -750,7 +755,7 @@ const validatePromptStructure = (
         missing.push(`缺少结构模块: ${check.label}`);
       }
     });
-    return { missing };
+    return { missing, issues };
   }
 
   const checks = [
@@ -767,7 +772,7 @@ const validatePromptStructure = (
       missing.push(`缺少结构模块: ${check.label}`);
     }
   });
-  return { missing };
+  return { missing, issues };
 };
 
 const detectInjectionIssues = (prompt: string) =>
@@ -1113,13 +1118,17 @@ export async function POST(req: Request) {
       }
 
       const structureCheck = validatePromptStructure(finalPrompt, promptFormat);
-      if (structureCheck.missing.length > 0) {
+      const structureIssues = [
+        ...structureCheck.missing,
+        ...structureCheck.issues,
+      ];
+      if (structureIssues.length > 0) {
         console.warn("[api/chat] guard structure missing", {
-          missing: structureCheck.missing,
+          missing: structureIssues,
         });
         const fixResult = await applyGuardFix(
           finalPrompt,
-          structureCheck.missing,
+          structureIssues,
           promptFormat
         );
         finalPrompt = fixResult.finalPrompt;

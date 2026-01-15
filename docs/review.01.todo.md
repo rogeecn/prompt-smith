@@ -10,5 +10,5 @@
 - [x] 并行生成 3 变体 + 独立 Critic 评分 + Synthesis 融合
 - [x] 动态 Agent 注入（收集阶段 Questioner/Planner；生成阶段 Architect/RolePlayer/Critic）
 - [x] targetModel 前端入口（非 URL 参数）
-- [ ] Safe Guard/<thinking> 结构校验在 Guard 中硬性检查
+- [x] Safe Guard/<thinking> 结构校验在 Guard 中硬性检查
 - [ ] 端到端验证 + docs/review.01.md 状态更新
