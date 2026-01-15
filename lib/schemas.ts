@@ -222,7 +222,7 @@ export const ArtifactChatRequestSchema = z.object({
   sessionId: z.string().min(1).optional(),
   message: z.string().min(1).max(4000),
   traceId: z.string().min(1).optional(),
-  inputs: z.record(ArtifactInputValueSchema).optional(),
+  inputs: z.record(z.string(), ArtifactInputValueSchema).optional(),
 });
 
 export type ArtifactChatRequest = z.infer<typeof ArtifactChatRequestSchema>;

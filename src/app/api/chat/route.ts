@@ -33,6 +33,14 @@ const INJECTION_PATTERNS = [
   { label: "role-override", regex: /(你现在是|you are now).*(无视|ignore)/i },
 ];
 
+const getModelName = () => {
+  const modelName = process.env.OPENAI_MODEL;
+  if (!modelName) {
+    throw new Error("Missing OPENAI_MODEL");
+  }
+  return modelName;
+};
+
 const cleanJsonOutput = (raw: string) => {
   const jsonBlockRegex = /```json\s*([\s\S]*?)\s*```/;
   const match = raw.match(jsonBlockRegex);
@@ -161,7 +169,7 @@ const isRetryableError = (error: unknown) => {
   );
 };
 
-const generateWithRetry = async (payload: Parameters<typeof ai.generate>[0]) => {
+const generateWithRetry = async (payload: unknown) => {
   const attempts = Math.max(1, MAX_RETRIES);
   let lastError: unknown;
 
@@ -181,7 +189,7 @@ const generateWithRetry = async (payload: Parameters<typeof ai.generate>[0]) => 
 
     try {
       const llmResult = (await Promise.race([
-        ai.generate(payload),
+        ai.generate(payload as Parameters<typeof ai.generate>[0]),
         timeoutPromise,
       ])) as Awaited<ReturnType<typeof ai.generate>>;
       if (isDebug) {
@@ -342,7 +350,7 @@ const buildGuardFixPrompt = (minVariables: number) =>
 const runGuardReview = async (prompt: string) => {
   const guardPrompt = buildGuardPrompt(MIN_PROMPT_VARIABLES);
   const guardResponse = await generateWithRetry({
-    model: getCompatModel(process.env.OPENAI_MODEL),
+    model: getCompatModel(getModelName()),
     messages: [
       { role: "system", content: [{ text: guardPrompt }] },
       { role: "user", content: [{ text: prompt }] },
@@ -355,7 +363,7 @@ const runGuardReview = async (prompt: string) => {
 const runGuardFix = async (prompt: string, issues: string[]) => {
   const guardPrompt = buildGuardFixPrompt(MIN_PROMPT_VARIABLES);
   const guardResponse = await generateWithRetry({
-    model: getCompatModel(process.env.OPENAI_MODEL),
+    model: getCompatModel(getModelName()),
     messages: [
       { role: "system", content: [{ text: guardPrompt }] },
       {
@@ -486,7 +494,7 @@ const normalizeLlmResponse = (raw: unknown) => {
 
 export async function POST(req: Request) {
   const startedAt = Date.now();
-  let traceId = randomUUID();
+  let traceId: string = randomUUID();
   let body: unknown;
   try {
     body = await req.json();
@@ -586,7 +594,7 @@ export async function POST(req: Request) {
       : formattedFormMessage ?? message ?? "";
 
     const llmResponse = await generateWithRetry({
-      model: getCompatModel(process.env.OPENAI_MODEL),
+      model: getCompatModel(getModelName()),
       messages: [
         { role: "system", content: [{ text: systemPrompt }] },
         ...trimmedHistory.map((item) => {
@@ -621,7 +629,7 @@ export async function POST(req: Request) {
         forceFinalize: true,
       });
       const retryResponse = await generateWithRetry({
-        model: getCompatModel(process.env.OPENAI_MODEL),
+        model: getCompatModel(getModelName()),
         messages: [
           { role: "system", content: [{ text: retryPrompt }] },
           ...trimmedHistory.map((item) => {

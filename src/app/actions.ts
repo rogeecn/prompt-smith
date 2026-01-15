@@ -75,6 +75,7 @@ const normalizeSessionState = (value: unknown): SessionState => {
     deliberations: [],
     final_prompt: null,
     is_finished: false,
+    title: null,
     draft_answers: {},
   };
 
@@ -545,8 +546,9 @@ export async function loadProjectContext(projectId: string) {
         id: randomUUID(),
         projectId: project.id,
         history: [],
+        state: {},
       },
-      select: { id: true, created_at: true, history: true },
+      select: { id: true, created_at: true, history: true, state: true },
     });
     sessions = [session];
   }

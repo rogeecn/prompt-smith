@@ -105,7 +105,7 @@ const isRetryableError = (error: unknown) => {
   );
 };
 
-const generateWithRetry = async (payload: Parameters<typeof ai.generate>[0]) => {
+const generateWithRetry = async (payload: unknown) => {
   const attempts = Math.max(1, MAX_RETRIES);
   let lastError: unknown;
 
@@ -124,7 +124,7 @@ const generateWithRetry = async (payload: Parameters<typeof ai.generate>[0]) => 
 
     try {
       return (await Promise.race([
-        ai.generate(payload),
+        ai.generate(payload as Parameters<typeof ai.generate>[0]),
         timeoutPromise,
       ])) as Awaited<ReturnType<typeof ai.generate>>;
     } catch (error) {
@@ -284,7 +284,7 @@ const resolveInputs = (
 
 export async function POST(req: Request) {
   const startedAt = Date.now();
-  let traceId = randomUUID();
+  let traceId: string = randomUUID();
   let body: unknown;
   try {
     body = await req.json();
@@ -317,7 +317,8 @@ export async function POST(req: Request) {
     );
   }
 
-  if (!process.env.OPENAI_MODEL) {
+  const modelName = process.env.OPENAI_MODEL;
+  if (!modelName) {
     console.error("[api/artifacts/chat] Missing OPENAI_MODEL");
     return jsonWithTrace(
       { error: "Missing OPENAI_MODEL" },
@@ -427,7 +428,7 @@ export async function POST(req: Request) {
         : history;
 
     const llmResponse = await generateWithRetry({
-      model: getCompatModel(process.env.OPENAI_MODEL),
+      model: getCompatModel(modelName),
       messages: [
         { role: "system", content: [{ text: systemPrompt }] },
         ...trimmedHistory.map((item) => ({
