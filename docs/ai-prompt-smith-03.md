@@ -2,10 +2,10 @@
 
 ---
 
-### 制品 1：动态引导与思维导图生成器 (The Dynamic Interviewer)
+### 制品 1：动态引导与问题树生成器 (The Dynamic Interviewer)
 
 **说明**
-该 Prompt 用于“向导模式”。它不生成最终结果，而是负责进行多轮对话。它接收用户的上一轮回答，分析意图，然后**同时输出**两个内容：1. 下一个引导问题；2. 更新后的 Mermaid 思维导图节点语法。前端解析 JSON 后渲染界面。
+该 Prompt 用于“向导模式”。它不生成最终结果，而是负责进行多轮对话。它接收用户的上一轮回答，分析意图，然后**同时输出**两个内容：1. 下一个引导问题；2. 更新后的问题树节点信息。前端解析 JSON 后渲染界面。
 
 **制品 Prompt**
 
@@ -21,18 +21,18 @@
 # Goals
 1. 分析用户的最新回答。
 2. 决定下一个最需要询问的关键维度（按照 Role -> Goal -> Context -> Constraints -> Output Format 的优先级）。
-3. 生成一段 Mermaid JS 代码，将用户的最新回答转化为思维导图的一个新分支节点。
+3. 生成一段 JSON 数据，将用户的最新回答转化为问题树的一个新分支节点。
 
 # Constraints
 - 问题必须简短、具体，引导性强。
-- Mermaid 节点必须简洁，不能超过 10 个字。
+- 节点描述必须简洁，不能超过 10 个字。
 - 必须严格返回 JSON 格式，不要包含任何其他废话。
 
 # Output Format (JSON)
 {
   "analysis": "简短分析用户意图",
   "next_question": "向用户提出的下一个问题",
-  "mermaid_syntax": "graph TD; ... (仅新增的节点连接语法)",
+  "node_data": "Node_Role --> Node_Sub1[严肃雅思考官]",
   "is_finished": boolean (如果收集足够信息可尝试生成，则为 true)
 }
 
@@ -42,7 +42,7 @@ Output:
 {
   "analysis": "用户定义了角色和风格。",
   "next_question": "好的。作为考官，这个 AI 需要具体执行什么流程？比如是'先进行模拟考试'还是'直接给出纠错反馈'？",
-  "mermaid_syntax": "Node_Role --> Node_Sub1[严肃雅思考官]",
+  "node_data": "Node_Role --> Node_Sub1[严肃雅思考官]",
   "is_finished": false
 }
 ```
