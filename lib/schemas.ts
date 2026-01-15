@@ -88,7 +88,7 @@ export const DraftAnswerRecordSchema = z.preprocess(
 
     return next;
   },
-  z.record(DraftAnswerSchema).default({})
+  z.record(z.string(), DraftAnswerSchema).default({})
 );
 
 export const ChatRequestSchema = z
