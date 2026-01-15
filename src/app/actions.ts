@@ -76,6 +76,7 @@ const normalizeSessionState = (value: unknown): SessionState => {
     deliberations: [],
     final_prompt: null,
     is_finished: false,
+    target_model: null,
     title: null,
     draft_answers: {},
   };
@@ -114,6 +115,7 @@ const normalizeSessionState = (value: unknown): SessionState => {
     final_prompt:
       typeof record.final_prompt === "string" ? record.final_prompt : null,
     is_finished: typeof record.is_finished === "boolean" ? record.is_finished : false,
+    target_model: typeof record.target_model === "string" ? record.target_model : null,
     title: typeof record.title === "string" ? record.title : null,
     draft_answers: normalizeDraftAnswers(record.draft_answers),
   };
@@ -682,4 +684,48 @@ export async function updateSessionTitle(
   });
 
   return parsedTitle.data;
+}
+
+export async function updateSessionTargetModel(
+  projectId: string,
+  sessionId: string,
+  targetModel: string | null
+) {
+  const parsedProjectId = projectIdSchema.safeParse(projectId);
+  const parsedSessionId = sessionIdSchema.safeParse(sessionId);
+  if (!parsedProjectId.success || !parsedSessionId.success) {
+    logDebug("updateSessionTargetModel:invalid", { projectId, sessionId });
+    throw new Error("Invalid session");
+  }
+
+  const normalized = typeof targetModel === "string" ? targetModel.trim() : "";
+  const nextTargetModel = normalized ? normalized : null;
+
+  const session = await prisma.session.findFirst({
+    where: { id: parsedSessionId.data, projectId: parsedProjectId.data },
+    select: { state: true },
+  });
+
+  if (!session) {
+    logDebug("updateSessionTargetModel:not-found", { projectId, sessionId });
+    throw new Error("Session not found");
+  }
+
+  const normalizedState = normalizeSessionState(session.state ?? {});
+  const nextState: SessionState = {
+    ...normalizedState,
+    target_model: nextTargetModel,
+  };
+
+  await prisma.session.update({
+    where: { id: parsedSessionId.data },
+    data: { state: nextState },
+  });
+
+  logDebug("updateSessionTargetModel:done", {
+    sessionId: parsedSessionId.data,
+    target_model: nextTargetModel,
+  });
+
+  return nextTargetModel;
 }

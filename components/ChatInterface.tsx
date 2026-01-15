@@ -20,6 +20,11 @@ const OTHER_OPTION_ID = "__other__";
 const NONE_OPTION_ID = "__none__";
 const DEFAULT_START_MESSAGE = "开始向导";
 const FORM_MESSAGE_PREFIX = "__FORM__:";
+const TARGET_MODEL_OPTIONS = [
+  { label: "GPT-4o (Markdown)", value: "gpt-4o" },
+  { label: "GPT-4o mini (Markdown)", value: "gpt-4o-mini" },
+  { label: "Claude 3.5 Sonnet (XML)", value: "claude-3-5-sonnet" },
+];
 type ChatInterfaceProps = {
   projectId: string;
   sessionId: string;
@@ -88,6 +93,8 @@ export default function ChatInterface({
     isFinished,
     deliberations,
     saveStatus,
+    targetModel,
+    setTargetModel,
     sendRequest,
   } = useChatSession({
     projectId,
@@ -221,6 +228,7 @@ export default function ChatInterface({
 
   const showChatInput = !isLoading && pendingQuestions.length === 0 && (messages.length === 0 || isFinished || !!finalPrompt);
   const showQuestionForm = pendingQuestions.length > 0 && !finalPrompt && !isFinished;
+  const resolvedTargetModel = targetModel ?? "gpt-4o";
   const saveStatusLabel =
     saveStatus === "saving"
       ? "正在保存草稿..."
@@ -261,6 +269,22 @@ export default function ChatInterface({
             )}
           </div>
           <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                目标模型
+              </span>
+              <select
+                value={resolvedTargetModel}
+                onChange={(e) => setTargetModel(e.target.value)}
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-600 outline-none focus:border-indigo-500"
+              >
+                {TARGET_MODEL_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
             {isEditingTitle ? (
               <>
                 <button

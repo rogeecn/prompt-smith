@@ -11,7 +11,11 @@ import {
   type SessionState,
   type Question,
 } from "../lib/schemas";
-import { updateSessionState } from "../src/app/actions";
+import {
+  updateSessionState,
+  updateSessionTargetModel,
+} from "../src/app/actions";
+import { deriveTitleFromPrompt } from "../lib/template";
 
 export type SendRequestPayload = {
   message?: string;
@@ -42,6 +46,8 @@ type UseChatSessionResult = {
   isFinished: boolean;
   deliberations: LLMResponse["deliberations"];
   saveStatus: "idle" | "saving" | "saved" | "error";
+  targetModel: string | null;
+  setTargetModel: Dispatch<SetStateAction<string | null>>;
   sendRequest: (payload: SendRequestPayload) => Promise<void>;
 };
 
@@ -78,7 +84,11 @@ export const useChatSession = ({
     "idle" | "saving" | "saved" | "error"
   >("idle");
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const targetModelRef = useRef<string | null>(null);
+  const [targetModel, setTargetModel] = useState<string | null>(
+    initialState?.target_model ?? "gpt-4o"
+  );
+  const targetModelSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const targetModelInitRef = useRef(false);
 
   useEffect(() => {
     setMessages(initialMessages);
@@ -89,18 +99,12 @@ export const useChatSession = ({
     setFinalPrompt(initialState?.final_prompt ?? null);
     setIsFinished(initialState?.is_finished ?? false);
     setDeliberations(initialState?.deliberations ?? []);
+    setTargetModel(initialState?.target_model ?? "gpt-4o");
     setFormError(null);
     setRetryPayload(null);
     setIsLoading(false);
+    targetModelInitRef.current = false;
   }, [projectId, sessionId, initialMessages, initialState]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    const params = new URLSearchParams(window.location.search);
-    targetModelRef.current = params.get("targetModel");
-  }, [projectId, sessionId]);
 
   useEffect(() => {
     if (!projectId || !sessionId || pendingQuestions.length === 0) {
@@ -112,6 +116,7 @@ export const useChatSession = ({
       deliberations,
       final_prompt: finalPrompt,
       is_finished: isFinished,
+      target_model: targetModel,
       draft_answers: draftAnswers,
       title: finalPrompt
         ? deriveTitleFromPrompt(finalPrompt)
@@ -142,8 +147,35 @@ export const useChatSession = ({
     deliberations,
     finalPrompt,
     isFinished,
+    targetModel,
     initialState?.title,
   ]);
+
+  useEffect(() => {
+    if (!projectId || !sessionId) {
+      return;
+    }
+    if (!targetModelInitRef.current) {
+      targetModelInitRef.current = true;
+      return;
+    }
+
+    if (targetModelSaveRef.current) {
+      clearTimeout(targetModelSaveRef.current);
+    }
+
+    targetModelSaveRef.current = setTimeout(() => {
+      void updateSessionTargetModel(projectId, sessionId, targetModel).catch(
+        () => null
+      );
+    }, 500);
+
+    return () => {
+      if (targetModelSaveRef.current) {
+        clearTimeout(targetModelSaveRef.current);
+      }
+    };
+  }, [projectId, sessionId, targetModel]);
 
   const sendRequest = async ({
     message,
@@ -171,7 +203,7 @@ export const useChatSession = ({
           sessionId,
           message,
           answers,
-          targetModel: targetModelRef.current ?? undefined,
+          targetModel: targetModel?.trim() ? targetModel.trim() : undefined,
         }),
       });
 
@@ -213,6 +245,8 @@ export const useChatSession = ({
     isFinished,
     deliberations,
     saveStatus,
+    targetModel,
+    setTargetModel,
     sendRequest,
   };
 };
