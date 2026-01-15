@@ -843,7 +843,7 @@ const applyGuardFix = async (
   return { finalPrompt: revised, review: secondReview };
 };
 
-const normalizeDeliberationScores = (payload: unknown) => {
+const normalizeDeliberationScores = <T,>(payload: T): T => {
   if (!payload || typeof payload !== "object") {
     return payload;
   }
@@ -871,7 +871,7 @@ const normalizeDeliberationScores = (payload: unknown) => {
     return { ...stageRecord, agents };
   });
 
-  return { ...record, deliberations };
+  return { ...record, deliberations } as T;
 };
 
 const normalizeLlmResponse = (raw: unknown) => {
@@ -1131,6 +1131,8 @@ export async function POST(req: Request) {
         questions: [],
       };
     }
+
+    normalizedResponse = normalizeDeliberationScores(normalizedResponse);
 
     if (normalizedResponse.final_prompt?.trim()) {
       const resolvedMinVariables =

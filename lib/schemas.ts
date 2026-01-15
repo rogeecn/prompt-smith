@@ -113,10 +113,30 @@ export const ChatRequestSchema = z
 
 export type ChatRequest = z.infer<typeof ChatRequestSchema>;
 
+const DeliberationScoreSchema = z.preprocess(
+  (value) => {
+    if (typeof value === "number") {
+      if (!Number.isFinite(value)) {
+        return value;
+      }
+      return Math.max(0, Math.min(10, value));
+    }
+    if (typeof value === "string") {
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed)) {
+        return value;
+      }
+      return Math.max(0, Math.min(10, parsed));
+    }
+    return value;
+  },
+  z.number().min(0).max(10)
+);
+
 export const DeliberationAgentSchema = z.object({
   name: z.string().min(1),
   stance: z.string().min(1),
-  score: z.number().min(0).max(10),
+  score: DeliberationScoreSchema,
   rationale: z.string().min(1),
 });
 
