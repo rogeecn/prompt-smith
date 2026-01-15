@@ -661,21 +661,34 @@ export async function POST(req: Request) {
 
       if (!guardReview.pass) {
         const revised = guardReview.revised_prompt?.trim() ?? "";
+        const baseIssues =
+          guardReview.issues.length > 0
+            ? guardReview.issues
+            : ["审查未通过，自动补全变量元信息。"];
         if (!revised) {
-          console.error("[api/chat] guard failed without revision", {
-            issues: guardReview.issues,
+          console.warn("[api/chat] guard failed without revision", {
+            issues: baseIssues,
           });
-          throw new Error("Prompt guard failed");
+          const fixResult = await applyGuardFix(initialPrompt, baseIssues);
+          finalPrompt = fixResult.finalPrompt;
+          review = fixResult.review;
+        } else {
+          const secondReview = await runGuardReview(revised);
+          if (secondReview.pass) {
+            finalPrompt = revised;
+            review = secondReview;
+          } else {
+            const mergedIssues = Array.from(
+              new Set([...baseIssues, ...secondReview.issues])
+            );
+            console.warn("[api/chat] guard revision failed", {
+              issues: mergedIssues,
+            });
+            const fixResult = await applyGuardFix(initialPrompt, mergedIssues);
+            finalPrompt = fixResult.finalPrompt;
+            review = fixResult.review;
+          }
         }
-        const secondReview = await runGuardReview(revised);
-        if (!secondReview.pass) {
-          console.error("[api/chat] guard revision failed", {
-            issues: secondReview.issues,
-          });
-          throw new Error("Prompt guard failed");
-        }
-        finalPrompt = revised;
-        review = secondReview;
       }
 
       const metaCheck = validateTemplateMeta(finalPrompt);
