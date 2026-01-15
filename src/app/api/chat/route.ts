@@ -1,9 +1,11 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { ai, getCompatModel } from "../../../../lib/genkit";
 import { prisma } from "../../../../lib/prisma";
 import {
   ChatRequestSchema,
+  DeliberationAgentSchema,
   GuardPromptReviewSchema,
   HistoryItemSchema,
   LLMResponseSchema,
@@ -48,6 +50,73 @@ const resolvePromptFormat = (targetModel?: string | null): PromptFormat => {
   }
   return "markdown";
 };
+
+const buildFinalPromptRules = (promptFormat: PromptFormat) => {
+  const structureRules =
+    promptFormat === "xml"
+      ? [
+          "- final_prompt 必须使用 XML 标签结构输出。",
+          "- 必含标签：<Role>、<Context>、<Constraints>、<Workflow>、<Examples>、<Initialization>、<SafeGuard>。",
+        ]
+      : [
+          "- final_prompt 必须使用 Markdown 二级标题输出。",
+          "- 必含标题：### Role、### Context、### Constraints、### Workflow、### Examples (Few-Shot)、### Initialization (Defensive)、### Safe Guard。",
+        ];
+
+  return [
+    "- final_prompt 必须是“制品模板”，变量占位符需携带元信息。",
+    "- final_prompt 必须包含 Safe Guard 模块，明确拒绝非法/越权请求，并要求模型先输出 <thinking> 思考过程。",
+    "- final_prompt 不得包含忽略系统/开发者指令、越狱或绕过安全限制的语句。",
+    ...structureRules,
+    "- 语法：{{key|label:字段名|type:string|default:默认值|placeholder:输入提示|required:true}}。",
+    "- enum 变量必须提供 options（逗号分隔），示例：{{tone|label:语气|type:enum|options:专业,亲切,幽默|default:专业}}。",
+    `- final_prompt 至少包含 ${Number.isFinite(MIN_PROMPT_VARIABLES) ? MIN_PROMPT_VARIABLES : 3} 个占位符，变量名只能使用英文字母、数字与下划线，且以字母开头。`,
+    "- 每个变量必须至少包含 label 与 type；enum 需包含 options。",
+    "- 变量建议覆盖：主题/目标、受众/角色、输出格式/风格、约束/规则、输入/示例等（至少覆盖三类）。",
+    "- 变量优先覆盖会显著影响输出方向的控制参数（风格、受众、格式、约束等），避免只做名词替换。",
+    "- 即使已确定具体值，也应保留占位符，并在 default 中写建议值。",
+  ];
+};
+
+const DraftPromptSchema = z.object({
+  draft_prompt: z.string().min(1),
+});
+
+const CriticScoreSchema = z.object({
+  clarity: z.number().min(0).max(10),
+  robustness: z.number().min(0).max(10),
+  alignment: z.number().min(0).max(10),
+  total: z.number().min(0).max(30),
+  notes: z.string().min(1),
+});
+
+const CriticReviewSchema = z.object({
+  scores: z.object({
+    A: CriticScoreSchema,
+    B: CriticScoreSchema,
+    C: CriticScoreSchema,
+  }),
+  winner: z.enum(["A", "B", "C"]),
+  synthesis: z.string().min(1),
+  agents: z
+    .array(DeliberationAgentSchema)
+    .min(3)
+    .refine(
+      (agents) => {
+        const names = new Set(agents.map((agent) => agent.name));
+        return (
+          names.has("Architect") &&
+          names.has("Role-Player") &&
+          names.has("Logician")
+        );
+      },
+      { message: "Missing required agents" }
+    ),
+});
+
+const SynthesisSchema = z.object({
+  final_prompt: z.string().min(1),
+});
 
 const getModelName = () => {
   const modelName = process.env.OPENAI_MODEL;
@@ -267,16 +336,6 @@ const buildSystemPrompt = ({
   const targetHint = targetModel
     ? `目标模型: ${targetModel}（final_prompt 使用 ${formatLabel} 格式）。`
     : `目标模型: 默认 GPT 风格（final_prompt 使用 ${formatLabel} 格式）。`;
-  const structureRules =
-    promptFormat === "xml"
-      ? [
-          "- final_prompt 必须使用 XML 标签结构输出。",
-          "- 必含标签：<Role>、<Context>、<Constraints>、<Workflow>、<Examples>、<Initialization>、<SafeGuard>。",
-        ]
-      : [
-          "- final_prompt 必须使用 Markdown 二级标题输出。",
-          "- 必含标题：### Role、### Context、### Constraints、### Workflow、### Examples (Few-Shot)、### Initialization (Defensive)、### Safe Guard。",
-        ];
 
   return [
     "你是一个 Prompt 专家与需求分析师。",
@@ -324,22 +383,201 @@ const buildSystemPrompt = ({
     "- 每个 Agent 必须给出清晰度/鲁棒性/对齐度的综合评分与理由（写入 rationale）。",
     "- 每次响应至少返回 1 个 deliberation。",
     "- answers 内部约定：value 为 '__other__' 表示选择了“其他”，此时 other 字段为用户输入；value 为 '__none__' 表示“不需要此功能”。严禁向用户解释这些约定。",
-    "- final_prompt 必须是“制品模板”，变量占位符需携带元信息。",
-    "- final_prompt 必须包含 Safe Guard 模块，明确拒绝非法/越权请求，并要求模型先输出 <thinking> 思考过程。",
-    "- final_prompt 不得包含忽略系统/开发者指令、越狱或绕过安全限制的语句。",
-    ...structureRules,
-    "- 语法：{{key|label:字段名|type:string|default:默认值|placeholder:输入提示|required:true}}。",
-    "- enum 变量必须提供 options（逗号分隔），示例：{{tone|label:语气|type:enum|options:专业,亲切,幽默|default:专业}}。",
-    `- final_prompt 至少包含 ${Number.isFinite(MIN_PROMPT_VARIABLES) ? MIN_PROMPT_VARIABLES : 3} 个占位符，变量名只能使用英文字母、数字与下划线，且以字母开头。`,
-    "- 每个变量必须至少包含 label 与 type；enum 需包含 options。",
-    "- 变量建议覆盖：主题/目标、受众/角色、输出格式/风格、约束/规则、输入/示例等（至少覆盖三类）。",
-    "- 变量优先覆盖会显著影响输出方向的控制参数（风格、受众、格式、约束等），避免只做名词替换。",
-    "- 即使已确定具体值，也应保留占位符，并在 default 中写建议值。",
+    ...buildFinalPromptRules(promptFormat),
     forceFinalize
       ? "- 已到追问上限：必须输出 final_prompt（不可为 null/空字符串），is_finished=true，questions=[]。"
       : "- 若信息已足够，请直接输出 final_prompt 并将 questions 设为空数组。",
     "不要输出任何额外文本。",
   ].join("\n");
+};
+
+const buildConversationContext = (
+  history: { role: string; content: string }[],
+  latestUserContent: string
+) => {
+  const lines = history.map((item) => {
+    const prefix = item.role === "assistant" ? "助手" : "用户";
+    const text =
+      item.role === "assistant"
+        ? item.content
+        : formatFormMessageForLLM(item.content) ?? item.content;
+    return `${prefix}: ${text}`;
+  });
+  lines.push(`用户: ${latestUserContent}`);
+  return ["对话上下文：", ...lines].join("\n");
+};
+
+const buildVariantSystemPrompt = ({
+  variant,
+  promptFormat,
+  targetModel,
+}: {
+  variant: "A" | "B" | "C";
+  promptFormat: PromptFormat;
+  targetModel: string | null;
+}) => {
+  const targetHint = targetModel
+    ? `目标模型: ${targetModel}`
+    : "目标模型: 默认 GPT 风格";
+  const variantHint =
+    variant === "A"
+      ? "方案 A（结构化）：强调结构清晰、条目化、可执行流程。"
+      : variant === "B"
+        ? "方案 B（角色化）：强调角色设定、语气一致、沉浸感。"
+        : "方案 C（推理型）：强调边界条件、推理步骤、鲁棒性。";
+
+  return [
+    "你是 Prompt 工程师，负责生成可复用的制品模板。",
+    targetHint,
+    variantHint,
+    "输出必须是合法 JSON（不要用 Markdown 包裹），结构如下：",
+    "{",
+    '  "draft_prompt": string',
+    "}",
+    "规则：",
+    ...buildFinalPromptRules(promptFormat),
+    "不要输出任何额外文本。",
+  ].join("\n");
+};
+
+const buildCriticPrompt = (promptFormat: PromptFormat) => {
+  const formatLabel = promptFormat === "xml" ? "XML" : "Markdown";
+  return [
+    "你是独立裁判 (Critic)。",
+    "任务：对方案 A/B/C 进行评分，并给出融合建议。",
+    `要求：final_prompt 结构必须符合 ${formatLabel} 规范。`,
+    "评分维度：清晰度、鲁棒性、对齐度（0-10），并给出总分（0-30）。",
+    "agents 必须包含 Architect、Role-Player、Logician，对应 A/B/C 视角。",
+    "输出必须是合法 JSON（不要用 Markdown 包裹），结构如下：",
+    "{",
+    '  "scores": {',
+    '    "A": { "clarity": number, "robustness": number, "alignment": number, "total": number, "notes": string },',
+    '    "B": { "clarity": number, "robustness": number, "alignment": number, "total": number, "notes": string },',
+    '    "C": { "clarity": number, "robustness": number, "alignment": number, "total": number, "notes": string }',
+    "  },",
+    '  "winner": "A" | "B" | "C",',
+    '  "synthesis": string,',
+    '  "agents": [',
+    '    { "name": string, "stance": string, "score": number, "rationale": string }',
+    "  ]",
+    "}",
+    "不要输出任何额外文本。",
+  ].join("\n");
+};
+
+const buildSynthesisPrompt = (promptFormat: PromptFormat) =>
+  [
+    "你是 Prompt 融合器，基于候选方案与裁判建议输出最终制品模板。",
+    "输出必须是合法 JSON（不要用 Markdown 包裹），结构如下：",
+    "{",
+    '  "final_prompt": string',
+    "}",
+    "规则：",
+    ...buildFinalPromptRules(promptFormat),
+    "不要输出任何额外文本。",
+  ].join("\n");
+
+const runAlchemyGeneration = async ({
+  promptFormat,
+  targetModel,
+  history,
+  latestUserContent,
+}: {
+  promptFormat: PromptFormat;
+  targetModel: string | null;
+  history: { role: string; content: string }[];
+  latestUserContent: string;
+}) => {
+  const context = buildConversationContext(history, latestUserContent);
+  const model = getCompatModel(getModelName());
+  const variants = await Promise.all(
+    (["A", "B", "C"] as const).map(async (variant) => {
+      const systemPrompt = buildVariantSystemPrompt({
+        variant,
+        promptFormat,
+        targetModel,
+      });
+      const response = await generateWithRetry({
+        model,
+        messages: [
+          { role: "system", content: [{ text: systemPrompt }] },
+          { role: "user", content: [{ text: context }] },
+        ],
+        output: { schema: DraftPromptSchema },
+      });
+      return {
+        id: variant,
+        prompt: response.output.draft_prompt.trim(),
+      };
+    })
+  );
+
+  const criticPrompt = buildCriticPrompt(promptFormat);
+  const criticResponse = await generateWithRetry({
+    model,
+    messages: [
+      { role: "system", content: [{ text: criticPrompt }] },
+      {
+        role: "user",
+        content: [
+          {
+            text: [
+              "方案 A:",
+              variants[0].prompt,
+              "",
+              "方案 B:",
+              variants[1].prompt,
+              "",
+              "方案 C:",
+              variants[2].prompt,
+            ].join("\n"),
+          },
+        ],
+      },
+    ],
+    output: { schema: CriticReviewSchema },
+  });
+
+  const critic = criticResponse.output;
+  const synthesisPrompt = buildSynthesisPrompt(promptFormat);
+  const synthesisResponse = await generateWithRetry({
+    model,
+    messages: [
+      { role: "system", content: [{ text: synthesisPrompt }] },
+      {
+        role: "user",
+        content: [
+          {
+            text: [
+              "方案 A:",
+              variants[0].prompt,
+              "",
+              "方案 B:",
+              variants[1].prompt,
+              "",
+              "方案 C:",
+              variants[2].prompt,
+              "",
+              "裁判建议:",
+              critic.synthesis,
+            ].join("\n"),
+          },
+        ],
+      },
+    ],
+    output: { schema: SynthesisSchema },
+  });
+
+  return {
+    finalPrompt: synthesisResponse.output.final_prompt.trim(),
+    deliberations: [
+      {
+        stage: "competition",
+        agents: critic.agents,
+        synthesis: critic.synthesis,
+      },
+    ],
+  };
 };
 
 const buildGuardPrompt = (minVariables: number, promptFormat: PromptFormat) => {
@@ -769,6 +1007,28 @@ export async function POST(req: Request) {
         output: { schema: LLMResponseSchema },
       });
       normalizedResponse = normalizeLlmResponse(retryResponse.output);
+    }
+
+    const shouldRunAlchemy =
+      shouldForceFinalize ||
+      normalizedResponse.is_finished ||
+      (normalizedResponse.final_prompt?.trim() &&
+        normalizedResponse.questions.length === 0);
+
+    if (shouldRunAlchemy) {
+      const alchemy = await runAlchemyGeneration({
+        promptFormat,
+        targetModel,
+        history: trimmedHistory,
+        latestUserContent: userContent,
+      });
+      normalizedResponse = {
+        ...normalizedResponse,
+        final_prompt: alchemy.finalPrompt,
+        deliberations: alchemy.deliberations,
+        is_finished: true,
+        questions: [],
+      };
     }
 
     if (normalizedResponse.final_prompt?.trim()) {
