@@ -35,6 +35,20 @@ OPENAI_BASE_URL="https://api.openai.com/v1"
 OPENAI_MODEL="gpt-4o-mini"
 ```
 
+如需启用多模型配置（前端模型列表来自后端配置），使用 `OPENAI_MODELS`：
+
+```bash
+OPENAI_MODELS='[
+  {"id":"gpt-4o-mini","label":"GPT-4o mini","model":"gpt-4o-mini"},
+  {"id":"gpt-4o","label":"GPT-4o","model":"gpt-4o"}
+]'
+OPENAI_DEFAULT_MODEL_ID="gpt-4o-mini"
+```
+
+说明：
+- `OPENAI_MODEL` 与 `OPENAI_MODELS` 二选一即可（推荐后者）。
+- `id` 用于前端选择；`model` 为实际请求模型；`label` 为展示文案。
+
 可选配置：
 
 ```bash
@@ -131,6 +145,6 @@ public/         # 静态资源
 
 ## 说明
 
-- OpenAI 兼容接口必须配置 `OPENAI_BASE_URL` 和 `OPENAI_MODEL`
+- OpenAI 兼容接口必须配置 `OPENAI_BASE_URL`，并提供 `OPENAI_MODEL` 或 `OPENAI_MODELS`
+- 模型选择与输出格式在 UI 中独立配置
 - 如果出现跨域开发警告，确认 `next.config.ts` 中的 `allowedDevOrigins`
-
