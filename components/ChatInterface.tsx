@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Send, Copy, Download, Archive, Share2, Sparkles, AlertCircle } from "lucide-react";
+import { Send, Copy, Download, Archive, Share2, Sparkles, AlertCircle, Pencil, Check, X } from "lucide-react";
 import MessageStream from "./chat/MessageStream";
 import QuestionForm from "./chat/QuestionForm";
 import {
@@ -12,8 +12,9 @@ import {
   type Question,
   type SessionState,
 } from "../lib/schemas";
-import { createArtifactFromPrompt } from "../src/app/actions";
+import { createArtifactFromPrompt, updateSessionTitle } from "../src/app/actions";
 import { useChatSession } from "../hooks/useChatSession";
+import { deriveTitleFromPrompt } from "../lib/template";
 
 const OTHER_OPTION_ID = "__other__";
 const NONE_OPTION_ID = "__none__";
@@ -65,9 +66,15 @@ export default function ChatInterface({
   const [copyState, setCopyState] = useState<"idle" | "success" | "error">("idle");
   const [exportStatus, setExportStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
   const [exportError, setExportError] = useState<string | null>(null);
+  const [sessionTitle, setSessionTitle] = useState(initialState?.title ?? "");
+  const [titleDraft, setTitleDraft] = useState(initialState?.title ?? "");
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [isSavingTitle, setIsSavingTitle] = useState(false);
+  const [titleError, setTitleError] = useState<string | null>(null);
   
   const listRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const hasCustomTitleRef = useRef(false);
   const {
     messages,
     pendingQuestions,
@@ -94,6 +101,12 @@ export default function ChatInterface({
   useEffect(() => {
     setInput("");
     setFieldErrors({});
+    const initialTitle = initialState?.title ?? "";
+    hasCustomTitleRef.current = Boolean(initialTitle);
+    setSessionTitle(initialTitle);
+    setTitleDraft(initialTitle);
+    setIsEditingTitle(false);
+    setTitleError(null);
   }, [projectId, sessionId, initialMessages, initialState]);
 
   useEffect(() => {
@@ -108,6 +121,15 @@ export default function ChatInterface({
       listRef.current.scrollTop = listRef.current.scrollHeight;
     }
   }, [messages, isLoading, deliberations, finalPrompt, pendingQuestions]);
+
+  useEffect(() => {
+    if (!finalPrompt || hasCustomTitleRef.current) {
+      return;
+    }
+    const derived = deriveTitleFromPrompt(finalPrompt);
+    setSessionTitle(derived);
+    setTitleDraft(derived);
+  }, [finalPrompt]);
 
   const handleStartSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -159,6 +181,43 @@ export default function ChatInterface({
     }
   };
 
+  const handleEditTitle = () => {
+    setTitleDraft(sessionTitle);
+    setTitleError(null);
+    setIsEditingTitle(true);
+  };
+
+  const handleCancelTitle = () => {
+    setTitleDraft(sessionTitle);
+    setTitleError(null);
+    setIsEditingTitle(false);
+  };
+
+  const handleSaveTitle = async () => {
+    const trimmed = titleDraft.trim();
+    if (!trimmed) {
+      setTitleError("标题不能为空。");
+      return;
+    }
+    if (isSavingTitle) {
+      return;
+    }
+    setIsSavingTitle(true);
+    setTitleError(null);
+    try {
+      await updateSessionTitle(projectId, sessionId, trimmed);
+      hasCustomTitleRef.current = true;
+      setSessionTitle(trimmed);
+      setTitleDraft(trimmed);
+      setIsEditingTitle(false);
+      onSessionTitleUpdate?.(trimmed);
+    } catch {
+      setTitleError("保存失败，请重试。");
+    } finally {
+      setIsSavingTitle(false);
+    }
+  };
+
   const showChatInput = !isLoading && pendingQuestions.length === 0 && (messages.length === 0 || isFinished || !!finalPrompt);
   const showQuestionForm = pendingQuestions.length > 0 && !finalPrompt && !isFinished;
   const saveStatusLabel =
@@ -172,6 +231,69 @@ export default function ChatInterface({
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-white">
+      <div className="border-b border-slate-100 bg-white/90">
+        <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-400">
+              向导标题
+            </p>
+            {isEditingTitle ? (
+              <input
+                value={titleDraft}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void handleSaveTitle();
+                  }
+                }}
+                className="mt-1 w-full max-w-sm rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-900 outline-none focus:border-indigo-500"
+                placeholder="输入向导标题"
+              />
+            ) : (
+              <h2 className="mt-1 truncate text-sm font-semibold text-slate-900">
+                {sessionTitle || "未命名向导"}
+              </h2>
+            )}
+            {titleError && (
+              <p className="mt-1 text-xs text-rose-500">{titleError}</p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {isEditingTitle ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleSaveTitle}
+                  disabled={isSavingTitle}
+                  className="flex items-center gap-1 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                  {isSavingTitle ? "保存中..." : "保存"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancelTitle}
+                  className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  取消
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={handleEditTitle}
+                className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                编辑
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Scrollable Content */}
       <div ref={listRef} className="flex-1 overflow-y-auto">
         <MessageStream

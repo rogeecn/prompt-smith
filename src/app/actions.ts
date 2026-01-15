@@ -18,6 +18,7 @@ import { deriveTitleFromPrompt, parseTemplateVariables } from "../../lib/templat
 const projectIdSchema = z.string().uuid();
 const sessionIdSchema = z.string().min(1);
 const artifactIdSchema = z.string().min(1);
+const titleSchema = z.string().trim().min(1);
 const isDebug =
   process.env.DEBUG_ACTIONS === "true" || process.env.DEBUG_ACTIONS === "1";
 
@@ -642,4 +643,43 @@ export async function updateSessionState(
     where: { id: parsedSessionId.data },
     data: { state: candidate },
   });
+}
+
+export async function updateSessionTitle(
+  projectId: string,
+  sessionId: string,
+  title: string
+) {
+  const parsedProjectId = projectIdSchema.safeParse(projectId);
+  const parsedSessionId = sessionIdSchema.safeParse(sessionId);
+  const parsedTitle = titleSchema.safeParse(title);
+  if (!parsedProjectId.success || !parsedSessionId.success || !parsedTitle.success) {
+    logDebug("updateSessionTitle:invalid", { projectId, sessionId });
+    throw new Error("Invalid session");
+  }
+
+  const session = await prisma.session.findFirst({
+    where: { id: parsedSessionId.data, projectId: parsedProjectId.data },
+    select: { state: true },
+  });
+
+  if (!session) {
+    logDebug("updateSessionTitle:not-found", { projectId, sessionId });
+    throw new Error("Session not found");
+  }
+
+  const normalized = normalizeSessionState(session.state ?? {});
+  const nextState: SessionState = { ...normalized, title: parsedTitle.data };
+
+  await prisma.session.update({
+    where: { id: parsedSessionId.data },
+    data: { state: nextState },
+  });
+
+  logDebug("updateSessionTitle:done", {
+    sessionId: parsedSessionId.data,
+    title: parsedTitle.data,
+  });
+
+  return parsedTitle.data;
 }

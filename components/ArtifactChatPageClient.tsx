@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
+import { Check, Pencil, X } from "lucide-react";
 import ArtifactChat from "./ArtifactChat";
 import TopNav from "./TopNav";
 import {
   createArtifactSession,
   loadArtifactContext,
   loadArtifactSession,
+  updateArtifact,
 } from "../src/app/actions";
 import type { Artifact, HistoryItem } from "../lib/schemas";
 
@@ -37,6 +39,10 @@ export default function ArtifactChatPageClient({
   const [isLoadingContext, setIsLoadingContext] = useState(false);
   const [contextError, setContextError] = useState<string | null>(null);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [titleError, setTitleError] = useState<string | null>(null);
+  const [isSavingTitle, setIsSavingTitle] = useState(false);
 
   const loadContext = useCallback(async () => {
     if (!validProjectId || !artifactId) {
@@ -52,6 +58,7 @@ export default function ArtifactChatPageClient({
       setSessions(context.sessions);
       setCurrentSessionId(context.currentSessionId);
       setInitialMessages(context.history);
+      setTitleDraft(context.artifact.title ?? "");
     } catch {
       setContextError("加载制品失败，请重试。");
     } finally {
@@ -62,6 +69,12 @@ export default function ArtifactChatPageClient({
   useEffect(() => {
     void loadContext();
   }, [loadContext]);
+
+  useEffect(() => {
+    setTitleDraft(artifact?.title ?? "");
+    setIsEditingTitle(false);
+    setTitleError(null);
+  }, [artifact?.title]);
 
   const handleSelectSession = useCallback(
     async (sessionId: string) => {
@@ -112,6 +125,33 @@ export default function ArtifactChatPageClient({
     }
   }, [validProjectId, artifactId, isCreatingSession]);
 
+  const handleSaveTitle = useCallback(async () => {
+    if (!validProjectId || !artifact || isSavingTitle) {
+      return;
+    }
+    const trimmed = titleDraft.trim();
+    if (!trimmed) {
+      setTitleError("标题不能为空。");
+      return;
+    }
+    setIsSavingTitle(true);
+    setTitleError(null);
+    try {
+      const updated = await updateArtifact(validProjectId, artifactId, {
+        title: trimmed,
+        problem: artifact.problem ?? "",
+        prompt_content: artifact.prompt_content ?? "",
+        variables: artifact.variables ?? [],
+      });
+      setArtifact(updated);
+      setIsEditingTitle(false);
+    } catch {
+      setTitleError("保存失败，请重试。");
+    } finally {
+      setIsSavingTitle(false);
+    }
+  }, [validProjectId, artifactId, artifact, titleDraft, isSavingTitle]);
+
   const formatSessionLabel = (value: string | Date) => {
     const dateValue = typeof value === "string" ? new Date(value) : value;
     if (Number.isNaN(dateValue.getTime())) {
@@ -156,11 +196,63 @@ export default function ArtifactChatPageClient({
             <p className="text-xs uppercase tracking-[0.32em] text-slate-400">
               制品对话
             </p>
-            <h1 className="text-lg font-semibold text-slate-900">
-              {artifact?.title ?? "加载中"}
-            </h1>
+            {isEditingTitle ? (
+              <input
+                value={titleDraft}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void handleSaveTitle();
+                  }
+                }}
+                className="mt-2 w-full max-w-md rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-indigo-500"
+                placeholder="输入制品标题"
+              />
+            ) : (
+              <h1 className="text-lg font-semibold text-slate-900">
+                {artifact?.title ?? "加载中"}
+              </h1>
+            )}
+            {titleError && (
+              <p className="mt-1 text-xs text-rose-500">{titleError}</p>
+            )}
           </div>
           <div className="flex items-center gap-2">
+            {isEditingTitle ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleSaveTitle}
+                  disabled={isSavingTitle}
+                  className="flex items-center gap-1 rounded-xl bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  <Check className="h-4 w-4" />
+                  {isSavingTitle ? "保存中..." : "保存"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTitleDraft(artifact?.title ?? "");
+                    setTitleError(null);
+                    setIsEditingTitle(false);
+                  }}
+                  className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100"
+                >
+                  <X className="h-4 w-4" />
+                  取消
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsEditingTitle(true)}
+                className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100"
+              >
+                <Pencil className="h-4 w-4" />
+                编辑标题
+              </button>
+            )}
             <button
               type="button"
               onClick={() => router.push(`/artifacts?projectId=${validProjectId}`)}
