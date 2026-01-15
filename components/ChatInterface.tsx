@@ -9,8 +9,11 @@ import {
   type Answer,
   type DraftAnswer,
   type HistoryItem,
+  type ModelCatalog,
+  type OutputFormat,
   type Question,
   type SessionState,
+  ModelCatalogSchema,
 } from "../lib/schemas";
 import { createArtifactFromPrompt, updateSessionTitle } from "../src/app/actions";
 import { useChatSession } from "../hooks/useChatSession";
@@ -20,11 +23,11 @@ const OTHER_OPTION_ID = "__other__";
 const NONE_OPTION_ID = "__none__";
 const DEFAULT_START_MESSAGE = "开始向导";
 const FORM_MESSAGE_PREFIX = "__FORM__:";
-const TARGET_MODEL_OPTIONS = [
-  { label: "Markdown（OpenAI）", value: "gpt-4o" },
-  { label: "Markdown（轻量）", value: "gpt-4o-mini" },
-  { label: "XML（Claude）", value: "claude-3-5-sonnet" },
-];
+const DEFAULT_OUTPUT_FORMATS = ["markdown", "xml"] as const;
+const OUTPUT_FORMAT_LABELS: Record<string, string> = {
+  markdown: "Markdown",
+  xml: "XML",
+};
 type ChatInterfaceProps = {
   projectId: string;
   sessionId: string;
@@ -76,6 +79,9 @@ export default function ChatInterface({
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isSavingTitle, setIsSavingTitle] = useState(false);
   const [titleError, setTitleError] = useState<string | null>(null);
+  const [modelCatalog, setModelCatalog] = useState<ModelCatalog | null>(null);
+  const [modelCatalogError, setModelCatalogError] = useState<string | null>(null);
+  const [isModelCatalogLoading, setIsModelCatalogLoading] = useState(false);
   
   const listRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -93,8 +99,10 @@ export default function ChatInterface({
     isFinished,
     deliberations,
     saveStatus,
-    targetModel,
-    setTargetModel,
+    modelId,
+    setModelId,
+    outputFormat,
+    setOutputFormat,
     sendRequest,
   } = useChatSession({
     projectId,
@@ -103,7 +111,44 @@ export default function ChatInterface({
     initialState,
     isDisabled,
     onSessionTitleUpdate,
+    defaultModelId: modelCatalog?.defaultModelId ?? null,
+    defaultOutputFormat: modelCatalog?.defaultFormat ?? null,
   });
+
+  useEffect(() => {
+    let active = true;
+    setIsModelCatalogLoading(true);
+    setModelCatalogError(null);
+
+    fetch("/api/models")
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error("模型列表请求失败");
+        }
+        const data = await res.json();
+        const parsed = ModelCatalogSchema.safeParse(data);
+        if (!parsed.success) {
+          throw new Error("模型配置解析失败");
+        }
+        if (active) {
+          setModelCatalog(parsed.data);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setModelCatalogError("模型列表加载失败");
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setIsModelCatalogLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     setInput("");
@@ -229,7 +274,15 @@ export default function ChatInterface({
 
   const showChatInput = !isLoading && pendingQuestions.length === 0 && (messages.length === 0 || isFinished || !!finalPrompt);
   const showQuestionForm = pendingQuestions.length > 0 && !finalPrompt && !isFinished;
-  const resolvedTargetModel = targetModel ?? "gpt-4o";
+  const resolvedModelId =
+    modelId ??
+    modelCatalog?.defaultModelId ??
+    modelCatalog?.models[0]?.id ??
+    "";
+  const resolvedOutputFormat =
+    outputFormat ?? modelCatalog?.defaultFormat ?? DEFAULT_OUTPUT_FORMATS[0];
+  const availableFormats = modelCatalog?.formats ?? DEFAULT_OUTPUT_FORMATS;
+  const isModelSelectDisabled = isModelCatalogLoading || !modelCatalog;
   const saveStatusLabel =
     saveStatus === "saving"
       ? "正在保存草稿..."
@@ -280,19 +333,41 @@ export default function ChatInterface({
               <p className="mt-1 text-xs text-rose-500">{titleError}</p>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                模型
+              </span>
+              <select
+                value={resolvedModelId}
+                onChange={(e) => setModelId(e.target.value || null)}
+                disabled={isModelSelectDisabled}
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-600 outline-none focus:border-indigo-500 disabled:cursor-not-allowed disabled:bg-slate-100"
+              >
+                {isModelSelectDisabled && (
+                  <option value="">
+                    {modelCatalogError ? "模型加载失败" : "加载中..."}
+                  </option>
+                )}
+                {modelCatalog?.models.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
                 输出格式
               </span>
               <select
-                value={resolvedTargetModel}
-                onChange={(e) => setTargetModel(e.target.value)}
+                value={resolvedOutputFormat}
+                onChange={(e) => setOutputFormat(e.target.value as OutputFormat)}
                 className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-600 outline-none focus:border-indigo-500"
               >
-                {TARGET_MODEL_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
+                {availableFormats.map((format) => (
+                  <option key={format} value={format}>
+                    {OUTPUT_FORMAT_LABELS[format] ?? format}
                   </option>
                 ))}
               </select>
