@@ -22,14 +22,7 @@ const titleSchema = z.string().trim().min(1);
 const isDebug =
   process.env.DEBUG_ACTIONS === "true" || process.env.DEBUG_ACTIONS === "1";
 
-const formatSessionSummary = (history: unknown, state?: unknown) => {
-  if (state && typeof state === "object" && !Array.isArray(state)) {
-    const record = state as Record<string, unknown>;
-    if (typeof record.title === "string" && record.title.trim()) {
-      return record.title.trim();
-    }
-  }
-
+const formatSessionSummary = (history: unknown) => {
   const parsed = HistoryItemSchema.array().safeParse(history);
   if (!parsed.success || parsed.data.length === 0) {
     return "未开始";
@@ -575,11 +568,15 @@ export async function loadProjectContext(projectId: string) {
   });
   return {
     history,
-    sessions: sessions.map((session) => ({
-      id: session.id,
-      created_at: session.created_at,
-      last_message: formatSessionSummary(session.history, session.state),
-    })),
+    sessions: sessions.map((session) => {
+      const normalizedState = normalizeSessionState(session.state ?? {});
+      return {
+        id: session.id,
+        created_at: session.created_at,
+        title: normalizedState.title,
+        last_message: formatSessionSummary(session.history),
+      };
+    }),
     currentSessionId,
     state,
   };

@@ -32,7 +32,12 @@ export default function HomeClient({ initialProjectId = null }: HomeClientProps)
   const [initialMessages, setInitialMessages] = useState<HistoryItem[]>([]);
   const [initialState, setInitialState] = useState<SessionState | null>(null);
   const [sessions, setSessions] = useState<
-    { id: string; created_at: string | Date; last_message?: string }[]
+    {
+      id: string;
+      created_at: string | Date;
+      last_message?: string;
+      title?: string | null;
+    }[]
   >([]);
   const [error, setError] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -160,7 +165,7 @@ export default function HomeClient({ initialProjectId = null }: HomeClientProps)
       setSessions((prev) =>
         prev.map((session) =>
           session.id === currentSessionId
-            ? { ...session, last_message: title }
+            ? { ...session, title }
             : session
         )
       );
@@ -307,7 +312,10 @@ export default function HomeClient({ initialProjectId = null }: HomeClientProps)
                     <div className="space-y-2">
                       {sessions.map((session) => {
                         const isActive = session.id === currentSessionId;
+                        const title = session.title?.trim();
                         const summary = session.last_message ?? "未开始";
+                        const primary = title ?? formatSessionLabel(session.created_at);
+                        const secondary = title ? formatSessionLabel(session.created_at) : summary;
                         return (
                           <div 
                             key={session.id} 
@@ -326,11 +334,11 @@ export default function HomeClient({ initialProjectId = null }: HomeClientProps)
                             >
                               <div className="flex items-center justify-between gap-2">
                                 <span className={`text-xs font-medium ${isActive ? "text-indigo-700" : "text-slate-900"}`}>
-                                  会话 {formatSessionLabel(session.created_at)}
+                                  {primary}
                                 </span>
                               </div>
                               <p className={`truncate text-xs ${isActive ? "text-indigo-600/80" : "text-slate-500"}`}>
-                                {summary}
+                                {secondary}
                               </p>
                             </button>
                             

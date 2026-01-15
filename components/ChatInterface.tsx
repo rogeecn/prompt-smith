@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Send, Copy, Download, Archive, Share2, Sparkles, AlertCircle, Pencil, Check, X } from "lucide-react";
+import { Send, Copy, Download, Archive, Share2, Sparkles, AlertCircle } from "lucide-react";
 import MessageStream from "./chat/MessageStream";
 import QuestionForm from "./chat/QuestionForm";
 import {
@@ -21,9 +21,9 @@ const NONE_OPTION_ID = "__none__";
 const DEFAULT_START_MESSAGE = "开始向导";
 const FORM_MESSAGE_PREFIX = "__FORM__:";
 const TARGET_MODEL_OPTIONS = [
-  { label: "GPT-4o (Markdown)", value: "gpt-4o" },
-  { label: "GPT-4o mini (Markdown)", value: "gpt-4o-mini" },
-  { label: "Claude 3.5 Sonnet (XML)", value: "claude-3-5-sonnet" },
+  { label: "Markdown（OpenAI）", value: "gpt-4o" },
+  { label: "Markdown（轻量）", value: "gpt-4o-mini" },
+  { label: "XML（Claude）", value: "claude-3-5-sonnet" },
 ];
 type ChatInterfaceProps = {
   projectId: string;
@@ -195,16 +195,17 @@ export default function ChatInterface({
     setIsEditingTitle(true);
   };
 
-  const handleCancelTitle = () => {
-    setTitleDraft(sessionTitle);
-    setTitleError(null);
-    setIsEditingTitle(false);
-  };
-
   const handleSaveTitle = async () => {
     const trimmed = titleDraft.trim();
+    if (trimmed === sessionTitle.trim()) {
+      setTitleError(null);
+      setIsEditingTitle(false);
+      return;
+    }
     if (!trimmed) {
       setTitleError("标题不能为空。");
+      setTitleDraft(sessionTitle);
+      setIsEditingTitle(false);
       return;
     }
     if (isSavingTitle) {
@@ -250,19 +251,30 @@ export default function ChatInterface({
               <input
                 value={titleDraft}
                 onChange={(e) => setTitleDraft(e.target.value)}
+                onBlur={() => void handleSaveTitle()}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
                     void handleSaveTitle();
+                  }
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    setTitleDraft(sessionTitle);
+                    setTitleError(null);
+                    setIsEditingTitle(false);
                   }
                 }}
                 className="mt-1 w-full max-w-sm rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-900 outline-none focus:border-indigo-500"
                 placeholder="输入向导标题"
               />
             ) : (
-              <h2 className="mt-1 truncate text-sm font-semibold text-slate-900">
+              <button
+                type="button"
+                onClick={handleEditTitle}
+                className="mt-1 w-full text-left text-sm font-semibold text-slate-900 hover:text-indigo-600"
+              >
                 {sessionTitle || "未命名向导"}
-              </h2>
+              </button>
             )}
             {titleError && (
               <p className="mt-1 text-xs text-rose-500">{titleError}</p>
@@ -271,7 +283,7 @@ export default function ChatInterface({
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
-                目标模型
+                输出格式
               </span>
               <select
                 value={resolvedTargetModel}
@@ -285,36 +297,9 @@ export default function ChatInterface({
                 ))}
               </select>
             </div>
-            {isEditingTitle ? (
-              <>
-                <button
-                  type="button"
-                  onClick={handleSaveTitle}
-                  disabled={isSavingTitle}
-                  className="flex items-center gap-1 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-                >
-                  <Check className="h-3.5 w-3.5" />
-                  {isSavingTitle ? "保存中..." : "保存"}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCancelTitle}
-                  className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
-                >
-                  <X className="h-3.5 w-3.5" />
-                  取消
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={handleEditTitle}
-                className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-                编辑
-              </button>
-            )}
+            {isSavingTitle ? (
+              <span className="text-xs text-slate-400">保存中...</span>
+            ) : null}
           </div>
         </div>
       </div>
