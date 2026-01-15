@@ -3,7 +3,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { z } from "zod";
-import { Plus, Search, Layers, Box, Settings2, Play, Save, Trash2, ArrowLeft } from "lucide-react";
+import {
+  Plus,
+  Search,
+  Layers,
+  Box,
+  Settings2,
+  Play,
+  Save,
+  Trash2,
+  ArrowLeft,
+  Menu,
+  X,
+} from "lucide-react";
 import TopNav from "../../../components/TopNav";
 import {
   createArtifact,
@@ -51,6 +63,7 @@ export default function ArtifactsPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const hasRequestedRef = useRef(false);
 
   const rawProjectId = searchParams.get("projectId");
@@ -133,12 +146,14 @@ export default function ArtifactsPage() {
       prompt_content: artifact.prompt_content,
       variables: artifact.variables ?? [],
     });
+    setIsSidebarOpen(false);
   };
 
   const handleCreateArtifact = async () => {
     if (!projectId || isCreating) return;
     setIsCreating(true);
     setError(null);
+    setIsSidebarOpen(false);
     try {
       const artifact = await createArtifact(projectId);
       const items = await listArtifacts(projectId);
@@ -286,9 +301,31 @@ export default function ArtifactsPage() {
   return (
     <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-slate-50">
       <TopNav />
+      <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 lg:hidden">
+        <button
+          onClick={() => setIsSidebarOpen(true)}
+          className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+        <span className="text-sm font-semibold text-slate-900">制品库</span>
+        <div className="w-9" />
+      </div>
       <main className="flex flex-1 min-h-0 w-full overflow-hidden">
         {/* Sidebar: Artifact List */}
-        <aside className="flex w-80 flex-col bg-white border-r border-slate-100 z-10 shadow-sm">
+        <>
+          {isSidebarOpen && (
+            <div
+              className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm lg:hidden"
+              onClick={() => setIsSidebarOpen(false)}
+            />
+          )}
+          <aside
+            className={[
+              "fixed inset-y-0 left-0 z-50 flex w-72 transform flex-col bg-white shadow-2xl transition-transform duration-300 ease-in-out lg:static lg:z-0 lg:w-80 lg:translate-x-0 lg:bg-white lg:shadow-none lg:border-r lg:border-slate-100",
+              isSidebarOpen ? "translate-x-0" : "-translate-x-full",
+            ].join(" ")}
+          >
           <div className="flex flex-col h-full">
             <div className="p-5 border-b border-slate-100 bg-white">
               <div className="flex items-center justify-between mb-4">
@@ -296,6 +333,12 @@ export default function ArtifactsPage() {
                   <Layers className="h-5 w-5 text-indigo-600" />
                   <span>制品库</span>
                 </div>
+                <button
+                  onClick={() => setIsSidebarOpen(false)}
+                  className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 lg:hidden"
+                >
+                  <X className="h-5 w-5" />
+                </button>
                 <button
                   onClick={handleCreateArtifact}
                   disabled={isCreating}
@@ -348,6 +391,7 @@ export default function ArtifactsPage() {
             </div>
           </div>
         </aside>
+        </>
 
         {/* Main Content: Artifact Editor */}
         <section className="flex-1 flex flex-col min-w-0 bg-slate-50/50 overflow-hidden relative">
