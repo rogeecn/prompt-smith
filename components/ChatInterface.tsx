@@ -193,15 +193,46 @@ export default function ChatInterface({
 
   const handleAnswerSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const answers: Answer[] = pendingQuestions.map((q, i) => {
+    const answers: Answer[] = [];
+    pendingQuestions.forEach((q, i) => {
       const key = getQuestionKey(q, i);
       const draft = draftAnswers[key];
-      return { 
-        type: q.type, 
-        value: draft?.value ?? "", 
-        question_id: q.id, 
-        other: draft?.other 
-      };
+
+      if (!draft) {
+        return;
+      }
+
+      if (q.type === "text") {
+        const text = typeof draft.value === "string" ? draft.value.trim() : "";
+        if (!text) return;
+        answers.push({ type: "text", value: text, question_id: q.id });
+        return;
+      }
+
+      if (q.type === "single") {
+        const value = typeof draft.value === "string" ? draft.value : "";
+        if (!value) return;
+        answers.push({
+          type: "single",
+          value,
+          question_id: q.id,
+          other: value === OTHER_OPTION_ID && draft.other?.trim() ? draft.other.trim() : undefined,
+        });
+        return;
+      }
+
+      if (q.type === "multi") {
+        const values = Array.isArray(draft.value)
+          ? draft.value.filter((item) => typeof item === "string" && item.trim())
+          : [];
+        if (values.length === 0) return;
+        answers.push({
+          type: "multi",
+          value: values,
+          question_id: q.id,
+          other: values.includes(OTHER_OPTION_ID) && draft.other?.trim() ? draft.other.trim() : undefined,
+        });
+      }
     });
     
     const displayMessage = serializeFormMessage({ questions: pendingQuestions, answers: draftAnswers });

@@ -61,7 +61,7 @@ const buildFinalPromptRules = (promptFormat: PromptFormat) => {
         ]
       : [
           "- final_prompt 必须使用 Markdown 二级标题输出。",
-          "- 必含标题：### Role、### Context、### Constraints、### Workflow、### Examples (Few-Shot)、### Initialization (Defensive)、### Safe Guard。",
+          "- 必含标题：## Role、## Context、## Constraints、## Workflow、## Examples (Few-Shot)、## Initialization (Defensive)、## Safe Guard。",
         ];
 
   return [
@@ -598,7 +598,7 @@ const buildGuardPrompt = (minVariables: number, promptFormat: PromptFormat) => {
         ]
       : [
           "- final_prompt 必须使用 Markdown 二级标题输出。",
-          "- 必含标题：### Role、### Context、### Constraints、### Workflow、### Examples (Few-Shot)、### Initialization (Defensive)、### Safe Guard。",
+          "- 必含标题：## Role、## Context、## Constraints、## Workflow、## Examples (Few-Shot)、## Initialization (Defensive)、## Safe Guard。",
         ];
 
   return [
@@ -636,7 +636,7 @@ const buildGuardFixPrompt = (minVariables: number, promptFormat: PromptFormat) =
         ]
       : [
           "- final_prompt 必须使用 Markdown 二级标题输出。",
-          "- 必含标题：### Role、### Context、### Constraints、### Workflow、### Examples (Few-Shot)、### Initialization (Defensive)、### Safe Guard。",
+          "- 必含标题：## Role、## Context、## Constraints、## Workflow、## Examples (Few-Shot)、## Initialization (Defensive)、## Safe Guard。",
         ];
 
   return [
@@ -774,7 +774,32 @@ const validatePromptStructure = (
 
 const detectInjectionIssues = (prompt: string) =>
   INJECTION_PATTERNS.reduce<string[]>((acc, pattern) => {
-    if (pattern.regex.test(prompt)) {
+    const flags = pattern.regex.flags.includes("g")
+      ? pattern.regex.flags
+      : `${pattern.regex.flags}g`;
+    const regex = new RegExp(pattern.regex.source, flags);
+    const negationHints = [
+      "不要",
+      "不得",
+      "禁止",
+      "严禁",
+      "请勿",
+      "拒绝",
+      "不允许",
+    ];
+    let matched = false;
+
+    for (const match of prompt.matchAll(regex)) {
+      const index = match.index ?? 0;
+      const context = prompt.slice(Math.max(0, index - 8), index);
+      if (negationHints.some((hint) => context.includes(hint))) {
+        continue;
+      }
+      matched = true;
+      break;
+    }
+
+    if (matched) {
       acc.push(`检测到疑似注入指令: ${pattern.label}`);
     }
     return acc;
@@ -792,30 +817,61 @@ const applyGuardFix = async (
     console.error("[api/chat] guard fix failed without revision", {
       issues: fixReview.issues,
     });
-    throw new Error("Prompt guard failed");
+    return { finalPrompt: prompt, review: fixReview };
   }
   const secondReview = await runGuardReview(revised, promptFormat, model);
   if (!secondReview.pass) {
     console.error("[api/chat] guard fix revision failed", {
       issues: secondReview.issues,
     });
-    throw new Error("Prompt guard failed");
+    return { finalPrompt: revised, review: secondReview };
   }
   const secondMetaCheck = validateTemplateMeta(revised);
   if (secondMetaCheck.missing.length > 0) {
     console.error("[api/chat] guard meta still missing", {
       missing: secondMetaCheck.missing,
     });
-    throw new Error("Prompt guard failed");
+    return { finalPrompt: revised, review: secondReview };
   }
   const injectionAfter = detectInjectionIssues(revised);
   if (injectionAfter.length > 0) {
     console.error("[api/chat] guard injection still present", {
       issues: injectionAfter,
     });
-    throw new Error("Prompt guard failed");
+    return { finalPrompt: revised, review: secondReview };
   }
   return { finalPrompt: revised, review: secondReview };
+};
+
+const normalizeDeliberationScores = (payload: unknown) => {
+  if (!payload || typeof payload !== "object") {
+    return payload;
+  }
+
+  const record = payload as Record<string, unknown>;
+  if (!Array.isArray(record.deliberations)) {
+    return payload;
+  }
+
+  const deliberations = record.deliberations.map((stage) => {
+    if (!stage || typeof stage !== "object") return stage;
+    const stageRecord = stage as Record<string, unknown>;
+    if (!Array.isArray(stageRecord.agents)) return stage;
+
+    const agents = stageRecord.agents.map((agent) => {
+      if (!agent || typeof agent !== "object") return agent;
+      const agentRecord = agent as Record<string, unknown>;
+      const score = Number(agentRecord.score);
+      if (!Number.isFinite(score)) return agent;
+      const clamped = Math.max(0, Math.min(10, score));
+      if (clamped === score) return agent;
+      return { ...agentRecord, score: clamped };
+    });
+
+    return { ...stageRecord, agents };
+  });
+
+  return { ...record, deliberations };
 };
 
 const normalizeLlmResponse = (raw: unknown) => {
@@ -831,6 +887,7 @@ const normalizeLlmResponse = (raw: unknown) => {
     }
   }
 
+  responsePayload = normalizeDeliberationScores(responsePayload);
   const parsed = LLMResponseSchema.parse(responsePayload);
   const normalizedQuestions = parsed.questions.map((question, index) => {
     const id = question.id ?? `q${index + 1}`;
@@ -1190,7 +1247,6 @@ export async function POST(req: Request) {
           variables,
           resolvedMinVariables,
         });
-        throw new Error("Prompt guard failed");
       }
 
       if (isDebug) {
