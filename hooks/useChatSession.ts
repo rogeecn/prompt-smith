@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import {
   LLMResponseSchema,
   type Answer,
@@ -33,8 +34,8 @@ type UseChatSessionResult = {
   messages: HistoryItem[];
   pendingQuestions: Question[];
   draftAnswers: Record<string, DraftAnswer>;
-  setDraftAnswers: React.Dispatch<React.SetStateAction<Record<string, DraftAnswer>>>;
-  setPendingQuestions: React.Dispatch<React.SetStateAction<Question[]>>;
+  setDraftAnswers: Dispatch<SetStateAction<Record<string, DraftAnswer>>>;
+  setPendingQuestions: Dispatch<SetStateAction<Question[]>>;
   isLoading: boolean;
   formError: string | null;
   retryPayload: Pick<SendRequestPayload, "message" | "answers"> | null;
