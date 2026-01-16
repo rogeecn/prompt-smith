@@ -85,7 +85,30 @@ const buildVariableQuestions = (variables: ArtifactVariable[]): Question[] =>
     };
   });
 
-const INITIAL_DRAFT_MESSAGE = "Generate initial draft based on variables.";
+const buildSummaryValue = (
+  variable: ArtifactVariable,
+  value: string | number | boolean | string[] | undefined
+) => {
+  if (value === undefined || value === null) return "未填写";
+  if (Array.isArray(value)) return value.length > 0 ? value.join("、") : "未填写";
+  if (typeof value === "string") return value.trim() ? value.trim() : "未填写";
+  if (typeof value === "boolean") {
+    return value ? variable.true_label ?? "是" : variable.false_label ?? "否";
+  }
+  return String(value);
+};
+
+const buildFormSummary = (
+  variables: ArtifactVariable[],
+  inputPayload: Record<string, string | number | boolean | string[]>
+) => {
+  const lines = variables.map((variable) => {
+    const label = variable.label || variable.key;
+    const value = buildSummaryValue(variable, inputPayload[variable.key]);
+    return `- ${label}：${value}`;
+  });
+  return `已完成表单配置，请基于以下信息生成内容：\n${lines.join("\n")}`;
+};
 
 type ArtifactChatProps = {
   projectId: string;
@@ -165,10 +188,13 @@ export default function ArtifactChat({
     });
   };
 
-  const sendMessage = async (message: string, options?: { appendUser?: boolean }): Promise<boolean> => {
+  const sendMessage = async (
+    message: string,
+    options?: { appendUser?: boolean; summary?: boolean }
+  ): Promise<boolean> => {
     if (isLoading || isDisabled || !sessionId) return false;
     const trimmed = message.trim();
-    if (!trimmed) return false;
+    if (!trimmed && !options?.summary) return false;
 
     const inputErrors: Record<string, string> = {};
     const inputPayload: Record<string, string | number | boolean | string[]> = {};
@@ -210,8 +236,14 @@ export default function ArtifactChat({
       return false;
     }
 
+    const resolvedMessage =
+      options?.summary ? buildFormSummary(variables, inputPayload) : trimmed;
+
     if (options?.appendUser ?? true) {
-      setMessages((prev) => [...prev, { role: "user", content: trimmed, timestamp: Date.now() }]);
+      setMessages((prev) => [
+        ...prev,
+        { role: "user", content: resolvedMessage, timestamp: Date.now() },
+      ]);
     }
 
     setIsLoading(true);
@@ -224,7 +256,12 @@ export default function ArtifactChat({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          projectId, artifactId, sessionId, message: trimmed, traceId, inputs: inputPayload,
+          projectId,
+          artifactId,
+          sessionId,
+          message: resolvedMessage,
+          traceId,
+          inputs: inputPayload,
         } as ArtifactChatRequest),
       });
 
@@ -235,13 +272,19 @@ export default function ArtifactChat({
         onSessionIdChange?.(payload.sessionId);
       }
 
-      setMessages((prev) => [...prev, { role: "assistant", content: payload.reply, timestamp: Date.now() }]);
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: payload.reply, timestamp: Date.now() },
+      ]);
       setInput("");
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Request failed";
-      setMessages((prev) => [...prev, { role: "assistant", content: msg, timestamp: Date.now() }]);
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: msg, timestamp: Date.now() },
+      ]);
       setFormError(msg);
-      setRetryMessage(trimmed);
+      setRetryMessage(resolvedMessage);
     } finally {
       setIsLoading(false);
     }
@@ -255,7 +298,7 @@ export default function ArtifactChat({
 
   const handleInitialGenerateSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    const success = await sendMessage(INITIAL_DRAFT_MESSAGE, { appendUser: false });
+    const success = await sendMessage("", { appendUser: true, summary: true });
     if (success) setIsConfigHidden(true);
   };
 
