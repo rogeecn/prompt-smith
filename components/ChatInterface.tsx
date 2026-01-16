@@ -438,12 +438,12 @@ export default function ChatInterface({
         )}
 
         {finalPrompt && (
-          <div className="w-full bg-emerald-50/30 border-y border-emerald-100/50">
+          <div className="w-full bg-block-system border-y border-slate-200">
             <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
-              <div className="rounded-3xl bg-white p-6 shadow-xl shadow-emerald-900/5 ring-1 ring-emerald-100 sm:p-8">
+              <div className="border border-slate-200 bg-white p-6 sm:p-8">
                 <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                    <div className="flex h-10 w-10 items-center justify-center border border-slate-200 bg-white text-emerald-600">
                       <Sparkles className="h-5 w-5" />
                     </div>
                     <div>
@@ -452,11 +452,11 @@ export default function ChatInterface({
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button onClick={handleCopyFinalPrompt} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-50">
+                    <button onClick={handleCopyFinalPrompt} className="flex items-center gap-2 border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-50">
                       <Copy className="h-3.5 w-3.5" />
                       {copyState === "success" ? "已复制" : "复制"}
                     </button>
-                    <button onClick={handleExportArtifact} disabled={exportStatus === "saving"} className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-indigo-100 transition hover:bg-indigo-700 disabled:opacity-50">
+                    <button onClick={handleExportArtifact} disabled={exportStatus === "saving"} className="flex items-center gap-2 border border-slate-900 bg-slate-900 px-3 py-2 text-xs font-bold text-white transition hover:bg-slate-800 disabled:opacity-50">
                       <Archive className="h-3.5 w-3.5" />
                       {exportStatus === "saving" ? "导出中..." : "导出为制品"}
                     </button>
@@ -464,14 +464,14 @@ export default function ChatInterface({
                 </div>
                 
                 <div className="relative group">
-                  <pre className="max-h-[400px] overflow-y-auto whitespace-pre-wrap rounded-2xl bg-slate-50 p-6 text-sm leading-relaxed text-slate-800 font-mono border border-slate-100">
+                  <pre className="max-h-[400px] overflow-y-auto whitespace-pre-wrap border border-slate-200 bg-white p-4 text-sm leading-relaxed text-slate-800 font-mono">
                     {finalPrompt}
                   </pre>
                   <div className="absolute right-4 top-4 flex gap-2">
-                    <button onClick={() => {}} title="下载为 TXT" className="rounded-lg bg-white/80 p-2 text-slate-400 backdrop-blur transition hover:text-indigo-600">
+                    <button onClick={() => {}} title="下载为 TXT" className="border border-slate-200 bg-white p-2 text-slate-500 transition hover:text-slate-700">
                       <Download className="h-4 w-4" />
                     </button>
-                    <button onClick={() => {}} title="分享 JSON" className="rounded-lg bg-white/80 p-2 text-slate-400 backdrop-blur transition hover:text-indigo-600">
+                    <button onClick={() => {}} title="分享 JSON" className="border border-slate-200 bg-white p-2 text-slate-500 transition hover:text-slate-700">
                       <Share2 className="h-4 w-4" />
                     </button>
                   </div>
@@ -483,10 +483,10 @@ export default function ChatInterface({
       </div>
 
       {showChatInput && (
-        <div className="border-t border-slate-100 bg-white/80 pb-8 pt-4 backdrop-blur-xl">
+        <div className="border-t border-slate-200 bg-white pb-8 pt-4">
           <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
             <form onSubmit={handleStartSubmit} className="relative group">
-              <div className="relative flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl shadow-slate-200/50 transition-all focus-within:border-indigo-500 focus-within:ring-4 focus-within:ring-indigo-500/10">
+              <div className="relative flex flex-col overflow-hidden border border-slate-200 bg-white focus-within:border-slate-600">
                 <div className="px-5 pt-4">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-500">
                     {Boolean(finalPrompt) || isFinished ? "继续优化提示词" : "开始你的需求描述"}
@@ -509,14 +509,14 @@ export default function ChatInterface({
                   <button 
                     type="submit" 
                     disabled={isLoading || isDisabled || (!input.trim() && messages.length > 0)}
-                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-lg shadow-indigo-100 transition-all hover:bg-indigo-700 hover:scale-105 active:scale-95 disabled:bg-slate-200 disabled:shadow-none"
+                    className="flex h-10 w-10 items-center justify-center border border-slate-900 bg-slate-900 text-white transition-colors hover:bg-slate-800 disabled:bg-slate-200 disabled:border-slate-200"
                   >
                     <Send className="h-5 w-5" />
                   </button>
                 </div>
               </div>
               {formError && (
-                <div className="absolute -top-10 left-0 flex items-center gap-2 rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-600 border border-rose-100 animate-in fade-in slide-in-from-bottom-2">
+                <div className="absolute -top-10 left-0 flex items-center gap-2 border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-600 animate-in fade-in slide-in-from-bottom-2">
                   <AlertCircle className="h-3.5 w-3.5" />
                   {formError}
                 </div>

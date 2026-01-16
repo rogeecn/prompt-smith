@@ -104,12 +104,12 @@ export default function QuestionForm({
   }, [questions, draftAnswers]);
 
   return (
-    <div className="w-full bg-block-system border-y border-blue-100/50">
+    <div className="w-full bg-block-system border-y border-slate-200">
       <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
-        <form onSubmit={onSubmit} className="rounded-3xl bg-white p-6 shadow-xl shadow-blue-900/5 sm:p-8">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-6 mb-6">
+        <form onSubmit={onSubmit} className="border border-slate-200 bg-white p-6 sm:p-8">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-6 mb-6">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+              <div className="flex h-10 w-10 items-center justify-center border border-slate-200 text-indigo-600">
                 <ClipboardList className="h-5 w-5" />
               </div>
               <div>
@@ -135,9 +135,9 @@ export default function QuestionForm({
               const error = fieldErrors[key];
 
               return (
-                <div key={key} className="group transition-all">
+                <div key={key} className="group">
                   <div className="flex items-start gap-4 mb-4">
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-500 group-focus-within:bg-indigo-600 group-focus-within:text-white transition-colors">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center border border-slate-200 bg-white text-[10px] font-bold text-slate-500 group-focus-within:bg-slate-900 group-focus-within:text-white">
                       {index + 1}
                     </span>
                     <div className="flex-1">
@@ -161,7 +161,7 @@ export default function QuestionForm({
                             onChange={(e) => onTextChange(key, e.target.value)}
                             placeholder={question.placeholder ?? "输入你的回答..."}
                             rows={3}
-                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm transition-all focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none"
+                            className="w-full border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-600"
                             disabled={isLoading || isDisabled}
                           />
                         ) : (
@@ -169,7 +169,7 @@ export default function QuestionForm({
                             value={typeof draft?.value === "string" ? draft.value : ""}
                             onChange={(e) => onTextChange(key, e.target.value)}
                             placeholder={question.placeholder ?? "输入你的回答..."}
-                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm transition-all focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none"
+                            className="w-full border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-600"
                             disabled={isLoading || isDisabled}
                           />
                         )}
@@ -202,16 +202,16 @@ export default function QuestionForm({
                                 type="button"
                                 onClick={() => question.type === "single" ? onSingleSelect(key, option.id) : onMultiToggle(key, option.id, question.max_select)}
                                 className={`
-                                  flex items-center gap-3 rounded-xl px-4 py-3 text-left text-xs font-medium transition-all
+                                  flex items-center gap-3 border border-slate-200 px-3 py-2 text-left text-xs font-medium transition-colors
                                   ${isSelected 
-                                    ? "bg-indigo-600 text-white shadow-md shadow-indigo-200 translate-y-[-1px]" 
-                                    : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+                                    ? "bg-slate-900 text-white border-slate-900" 
+                                    : "bg-white text-slate-700 hover:bg-slate-50"
                                   }
                                 `}
                                 disabled={isLoading || isDisabled}
                               >
-                                <div className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${isSelected ? "border-white bg-white/20" : "border-slate-300 bg-white"}`}>
-                                  {isSelected && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
+                                <div className={`flex h-4 w-4 shrink-0 items-center justify-center border ${isSelected ? "border-white bg-white" : "border-slate-300 bg-white"}`}>
+                                  {isSelected && <div className="h-1.5 w-1.5 bg-slate-900" />}
                                 </div>
                                 {option.label}
                               </button>
@@ -228,7 +228,7 @@ export default function QuestionForm({
                           value={draft?.other ?? ""}
                           onChange={(e) => onOtherChange(key, e.target.value)}
                           placeholder="请详细说明..."
-                          className="w-full rounded-xl border border-indigo-200 bg-indigo-50/30 px-4 py-3 text-sm outline-none focus:border-indigo-500 focus:bg-white transition-all"
+                          className="w-full border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-600"
                           autoFocus
                         />
                       </div>
@@ -249,8 +249,8 @@ export default function QuestionForm({
           <div className="mt-12 flex flex-col items-center justify-between gap-6 border-t border-slate-100 pt-8 sm:flex-row">
             <div className="flex items-center gap-2">
               {saveStatusLabel && (
-                <div className="flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold text-slate-500">
-                  <div className={`h-1.5 w-1.5 rounded-full ${saveStatusLabel.includes("失败") ? "bg-rose-500" : "bg-emerald-500 animate-pulse"}`} />
+                <div className="flex items-center gap-1.5 border border-slate-200 bg-white px-3 py-1 text-[10px] font-bold text-slate-500">
+                  <div className={`h-1.5 w-1.5 ${saveStatusLabel.includes("失败") ? "bg-rose-500" : "bg-emerald-500 animate-pulse"}`} />
                   {saveStatusLabel}
                 </div>
               )}
@@ -264,7 +264,7 @@ export default function QuestionForm({
                     <button
                       type="button"
                       onClick={onRetry}
-                      className="rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-100 transition-colors"
+                      className="border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-bold text-rose-600 hover:bg-rose-100"
                     >
                       重试
                     </button>
@@ -274,7 +274,7 @@ export default function QuestionForm({
               <button
                 type="submit"
                 disabled={isLoading || isDisabled}
-                className="group relative flex items-center gap-2 rounded-2xl bg-indigo-600 px-8 py-4 text-sm font-bold text-white shadow-xl shadow-indigo-200 transition-all hover:bg-indigo-700 hover:translate-y-[-2px] active:translate-y-0 disabled:opacity-50 disabled:translate-y-0"
+                className="group relative flex items-center gap-2 border border-slate-900 bg-slate-900 px-8 py-3 text-sm font-bold text-white transition-colors hover:bg-slate-800 disabled:opacity-50"
               >
                 <CheckCircle2 className="h-4 w-4" />
                 <span>确认提交回答</span>

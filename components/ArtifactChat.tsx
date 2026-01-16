@@ -352,10 +352,10 @@ export default function ArtifactChat({
 
       {/* Floating Input Area */}
       {hasConversation && (
-        <div className="border-t border-slate-100 bg-white/80 pb-8 pt-4 backdrop-blur-xl">
+        <div className="border-t border-slate-200 bg-white pb-8 pt-4">
           <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
             <form onSubmit={handleSubmit} className="relative">
-              <div className="relative flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl shadow-slate-200/50 transition-all focus-within:border-indigo-500 focus-within:ring-4 focus-within:ring-indigo-500/10">
+              <div className="relative flex flex-col overflow-hidden border border-slate-200 bg-white focus-within:border-slate-600">
                 <div className="px-5 pt-4">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-500">继续对话</span>
                 </div>
@@ -376,14 +376,14 @@ export default function ArtifactChat({
                   <button 
                     type="submit" 
                     disabled={isLoading || isDisabled || !input.trim()}
-                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-lg shadow-indigo-100 transition-all hover:bg-indigo-700 hover:scale-105 active:scale-95 disabled:bg-slate-200 disabled:shadow-none"
+                    className="flex h-10 w-10 items-center justify-center border border-slate-900 bg-slate-900 text-white transition-colors hover:bg-slate-800 disabled:bg-slate-200 disabled:border-slate-200"
                   >
                     <Send className="h-5 w-5" />
                   </button>
                 </div>
               </div>
               {formError && (
-                <div className="absolute -top-10 left-0 flex items-center gap-2 rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-600 border border-rose-100 animate-in fade-in slide-in-from-bottom-2">
+                <div className="absolute -top-10 left-0 flex items-center gap-2 border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-600 animate-in fade-in slide-in-from-bottom-2">
                   <AlertCircle className="h-3.5 w-3.5" />
                   {formError}
                 </div>

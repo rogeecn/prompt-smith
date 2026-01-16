@@ -18,12 +18,12 @@ export default function AgentDeliberation({
   }
 
   return (
-    <div className="w-full bg-block-system border-y border-blue-100/50">
+    <div className="w-full bg-block-system border-y border-slate-200">
       <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
-        <div className="rounded-2xl bg-white/60 p-1 ring-1 ring-blue-100">
+        <div className="border border-slate-200 bg-white">
           <button
             onClick={() => setIsOpen((prev) => !prev)}
-            className="flex w-full items-center justify-between px-4 py-3 text-left"
+            className={`flex w-full items-center justify-between px-4 py-3 text-left ${isOpen ? "border-b border-slate-200" : ""}`}
           >
             <div className="flex items-center gap-3">
               <Activity className="h-4 w-4 text-indigo-500" />
@@ -40,7 +40,7 @@ export default function AgentDeliberation({
 
           {isOpen ? (
             <div className="animate-in fade-in slide-in-from-top-2 px-4 pb-4">
-              <div className="space-y-6 border-t border-blue-50 pt-4">
+              <div className="space-y-6 pt-4">
                 {deliberations.map((stage, stageIndex) => (
                   <div key={stageIndex} className="space-y-3">
                     <h5 className="text-[10px] font-bold uppercase tracking-widest text-indigo-400">
@@ -50,13 +50,13 @@ export default function AgentDeliberation({
                       {stage.agents.map((agent, agentIndex) => (
                         <div
                           key={agentIndex}
-                          className="rounded-xl bg-white p-3 shadow-sm ring-1 ring-slate-100"
+                          className="border border-slate-200 bg-white p-3"
                         >
                           <div className="mb-1.5 flex items-center justify-between">
                             <span className="text-xs font-bold text-slate-900">
                               {agent.name}
                             </span>
-                            <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-600">
+                            <span className="border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-indigo-600">
                               Score: {agent.score}
                             </span>
                           </div>
@@ -69,7 +69,7 @@ export default function AgentDeliberation({
                         </div>
                       ))}
                     </div>
-                    <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-3 text-xs leading-relaxed text-blue-800">
+                    <div className="border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed text-blue-800">
                       <span className="font-bold">阶段性总结：</span>{" "}
                       {stage.synthesis}
                     </div>
