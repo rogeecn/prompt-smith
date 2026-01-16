@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
-import { Pencil, Search, Trash2, MoreVertical } from "lucide-react";
+import { MoreVertical, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import TopNav from "./TopNav";
 import ArtifactEditor from "./ArtifactEditor";
 import ArtifactChat from "./ArtifactChat";
@@ -287,27 +287,27 @@ export default function ArtifactsClient({
         >
           <div className="flex h-full flex-col">
             <div className="p-6 border-b border-gray-100">
-               <div className="relative mb-6">
-                 <input
-                   type="text"
-                   id="artifact-search"
-                   name="artifactSearch"
-                   placeholder="Search artifacts..."
-                   className="w-full border-b border-gray-300 py-2 text-sm font-body outline-none focus:border-black transition-colors bg-transparent"
-                 />
-                 <Search className="absolute right-0 top-2 h-4 w-4 text-gray-400" />
-               </div>
-               
-               <div className="flex items-center justify-between">
-                 <h2 className="font-heading font-bold text-lg text-black">Library</h2>
-                 <button 
-                   onClick={handleCreateArtifact}
-                   disabled={isCreatingArtifact}
-                   className="text-xs font-bold uppercase tracking-wider text-black hover:text-accent disabled:opacity-50"
-                 >
-                   + New Artifact
-                 </button>
-               </div>
+              <div className="flex items-center gap-3">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    id="artifact-search"
+                    name="artifactSearch"
+                    placeholder="Search artifacts..."
+                    className="w-full border-b border-gray-300 py-2 text-sm font-body outline-none focus:border-black transition-colors bg-transparent"
+                  />
+                  <Search className="absolute right-0 top-2 h-4 w-4 text-gray-400" />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCreateArtifact}
+                  disabled={isCreatingArtifact}
+                  aria-label="新建制品"
+                  className="flex h-9 w-9 items-center justify-center border border-gray-200 text-gray-600 hover:text-black disabled:opacity-50"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto">
