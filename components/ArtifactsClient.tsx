@@ -231,9 +231,11 @@ export default function ArtifactsClient({
           <div className="flex h-full flex-col">
             <div className="p-6 border-b border-gray-100">
                <div className="relative mb-6">
-                 <input 
-                   type="text" 
-                   placeholder="Search artifacts..." 
+                 <input
+                   type="text"
+                   id="artifact-search"
+                   name="artifactSearch"
+                   placeholder="Search artifacts..."
                    className="w-full border-b border-gray-300 py-2 text-sm font-body outline-none focus:border-black transition-colors bg-transparent"
                  />
                  <Search className="absolute right-0 top-2 h-4 w-4 text-gray-400" />
