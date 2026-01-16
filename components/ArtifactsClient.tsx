@@ -426,23 +426,22 @@ export default function ArtifactsClient({
                       key={session.id}
                       onClick={() => handleSelectSession(session.id)}
                       className={`
-                        w-full text-left p-3 border transition-all duration-200
-                        ${isActive 
-                          ? "border-accent bg-accent-light" 
-                          : "border-gray-100 hover:bg-gray-50"
-                        }
+                        w-full text-left p-3 transition-all duration-200
+                        ${isActive ? "bg-surface-muted" : "hover:bg-gray-50"}
                       `}
                     >
-                      <div className="flex justify-between items-start mb-1">
-                        <span className="font-mono text-xs font-bold text-black">
-                          #{sessions.length - index}
-                        </span>
-                        <span className="text-[10px] text-gray-400">
-                          {formatDate(session.created_at)}
-                        </span>
-                      </div>
-                      <div className="text-xs text-gray-500 truncate font-body">
-                        {session.last_message || "Empty"}
+                      <div className={`border-l-2 pl-3 ${isActive ? "border-accent" : "border-transparent"}`}>
+                        <div className="flex justify-between items-start mb-1">
+                          <span className="font-mono text-xs font-bold text-black">
+                            #{sessions.length - index}
+                          </span>
+                          <span className="text-[10px] text-gray-400">
+                            {formatDate(session.created_at)}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-500 truncate font-body">
+                          {session.last_message || "Empty"}
+                        </div>
                       </div>
                     </button>
                   );
