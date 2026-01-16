@@ -329,9 +329,6 @@ export default function ChatInterface({
       <div className="border-b border-slate-100 bg-white/90">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-400">
-              向导标题
-            </p>
             {isEditingTitle ? (
               <input
                 value={titleDraft}
@@ -356,7 +353,7 @@ export default function ChatInterface({
               <button
                 type="button"
                 onClick={handleEditTitle}
-                className="mt-1 w-full text-left text-sm font-semibold text-slate-900 hover:text-indigo-600"
+                className="w-full text-left text-sm font-semibold text-slate-900 hover:text-indigo-600"
               >
                 {sessionTitle || "未命名向导"}
               </button>
@@ -367,9 +364,6 @@ export default function ChatInterface({
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
-                模型
-              </span>
               <select
                 value={resolvedModelId}
                 onChange={(e) => setModelId(e.target.value || null)}
@@ -389,9 +383,6 @@ export default function ChatInterface({
               </select>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
-                输出格式
-              </span>
               <select
                 value={resolvedOutputFormat}
                 onChange={(e) => setOutputFormat(e.target.value as OutputFormat)}

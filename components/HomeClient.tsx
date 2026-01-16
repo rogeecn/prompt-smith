@@ -277,12 +277,8 @@ export default function HomeClient({ initialProjectId = null }: HomeClientProps)
             <div className="flex h-full flex-col">
               <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
                 {/* Sidebar Header */}
-                <div className="flex items-center justify-between p-4 lg:p-5">
-                  <div className="flex items-center gap-2 text-slate-500">
-                    <History className="h-4 w-4" />
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400">历史记录</span>
-                  </div>
-                  <button 
+                <div className="flex items-center justify-end p-4 lg:p-5">
+                  <button
                     onClick={() => setIsSidebarOpen(false)}
                     className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 lg:hidden"
                   >
@@ -332,8 +328,12 @@ export default function HomeClient({ initialProjectId = null }: HomeClientProps)
                                 }
                               `}
                             >
-                              <div className="flex items-center justify-between gap-2">
-                                <span className={`text-xs font-medium ${isActive ? "text-indigo-700" : "text-slate-900"}`}>
+                              <div className="min-w-0">
+                                <span
+                                  className={`line-clamp-2 break-words text-xs font-semibold leading-snug ${
+                                    isActive ? "text-indigo-700" : "text-slate-900"
+                                  }`}
+                                >
                                   {primary}
                                 </span>
                               </div>
