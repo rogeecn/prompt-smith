@@ -360,7 +360,7 @@ export default function ArtifactChat({
         <div className="border-t border-slate-200 bg-white pb-8 pt-4">
           <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
             <form onSubmit={handleSubmit} className="relative">
-              <div className="relative flex flex-col overflow-hidden border border-slate-200 bg-white focus-within:border-slate-600">
+              <div className="flex flex-col">
                 <div className="px-5 pt-4">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-500">继续对话</span>
                 </div>
@@ -373,7 +373,7 @@ export default function ArtifactChat({
                   className="w-full resize-none bg-transparent px-5 py-4 text-sm text-slate-900 outline-none placeholder:text-slate-400 min-h-[56px]"
                   rows={1}
                 />
-                <div className="flex items-center justify-between border-t border-slate-50 bg-slate-50/50 px-5 py-3">
+                <div className="flex items-center justify-between px-5 pb-3 pt-1">
                   <div className="flex items-center gap-4 text-[10px] font-medium text-slate-400">
                     <span className="flex items-center gap-1.5"><kbd className="rounded border bg-white px-1.5 py-0.5 font-sans">Enter</kbd> 发送</span>
                     <span className="flex items-center gap-1.5"><kbd className="rounded border bg-white px-1.5 py-0.5 font-sans">Shift + Enter</kbd> 换行</span>
