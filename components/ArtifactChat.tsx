@@ -32,6 +32,8 @@ const formatDefaultValue = (variable: ArtifactVariable) => {
   return String(fallback);
 };
 
+const MAX_TEXTAREA_HEIGHT = 140;
+
 const buildInitialDraftAnswers = (variables: ArtifactVariable[]) =>
   variables.reduce<Record<string, DraftAnswer>>((acc, variable) => {
     const value = formatDefaultValue(variable);
@@ -161,7 +163,9 @@ export default function ArtifactChat({
     const textarea = textareaRef.current;
     if (!textarea) return;
     textarea.style.height = "auto";
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`;
+    const nextHeight = Math.min(textarea.scrollHeight, MAX_TEXTAREA_HEIGHT);
+    textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY = textarea.scrollHeight > MAX_TEXTAREA_HEIGHT ? "auto" : "hidden";
   }, [input]);
 
   useEffect(() => {
@@ -389,55 +393,61 @@ export default function ArtifactChat({
 
       {/* Simplified Input Area */}
       {shouldShowInput && (
-        <div className="border-t border-gray-200 bg-white p-6">
-          <div className="mx-auto max-w-4xl">
-            <form onSubmit={handleSubmit} className="relative">
-              <textarea
-                ref={textareaRef}
-                id="artifact-chat-input"
-                name="artifactChatInput"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendMessage(input); } }}
-                placeholder="Type your message..."
-                className="
-                  w-full resize-none 
-                  border-0 bg-transparent 
-                  text-lg text-black placeholder:text-gray-300
-                  focus:outline-none focus:ring-0
-                  min-h-[96px]
-                  font-heading
-                  leading-relaxed
-                "
-                rows={4}
-              />
-              <div className="mt-4 flex justify-between items-center border-t border-gray-100 pt-4">
-                 {formError && (
-                    <div className="flex items-center gap-2 text-rose-500 text-xs font-bold">
-                      <AlertCircle className="h-4 w-4" />
-                      {formError}
-                    </div>
-                  )}
-                  <div className="ml-auto">
-                    <button 
-                      type="submit" 
-                      disabled={isLoading || isDisabled || !input.trim()}
-                      className="
-                        bg-black text-white 
-                        px-8 py-3 
-                        text-sm font-semibold tracking-wide
-                        hover:bg-gray-800 
-                        disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed
-                        transition-all duration-200
-                      "
-                    >
-                      {isLoading ? "Sending..." : "Send"}
-                    </button>
+      <div className="bg-white px-6 pb-6">
+        <div className="mx-auto max-w-4xl">
+          <form onSubmit={handleSubmit} className="relative">
+            <div className="flex items-start gap-4">
+              <div className="flex-1">
+                <textarea
+                  ref={textareaRef}
+                  id="artifact-chat-input"
+                  name="artifactChatInput"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      void sendMessage(input);
+                    }
+                  }}
+                  placeholder="Type your message..."
+                  className="
+                    w-full resize-none 
+                    border-0 bg-transparent 
+                    text-lg text-black placeholder:text-gray-300
+                    focus:outline-none focus:ring-0
+                    min-h-[40px] max-h-[140px]
+                    font-heading
+                    leading-relaxed
+                  "
+                  rows={1}
+                />
+                {formError && (
+                  <div className="mt-2 flex items-center gap-2 text-rose-500 text-xs font-bold">
+                    <AlertCircle className="h-4 w-4" />
+                    {formError}
                   </div>
+                )}
               </div>
-            </form>
-          </div>
+              <button
+                type="submit"
+                disabled={isLoading || isDisabled || !input.trim()}
+                className="
+                  self-center
+                  bg-black text-white 
+                  px-6 py-3 
+                  text-sm font-semibold tracking-wide
+                  hover:bg-gray-800 
+                  disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed
+                  transition-all duration-200
+                "
+              >
+                {isLoading ? "Sending..." : "Send"}
+              </button>
+            </div>
+          </form>
         </div>
+      </div>
       )}
     </div>
   );
