@@ -551,13 +551,24 @@ export async function loadProjectContext(projectId: string) {
     throw new Error("Invalid projectId");
   }
 
-  const project = await prisma.project.findUnique({
+  let project = await prisma.project.findUnique({
     where: { id: parsedProjectId.data },
   });
 
   if (!project) {
     logDebug("loadProjectContext:not-found", { projectId });
-    throw new Error("Project not found");
+    project = await prisma.project.create({
+      data: {
+        id: parsedProjectId.data,
+        name: "默认项目",
+        sessions: {
+          create: {
+            history: [],
+            state: {},
+          },
+        },
+      },
+    });
   }
 
   logDebug("loadProjectContext:start", { projectId: project.id });
