@@ -271,11 +271,14 @@ export default function ArtifactChat({
   };
 
   const hasConversation = messages.length > 0;
+  const shouldShowForm = variables.length > 0 && !isConfigHidden && !hasConversation;
+  const shouldShowMessages = hasConversation || isConfigHidden || variables.length === 0;
+  const shouldShowInput = hasConversation || variables.length === 0;
   
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-white">
       {/* Configuration Panel - Reuse Question Form */}
-      {variables.length > 0 && !isConfigHidden && !hasConversation && (
+      {shouldShowForm && (
         <QuestionForm
           questions={variableQuestions}
           draftAnswers={draftAnswers}
@@ -306,7 +309,7 @@ export default function ArtifactChat({
       )}
 
       {/* Message Stream - Forum Style */}
-      {(hasConversation || isConfigHidden) && (
+      {shouldShowMessages && (
         <div ref={listRef} className="flex-1 overflow-y-auto">
           {messages.map((item, index) => {
             const isUser = item.role === "user";
@@ -351,7 +354,7 @@ export default function ArtifactChat({
       )}
 
       {/* Floating Input Area */}
-      {hasConversation && (
+      {shouldShowInput && (
         <div className="border-t border-slate-200 bg-white pb-8 pt-4">
           <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
             <form onSubmit={handleSubmit} className="relative">

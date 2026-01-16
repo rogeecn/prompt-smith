@@ -296,11 +296,11 @@ export default function ArtifactEditorClient({
       <div className="flex min-h-screen flex-col bg-slate-50">
         <TopNav />
         <div className="flex flex-1 items-center justify-center px-6">
-          <div className="w-full max-w-md rounded-3xl border border-white bg-white/60 p-8 text-center shadow-xl backdrop-blur-xl">
+          <div className="w-full max-w-md border border-slate-200 bg-white p-8 text-center">
             <p className="text-sm text-slate-500">
               {isCreating ? "正在创建新项目..." : "准备创建你的新项目。"}
             </p>
-            <button disabled className="mt-6 w-full rounded-2xl bg-indigo-600 px-5 py-4 text-sm font-semibold text-white shadow-lg shadow-indigo-200 transition hover:bg-indigo-700 disabled:opacity-70">
+            <button disabled className="mt-6 w-full border border-slate-900 bg-slate-900 px-5 py-3 text-sm font-semibold text-white disabled:opacity-70">
               加载中...
             </button>
           </div>
@@ -315,7 +315,7 @@ export default function ArtifactEditorClient({
       <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 lg:hidden">
         <button
           onClick={() => setIsSidebarOpen(true)}
-          className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"
+          className="p-2 text-slate-600 hover:bg-slate-100"
         >
           <Menu className="h-5 w-5" />
         </button>
@@ -327,18 +327,18 @@ export default function ArtifactEditorClient({
         <>
           {isSidebarOpen && (
             <div
-              className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm lg:hidden"
+              className="fixed inset-0 z-40 bg-black/20 lg:hidden"
               onClick={() => setIsSidebarOpen(false)}
             />
           )}
           <aside
             className={[
-              "fixed inset-y-0 left-0 z-50 flex w-72 transform flex-col bg-white shadow-2xl transition-transform duration-300 ease-in-out lg:static lg:z-0 lg:w-80 lg:translate-x-0 lg:bg-white lg:shadow-none lg:border-r lg:border-slate-100",
+              "fixed inset-y-0 left-0 z-50 flex w-72 transform flex-col border-r border-slate-200 bg-white transition-transform duration-300 ease-in-out lg:static lg:z-0 lg:w-80 lg:translate-x-0",
               isSidebarOpen ? "translate-x-0" : "-translate-x-full",
             ].join(" ")}
           >
           <div className="flex flex-col h-full">
-            <div className="p-5 border-b border-slate-100 bg-white">
+            <div className="p-5 border-b border-slate-200 bg-white">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2 text-slate-900 font-bold">
                   <Layers className="h-5 w-5 text-indigo-600" />
@@ -346,14 +346,14 @@ export default function ArtifactEditorClient({
                 </div>
                 <button
                   onClick={() => setIsSidebarOpen(false)}
-                  className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 lg:hidden"
+                  className="p-1 text-slate-400 hover:bg-slate-100 lg:hidden"
                 >
                   <X className="h-5 w-5" />
                 </button>
                 <button
                   onClick={handleCreateArtifact}
                   disabled={isCreating}
-                  className="p-2 rounded-lg bg-slate-50 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                  className="p-2 border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-colors"
                 >
                   <Plus className="h-4 w-4" />
                 </button>
@@ -362,17 +362,17 @@ export default function ArtifactEditorClient({
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <input 
                   placeholder="搜索制品..." 
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all"
+                  className="w-full bg-white border border-slate-200 pl-9 pr-4 py-2 text-xs outline-none focus:border-slate-500"
                 />
               </div>
             </div>
             
-            <div className="flex-1 overflow-y-auto p-3 space-y-2">
+            <div className="flex-1 overflow-y-auto p-3">
               {artifacts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <Box className="h-10 w-10 text-slate-300 mb-2" />
                   <p className="text-xs text-slate-400">暂无制品</p>
-                  <button onClick={handleCreateArtifact} className="mt-3 text-xs font-bold text-indigo-600 hover:text-indigo-700">立即新建</button>
+                  <button onClick={handleCreateArtifact} className="mt-3 text-xs font-bold text-slate-700 hover:text-slate-900">立即新建</button>
                 </div>
               ) : (
                 artifacts.map((item) => {
@@ -382,17 +382,14 @@ export default function ArtifactEditorClient({
                       key={item.id}
                       onClick={() => handleSelectArtifact(item)}
                       className={`
-                        w-full text-left p-3 rounded-xl transition-all group border border-transparent
-                        ${isActive 
-                          ? "bg-indigo-50 border-indigo-100 shadow-sm" 
-                          : "hover:bg-slate-50 hover:border-slate-100"
-                        }
+                        w-full text-left px-3 py-3 border-b border-slate-100 last:border-b-0
+                        ${isActive ? "bg-slate-900 text-white" : "hover:bg-slate-50"}
                       `}
                     >
-                      <h4 className={`text-sm font-bold ${isActive ? "text-indigo-900" : "text-slate-700"}`}>
+                      <h4 className="text-sm font-bold break-words">
                         {item.title || "未命名制品"}
                       </h4>
-                      <p className={`text-xs mt-1 line-clamp-2 ${isActive ? "text-indigo-600/80" : "text-slate-400"}`}>
+                      <p className={`text-xs mt-1 line-clamp-2 ${isActive ? "text-slate-200" : "text-slate-400"}`}>
                         {item.problem || "暂无描述"}
                       </p>
                     </button>
@@ -405,13 +402,13 @@ export default function ArtifactEditorClient({
         </>
 
         {/* Main Content: Artifact Editor */}
-        <section className="flex-1 flex flex-col min-w-0 bg-slate-50/50 overflow-hidden relative">
+        <section className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden relative">
           {currentArtifact ? (
             <>
               {/* Header */}
-              <header className="flex items-center justify-between px-8 py-5 bg-white border-b border-slate-100 shadow-sm z-10">
+              <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-200 z-10">
                 <div className="flex items-center gap-4">
-                  <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+                  <div className="h-10 w-10 border border-slate-200 bg-white flex items-center justify-center text-slate-700">
                     <Box className="h-5 w-5" />
                   </div>
                   <div>
@@ -433,7 +430,7 @@ export default function ArtifactEditorClient({
                   {error && <span className="text-xs font-bold text-rose-500 animate-pulse">{error}</span>}
                   <button 
                     onClick={() => router.push(`/?projectId=${projectId}`)}
-                    className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
+                    className="p-2 border border-slate-200 text-slate-500 hover:text-slate-700 transition-colors"
                     title="返回生成向导"
                   >
                     <ArrowLeft className="h-5 w-5" />
@@ -441,14 +438,14 @@ export default function ArtifactEditorClient({
                   <button 
                     onClick={handleSave}
                     disabled={isSaving}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                    className="flex items-center gap-2 border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
                   >
                     <Save className="h-4 w-4" />
                     {isSaving ? "保存中..." : "保存草稿"}
                   </button>
                   <button 
                     onClick={handleUseArtifact}
-                    className="flex items-center gap-2 px-5 py-2 rounded-xl bg-indigo-600 text-xs font-bold text-white shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:translate-y-[-1px] transition-all"
+                    className="flex items-center gap-2 border border-slate-900 bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800"
                   >
                     <Play className="h-4 w-4 fill-current" />
                     立即使用
@@ -457,19 +454,19 @@ export default function ArtifactEditorClient({
               </header>
 
               {/* Editor Area */}
-              <div className="flex-1 overflow-y-auto p-8">
-                <div className="max-w-5xl mx-auto grid gap-8 lg:grid-cols-[1.5fr_1fr]">
+              <div className="flex-1 overflow-y-auto p-6">
+                <div className="max-w-5xl mx-auto grid gap-6 lg:grid-cols-[1.5fr_1fr]">
                   {/* Left: Prompt Editor */}
                   <div className="flex flex-col gap-4">
-                    <div className="bg-white rounded-3xl p-1 shadow-sm ring-1 ring-slate-100">
-                      <div className="px-5 py-3 border-b border-slate-50 flex items-center gap-2">
+                    <div className="border border-slate-200 bg-white">
+                      <div className="px-4 py-3 border-b border-slate-200 flex items-center gap-2">
                         <Layers className="h-4 w-4 text-slate-400" />
                         <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Prompt 模板内容</span>
                       </div>
                       <textarea 
                         value={form.prompt_content}
                         onChange={(e) => setForm(p => ({ ...p, prompt_content: e.target.value }))}
-                        className="w-full min-h-[500px] p-5 text-sm font-mono text-slate-800 leading-relaxed outline-none resize-none bg-transparent"
+                        className="w-full min-h-[500px] p-4 text-sm font-mono text-slate-800 leading-relaxed outline-none resize-none bg-white"
                         placeholder="在此输入 Prompt 模板，使用 {{variable}} 标记变量..."
                       />
                     </div>
@@ -477,8 +474,8 @@ export default function ArtifactEditorClient({
 
                   {/* Right: Variable Configuration */}
                   <div className="flex flex-col gap-4">
-                    <div className="bg-white rounded-3xl shadow-sm ring-1 ring-slate-100 overflow-hidden">
-                      <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                    <div className="border border-slate-200 bg-white">
+                      <div className="px-4 py-3 border-b border-slate-200 bg-white flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Settings2 className="h-4 w-4 text-indigo-500" />
                           <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">变量配置</span>
@@ -486,13 +483,13 @@ export default function ArtifactEditorClient({
                         <div className="flex items-center gap-2">
                           <button 
                             onClick={handleExtractVariables}
-                            className="text-[10px] font-bold text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded transition-colors"
+                            className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 transition-colors"
                           >
                             自动提取
                           </button>
                           <button 
                             onClick={handleAddVariable}
-                            className="p-1 rounded hover:bg-slate-200 text-slate-400 transition-colors"
+                            className="p-1 text-slate-400 hover:text-slate-700 transition-colors"
                           >
                             <Plus className="h-4 w-4" />
                           </button>
@@ -501,11 +498,11 @@ export default function ArtifactEditorClient({
 
                       <div className="p-4 space-y-4 max-h-[calc(100vh-240px)] overflow-y-auto">
                         {templateKeys.length > 0 && (
-                          <div className="p-3 rounded-xl bg-amber-50 border border-amber-100 text-amber-800 text-xs">
+                          <div className="p-3 border border-amber-200 bg-amber-50 text-amber-800 text-xs">
                             <p className="font-bold mb-1">检测到模板变量：</p>
                             <div className="flex flex-wrap gap-1">
                               {templateKeys.map(k => (
-                                <span key={k} className="px-1.5 py-0.5 bg-amber-100 rounded text-[10px] font-mono">{k}</span>
+                                <span key={k} className="px-1.5 py-0.5 bg-amber-100 text-[10px] font-mono">{k}</span>
                               ))}
                             </div>
                           </div>
@@ -513,7 +510,7 @@ export default function ArtifactEditorClient({
 
                         {form.variables && form.variables.length > 0 ? (
                           form.variables.map((variable, index) => (
-                            <div key={index} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 group hover:border-indigo-200 hover:shadow-sm transition-all">
+                            <div key={index} className="border-b border-slate-200 pb-4 last:border-b-0">
                               <div className="flex items-center justify-between mb-3">
                                 <span className="text-xs font-bold text-slate-400">Variable {index + 1}</span>
                                 <button onClick={() => handleRemoveVariable(index)} className="text-slate-300 hover:text-rose-500 transition-colors">
@@ -528,7 +525,7 @@ export default function ArtifactEditorClient({
                                     <input 
                                       value={variable.key}
                                       onChange={(e) => updateVariableAt(index, { key: e.target.value })}
-                                      className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-indigo-500 font-mono"
+                                      className="w-full border border-slate-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-slate-600 font-mono"
                                       placeholder="key_name"
                                     />
                                   </div>
@@ -537,7 +534,7 @@ export default function ArtifactEditorClient({
                                     <input 
                                       value={variable.label}
                                       onChange={(e) => updateVariableAt(index, { label: e.target.value })}
-                                      className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-indigo-500"
+                                      className="w-full border border-slate-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-slate-600"
                                       placeholder="显示标签"
                                     />
                                   </div>
@@ -549,7 +546,7 @@ export default function ArtifactEditorClient({
                                     <select 
                                       value={variable.type}
                                       onChange={(e) => updateVariableAt(index, { type: e.target.value as any })}
-                                      className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-indigo-500"
+                                      className="w-full border border-slate-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-slate-600"
                                     >
                                       <option value="string">单行文本</option>
                                       <option value="text">多行文本</option>
@@ -565,7 +562,7 @@ export default function ArtifactEditorClient({
                                         type="checkbox"
                                         checked={variable.required ?? true}
                                         onChange={(e) => updateVariableAt(index, { required: e.target.checked })}
-                                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                        className="border-slate-300 text-indigo-600 focus:ring-indigo-500"
                                       />
                                       <span className="text-xs font-medium text-slate-600">必填项</span>
                                     </label>
@@ -578,7 +575,7 @@ export default function ArtifactEditorClient({
                                     <input 
                                       value={(variable.options ?? []).join(", ")}
                                       onChange={(e) => updateVariableAt(index, { options: parseListValue(e.target.value) })}
-                                      className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-indigo-500"
+                                      className="w-full border border-slate-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-slate-600"
                                       placeholder="选项A, 选项B"
                                     />
                                   </div>
@@ -589,7 +586,7 @@ export default function ArtifactEditorClient({
                                   <input 
                                     value={variable.placeholder ?? ""}
                                     onChange={(e) => updateVariableAt(index, { placeholder: e.target.value })}
-                                    className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-indigo-500"
+                                    className="w-full border border-slate-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-slate-600"
                                     placeholder="给用户的输入提示..."
                                   />
                                 </div>

@@ -340,7 +340,7 @@ export default function ArtifactsClient({
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-3 space-y-2">
+            <div className="flex-1 overflow-y-auto p-3 space-y-1">
               {artifacts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <Box className="h-10 w-10 text-slate-300 mb-2" />
@@ -360,10 +360,8 @@ export default function ArtifactsClient({
                       key={item.id}
                       onClick={() => handleSelectArtifact(item)}
                       className={[
-                        "w-full cursor-pointer border px-3 py-3",
-                        isActive
-                          ? "border-slate-900 bg-slate-900 text-white"
-                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                        "w-full cursor-pointer px-3 py-3",
+                        isActive ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-50",
                       ].join(" ")}
                     >
                       <div className="flex items-start justify-between gap-3">
@@ -388,10 +386,8 @@ export default function ArtifactsClient({
                               handleEditArtifact(item);
                             }}
                             className={[
-                              "p-1 border",
-                              isActive
-                                ? "border-slate-700 text-slate-200 hover:text-white"
-                                : "border-slate-200 text-slate-400 hover:text-slate-700",
+                              "p-1",
+                              isActive ? "text-slate-200 hover:text-white" : "text-slate-400 hover:text-slate-700",
                             ].join(" ")}
                             title="编辑制品"
                           >
@@ -405,10 +401,8 @@ export default function ArtifactsClient({
                             }}
                             disabled={isDeletingArtifactId === item.id}
                             className={[
-                              "p-1 border",
-                              isActive
-                                ? "border-slate-700 text-slate-200 hover:text-white"
-                                : "border-slate-200 text-slate-400 hover:text-rose-500",
+                              "p-1",
+                              isActive ? "text-slate-200 hover:text-white" : "text-slate-400 hover:text-rose-500",
                             ].join(" ")}
                             title="删除制品"
                           >
@@ -512,7 +506,7 @@ export default function ArtifactsClient({
                 {sessions.length === 0 ? (
                   <p className="text-xs text-slate-400">暂无历史对话。</p>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     {sessions.map((session, index) => {
                       const isActive = session.id === currentSessionId;
                       const summary = session.last_message ?? "未开始";
@@ -522,10 +516,8 @@ export default function ArtifactsClient({
                           type="button"
                           onClick={() => handleSelectSession(session.id)}
                           className={[
-                            "w-full cursor-pointer border px-3 py-3 text-left text-xs",
-                            isActive
-                              ? "border-slate-900 bg-slate-900 text-white"
-                              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                            "w-full cursor-pointer px-3 py-3 text-left text-xs",
+                            isActive ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-50",
                           ].join(" ")}
                         >
                           <div className="flex items-center justify-between">
