@@ -422,28 +422,32 @@ export default function ArtifactsClient({
                 {sessions.map((session, index) => {
                   const isActive = session.id === currentSessionId;
                   return (
-                    <button
+                    <div
                       key={session.id}
-                      onClick={() => handleSelectSession(session.id)}
-                      className={`
-                        w-full text-left p-3 transition-all duration-200
-                        ${isActive ? "bg-surface-muted" : "hover:bg-gray-50"}
-                      `}
+                      className={`w-full ${isActive ? "bg-surface-muted" : ""}`}
                     >
-                      <div className={`border-l-2 pl-3 ${isActive ? "border-accent" : "border-transparent"}`}>
-                        <div className="flex justify-between items-start mb-1">
-                          <span className="font-mono text-xs font-bold text-black">
-                            #{sessions.length - index}
-                          </span>
-                          <span className="text-[10px] text-gray-400">
-                            {formatDate(session.created_at)}
-                          </span>
+                      <button
+                        onClick={() => handleSelectSession(session.id)}
+                        className={`
+                          w-full text-left p-3 transition-all duration-200
+                          ${isActive ? "" : "hover:bg-gray-50"}
+                        `}
+                      >
+                        <div className={`border-l-2 pl-3 ${isActive ? "border-accent" : "border-transparent"}`}>
+                          <div className="flex justify-between items-start mb-1">
+                            <span className="font-mono text-xs font-bold text-black">
+                              #{sessions.length - index}
+                            </span>
+                            <span className="text-[10px] text-gray-400">
+                              {formatDate(session.created_at)}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500 truncate font-body">
+                            {session.last_message || "Empty"}
+                          </div>
                         </div>
-                        <div className="text-xs text-gray-500 truncate font-body">
-                          {session.last_message || "Empty"}
-                        </div>
-                      </div>
-                    </button>
+                      </button>
+                    </div>
                   );
                 })}
               </div>
