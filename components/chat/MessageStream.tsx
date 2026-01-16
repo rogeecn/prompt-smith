@@ -83,17 +83,17 @@ export default function MessageStream({
 
         {/* AI Loading Block */}
         {isLoading && (
-          <div className="w-full bg-block-ai">
+          <div className="w-full bg-transparent">
             <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
               <div className="flex gap-6 animate-pulse">
-                <div className="h-8 w-8 rounded-lg bg-slate-200" />
+                <div className="h-8 w-8 bg-slate-200" />
                 <div className="flex-1 space-y-3 pt-1">
                   <div className="text-xs font-medium text-slate-500">
                     {loadingStage ?? "AI 正在思考..."}
                   </div>
                   <div className="space-y-2">
-                    <div className="h-4 w-full rounded bg-slate-100" />
-                    <div className="h-4 w-3/4 rounded bg-slate-100" />
+                    <div className="h-4 w-full bg-slate-100" />
+                    <div className="h-4 w-3/4 bg-slate-100" />
                   </div>
                 </div>
               </div>

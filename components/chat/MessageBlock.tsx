@@ -50,20 +50,15 @@ export default function MessageBlock({
   const isSystem = role === "system";
 
   return (
-    <div 
-      className={`
-        w-full transition-colors duration-200
-        ${isUser ? "bg-block-user" : isAssistant ? "bg-block-ai" : "bg-block-system"}
-      `}
-    >
-      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="w-full bg-transparent">
+      <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="flex gap-4 sm:gap-6">
           {/* Avatar Area */}
           <div className="flex flex-col items-center gap-2 pt-1">
             <div 
               className={`
-                flex h-8 w-8 items-center justify-center rounded-lg shadow-sm
-                ${isUser ? "bg-white text-slate-600" : isAssistant ? "bg-indigo-600 text-white" : "bg-blue-100 text-blue-600"}
+                flex h-8 w-8 items-center justify-center
+                ${isUser ? "bg-[#F1F3F4] text-slate-700" : isAssistant ? "bg-[#7C4DFF] text-white" : "bg-[#E9EEF6] text-slate-600"}
               `}
             >
               {isUser ? <User className="h-4 w-4" /> : isAssistant ? <Bot className="h-4 w-4" /> : <Info className="h-4 w-4" />}
@@ -72,17 +67,6 @@ export default function MessageBlock({
 
           {/* Content Area */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                {isUser ? "用户指令" : isAssistant ? "AI 助手" : "系统过程"}
-              </span>
-              {timestamp && (
-                <span className="text-[10px] text-slate-400">
-                  {new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              )}
-            </div>
-
             {isForm && formPayload ? (
               <div className="mt-4 space-y-6">
                 <div className="flex items-center gap-2 text-indigo-600 mb-4">
@@ -106,12 +90,12 @@ export default function MessageBlock({
               </div>
             ) : (
               <div className={`
-                prose prose-sm max-w-none leading-relaxed break-words
-                ${isUser ? "text-slate-700" : "text-slate-800"}
-                [&_pre]:bg-slate-900 [&_pre]:text-slate-100 [&_pre]:p-4 [&_pre]:rounded-xl [&_pre]:my-4
-                [&_code]:bg-slate-100 [&_code]:text-indigo-600 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:font-medium
+                prose prose-sm max-w-none leading-relaxed break-words px-3 py-2
+                ${isUser ? "text-[#3C4043]" : "text-[#1A1A1B]"}
+                [&_pre]:bg-slate-900 [&_pre]:text-slate-100 [&_pre]:p-4 [&_pre]:my-4
+                [&_code]:bg-slate-100 [&_code]:text-[#7C4DFF] [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-medium
                 [&_ol]:list-decimal [&_ol]:pl-6 [&_ul]:list-disc [&_ul]:pl-6
-                [&_blockquote]:border-l-4 [&_blockquote]:border-slate-200 [&_blockquote]:pl-4 [&_blockquote]:italic
+                [&_blockquote]:border-l-2 [&_blockquote]:border-slate-200 [&_blockquote]:pl-3 [&_blockquote]:italic
               `}>
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {content}

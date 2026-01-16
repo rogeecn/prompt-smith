@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Send, Copy, Download, Archive, Share2, Sparkles, AlertCircle } from "lucide-react";
+import { AlignLeft, Code, Minus, Plus, Send, Copy, Download, Archive, Share2, Sparkles, AlertCircle } from "lucide-react";
 import MessageStream from "./chat/MessageStream";
 import QuestionForm from "./chat/QuestionForm";
 import {
@@ -168,6 +168,29 @@ export default function ChatInterface({
     textarea.style.height = "auto";
     textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`;
   }, [input]);
+
+  const insertAtCursor = (value: string) => {
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      setInput((prev) => prev + value);
+      return;
+    }
+    const start = textarea.selectionStart ?? input.length;
+    const end = textarea.selectionEnd ?? input.length;
+    const nextValue = `${input.slice(0, start)}${value}${input.slice(end)}`;
+    setInput(nextValue);
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const cursor = start + value.length;
+      textarea.selectionStart = cursor;
+      textarea.selectionEnd = cursor;
+    });
+  };
+
+  const appendQuickAction = (label: string) => {
+    setInput((prev) => (prev.trim() ? `${prev.trim()}\n${label}` : label));
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  };
 
   useEffect(() => {
     if (listRef.current) {
@@ -483,12 +506,12 @@ export default function ChatInterface({
       </div>
 
       {showChatInput && (
-        <div className="border-t border-slate-200 bg-white pb-8 pt-4">
+        <div className="border-t-2 border-[#DCD0FF] bg-white pb-6 pt-4">
           <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
             <form onSubmit={handleStartSubmit} className="relative group">
               <div className="flex flex-col">
                 <div className="px-5 pt-4">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-500">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#7C4DFF]">
                     {Boolean(finalPrompt) || isFinished ? "继续优化提示词" : "开始你的需求描述"}
                   </span>
                 </div>
@@ -498,21 +521,55 @@ export default function ChatInterface({
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleStartSubmit(e); } }}
                   placeholder={Boolean(finalPrompt) || isFinished ? "例如：语气更幽默一些，增加具体的案例..." : "例如：我要做一个关于职场效率提升的公众号推文助手..."}
-                  className="w-full resize-none bg-transparent px-5 py-4 text-sm text-slate-900 outline-none placeholder:text-slate-400 min-h-[56px]"
-                  rows={1}
+                  className="w-full resize-none bg-white px-5 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 min-h-[96px] border-b border-slate-200"
+                  rows={4}
                 />
-                <div className="flex items-center justify-between px-5 pb-3 pt-1">
-                  <div className="flex items-center gap-4 text-[10px] font-medium text-slate-400">
-                    <span className="flex items-center gap-1.5"><kbd className="rounded border bg-white px-1.5 py-0.5 font-sans">Enter</kbd> 发送修改</span>
-                    <span className="flex items-center gap-1.5"><kbd className="rounded border bg-white px-1.5 py-0.5 font-sans">Shift + Enter</kbd> 换行</span>
-                  </div>
-                  <button 
-                    type="submit" 
-                    disabled={isLoading || isDisabled || (!input.trim() && messages.length > 0)}
-                    className="flex h-10 w-10 items-center justify-center border border-slate-900 bg-slate-900 text-white transition-colors hover:bg-slate-800 disabled:bg-slate-200 disabled:border-slate-200"
+                <div className="flex items-center justify-between px-5 pb-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => insertAtCursor("{{variable}}")}
+                    className="flex items-center gap-2 text-xs font-semibold text-slate-500 hover:text-slate-900"
+                    title="插入变量占位符"
                   >
-                    <Send className="h-5 w-5" />
+                    <Code className="h-4 w-4" />
+                    <span>{"{{x}}"}</span>
                   </button>
+                  <div className="flex flex-col items-end gap-2">
+                    <button 
+                      type="submit" 
+                      disabled={isLoading || isDisabled || (!input.trim() && messages.length > 0)}
+                      className="flex h-9 w-9 items-center justify-center bg-[#7C4DFF] text-white transition-colors hover:bg-[#6F3FF0] disabled:bg-slate-200"
+                      title="发送"
+                    >
+                      <Send className="h-4 w-4" />
+                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => appendQuickAction("请精简表达。")}
+                        className="p-1 text-slate-500 hover:text-slate-900"
+                        title="精简"
+                      >
+                        <Minus className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => appendQuickAction("请扩充细节。")}
+                        className="p-1 text-slate-500 hover:text-slate-900"
+                        title="扩充"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => appendQuickAction("请整理为清晰的段落结构。")}
+                        className="p-1 text-slate-500 hover:text-slate-900"
+                        title="格式化"
+                      >
+                        <AlignLeft className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
               {formError && (
