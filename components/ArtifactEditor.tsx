@@ -2,23 +2,11 @@
 
 import { useMemo, useState, useEffect } from "react";
 import {
-  Settings2,
   Save,
-  ArrowLeft,
-  Layers,
-  Box,
   Plus,
-  Trash2,
-  Play,
 } from "lucide-react";
-import {
-  updateArtifact,
-} from "../src/app/actions";
-import type {
-  Artifact,
-  ArtifactUpdate,
-  ArtifactVariable,
-} from "../lib/schemas";
+import { updateArtifact } from "../src/app/actions";
+import type { Artifact, ArtifactUpdate, ArtifactVariable } from "../lib/schemas";
 import { parseTemplateVariables } from "../lib/template";
 
 const emptyForm: ArtifactUpdate = {
@@ -39,7 +27,6 @@ type ArtifactEditorProps = {
   artifact: Artifact;
   onSave?: (updatedArtifact: Artifact) => void;
   onCancel: () => void;
-  onUseArtifact?: () => void; // Switch to chat mode
 };
 
 export default function ArtifactEditor({
@@ -47,7 +34,6 @@ export default function ArtifactEditor({
   artifact,
   onSave,
   onCancel,
-  onUseArtifact,
 }: ArtifactEditorProps) {
   const [form, setForm] = useState<ArtifactUpdate>(emptyForm);
   const [isSaving, setIsSaving] = useState(false);
@@ -55,15 +41,13 @@ export default function ArtifactEditor({
 
   // Initialize form when artifact changes
   useEffect(() => {
-    if (artifact) {
-      setForm({
-        title: artifact.title || "",
-        problem: artifact.problem || "",
-        prompt_content: artifact.prompt_content || "",
-        variables: artifact.variables ?? [],
-      });
-    }
-  }, [artifact]);
+    setForm({
+      title: artifact.title || "",
+      problem: artifact.problem || "",
+      prompt_content: artifact.prompt_content || "",
+      variables: artifact.variables ?? [],
+    });
+  }, [artifact.id]);
 
   const templateVariables = useMemo(
     () => parseTemplateVariables(form.prompt_content),
@@ -187,222 +171,205 @@ export default function ArtifactEditor({
   };
 
   return (
-    <div className="flex flex-col h-full bg-white overflow-hidden relative">
-      {/* Header */}
-      <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-200 z-10 shrink-0">
-        <div className="flex items-center gap-4 flex-1 mr-4">
-          <div className="h-10 w-10 border border-slate-200 bg-white flex items-center justify-center text-slate-700 shrink-0">
-            <Box className="h-5 w-5" />
-          </div>
-          <div className="flex-1 min-w-0">
+    <div className="flex h-full flex-col overflow-hidden bg-white">
+      <header className="border-b border-gray-100 px-8 py-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex-1 min-w-0 space-y-2">
             <input
               id="artifact-title"
               name="artifactTitle"
               value={form.title}
-              onChange={(e) => setForm(p => ({ ...p, title: e.target.value }))}
-              className="text-lg font-bold text-slate-900 bg-transparent outline-none placeholder:text-slate-300 w-full"
+              onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
+              className="w-full bg-transparent font-display text-3xl font-bold text-black outline-none placeholder:text-gray-300"
               placeholder="输入制品标题"
             />
             <input
               id="artifact-problem"
               name="artifactProblem"
               value={form.problem}
-              onChange={(e) => setForm(p => ({ ...p, problem: e.target.value }))}
-              className="text-xs text-slate-500 bg-transparent outline-none placeholder:text-slate-300 w-full mt-0.5"
-              placeholder="简要描述该制品解决的问题..."
+              onChange={(e) => setForm((prev) => ({ ...prev, problem: e.target.value }))}
+              className="w-full bg-transparent text-sm text-gray-500 outline-none placeholder:text-gray-300"
+              placeholder="简要描述该制品解决的问题"
             />
           </div>
-        </div>
-        <div className="flex items-center gap-3 shrink-0">
-          {error && <span className="text-xs font-bold text-rose-500 animate-pulse">{error}</span>}
-          <button 
-            onClick={onCancel}
-            className="p-2 border border-slate-200 text-slate-500 hover:text-slate-700 transition-colors"
-            title="返回"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-          <button 
-            onClick={handleSave}
-            disabled={isSaving}
-            className="flex items-center gap-2 border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-          >
-            <Save className="h-4 w-4" />
-            {isSaving ? "保存中..." : "保存"}
-          </button>
-          {onUseArtifact && (
-            <button 
-              onClick={onUseArtifact}
-              className="flex items-center gap-2 border border-slate-900 bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800"
+          <div className="flex flex-wrap items-center gap-2">
+            {error && <span className="text-xs font-semibold text-rose-500">{error}</span>}
+            <button
+              type="button"
+              onClick={onCancel}
+              className="border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600 hover:text-black"
             >
-              <Play className="h-4 w-4 fill-current" />
-              使用
+              返回对话
             </button>
-          )}
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={isSaving}
+              className="flex items-center gap-2 border border-black bg-black px-3 py-2 text-xs font-semibold text-white hover:bg-black/90 disabled:opacity-60"
+            >
+              <Save className="h-4 w-4" />
+              {isSaving ? "保存中..." : "保存"}
+            </button>
+          </div>
         </div>
       </header>
 
-      {/* Editor Area */}
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-5xl mx-auto grid gap-6 lg:grid-cols-[1.5fr_1fr]">
-          {/* Left: Prompt Editor */}
-          <div className="flex flex-col gap-4">
-            <div className="border border-slate-200 bg-white">
-              <div className="px-4 py-3 border-b border-slate-200 flex items-center gap-2">
-                <Layers className="h-4 w-4 text-slate-400" />
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Prompt 模板内容</span>
-              </div>
-              <textarea
-                id="artifact-prompt"
-                name="artifactPrompt"
-                value={form.prompt_content}
-                onChange={(e) => setForm(p => ({ ...p, prompt_content: e.target.value }))}
-                className="w-full min-h-[500px] p-4 text-sm font-mono text-slate-800 leading-relaxed outline-none resize-none bg-white"
-                placeholder="在此输入 Prompt 模板，使用 {{variable}} 标记变量..."
-              />
+      <div className="flex-1 min-h-0 overflow-y-auto px-8 py-6">
+        <div className="grid gap-8 lg:grid-cols-[1.6fr_1fr]">
+          <div className="space-y-3">
+            <div className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+              Prompt 模板内容
             </div>
+            <textarea
+              id="artifact-prompt"
+              name="artifactPrompt"
+              value={form.prompt_content}
+              onChange={(e) => setForm((prev) => ({ ...prev, prompt_content: e.target.value }))}
+              className="min-h-[520px] w-full resize-none bg-transparent font-mono text-sm text-gray-800 outline-none"
+              placeholder="在此输入 Prompt 模板，使用 {{variable}} 标记变量..."
+            />
           </div>
 
-          {/* Right: Variable Configuration */}
-          <div className="flex flex-col gap-4">
-            <div className="border border-slate-200 bg-white">
-              <div className="px-4 py-3 border-b border-slate-200 bg-white flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Settings2 className="h-4 w-4 text-indigo-500" />
-                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">变量配置</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button 
-                    onClick={handleExtractVariables}
-                    className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 transition-colors"
-                  >
-                    自动提取
-                  </button>
-                  <button 
-                    onClick={handleAddVariable}
-                    className="p-1 text-slate-400 hover:text-slate-700 transition-colors"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </button>
-                </div>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+                变量配置
               </div>
-
-              <div className="p-4 space-y-4">
-                {templateKeys.length > 0 && (
-                  <div className="p-3 border border-amber-200 bg-amber-50 text-amber-800 text-xs">
-                    <p className="font-bold mb-1">检测到模板变量：</p>
-                    <div className="flex flex-wrap gap-1">
-                      {templateKeys.map(k => (
-                        <span key={k} className="px-1.5 py-0.5 bg-amber-100 text-[10px] font-mono">{k}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {form.variables && form.variables.length > 0 ? (
-                  form.variables.map((variable, index) => (
-                    <div key={index} className="border-b border-slate-200 pb-4 last:border-b-0">
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs font-bold text-slate-400">Variable {index + 1}</span>
-                        <button onClick={() => handleRemoveVariable(index)} className="text-slate-300 hover:text-rose-500 transition-colors">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                      
-                      <div className="grid gap-3">
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="text-[10px] font-bold text-slate-400 mb-1 block">变量名 (Key)</label>
-                            <input
-                              id={`variable-${index}-key`}
-                              name={`variable-${index}-key`}
-                              value={variable.key}
-                              onChange={(e) => updateVariableAt(index, { key: e.target.value })}
-                              className="w-full border border-slate-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-slate-600 font-mono"
-                              placeholder="key_name"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[10px] font-bold text-slate-400 mb-1 block">显示名称 (Label)</label>
-                            <input
-                              id={`variable-${index}-label`}
-                              name={`variable-${index}-label`}
-                              value={variable.label}
-                              onChange={(e) => updateVariableAt(index, { label: e.target.value })}
-                              className="w-full border border-slate-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-slate-600"
-                              placeholder="显示标签"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="text-[10px] font-bold text-slate-400 mb-1 block">类型</label>
-                            <select
-                              id={`variable-${index}-type`}
-                              name={`variable-${index}-type`}
-                              value={variable.type}
-                              onChange={(e) => updateVariableAt(index, { type: e.target.value as any })}
-                              className="w-full border border-slate-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-slate-600"
-                            >
-                              <option value="string">单行文本</option>
-                              <option value="text">多行文本</option>
-                              <option value="number">数字</option>
-                              <option value="boolean">布尔值</option>
-                              <option value="enum">枚举 (Enum)</option>
-                              <option value="list">列表 (List)</option>
-                            </select>
-                          </div>
-                          <div className="flex items-end pb-2">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                id={`variable-${index}-required`}
-                                name={`variable-${index}-required`}
-                                type="checkbox"
-                                checked={variable.required ?? true}
-                                onChange={(e) => updateVariableAt(index, { required: e.target.checked })}
-                                className="border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                              />
-                              <span className="text-xs font-medium text-slate-600">必填项</span>
-                            </label>
-                          </div>
-                        </div>
-
-                        {variable.type === "enum" && (
-                          <div>
-                            <label className="text-[10px] font-bold text-slate-400 mb-1 block">选项 (逗号分隔)</label>
-                            <input
-                              id={`variable-${index}-options`}
-                              name={`variable-${index}-options`}
-                              value={(variable.options ?? []).join(", ")}
-                              onChange={(e) => updateVariableAt(index, { options: parseListValue(e.target.value) })}
-                              className="w-full border border-slate-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-slate-600"
-                              placeholder="选项A, 选项B"
-                            />
-                          </div>
-                        )}
-
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-400 mb-1 block">输入提示 (Placeholder)</label>
-                          <input
-                            id={`variable-${index}-placeholder`}
-                            name={`variable-${index}-placeholder`}
-                            value={variable.placeholder ?? ""}
-                            onChange={(e) => updateVariableAt(index, { placeholder: e.target.value })}
-                            className="w-full border border-slate-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-slate-600"
-                            placeholder="给用户的输入提示..."
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="py-8 text-center">
-                    <p className="text-xs text-slate-400">暂无变量，请点击上方“自动提取”或手动添加。</p>
-                  </div>
-                )}
+              <div className="flex items-center gap-3 text-xs text-gray-500">
+                <button type="button" onClick={handleExtractVariables} className="hover:text-black">
+                  自动提取
+                </button>
+                <button type="button" onClick={handleAddVariable} className="hover:text-black">
+                  添加
+                </button>
               </div>
             </div>
+
+            {templateKeys.length > 0 && (
+              <div className="text-xs text-gray-500">
+                检测到模板变量：
+                <span className="ml-2 font-mono text-gray-700">
+                  {templateKeys.join(", ")}
+                </span>
+              </div>
+            )}
+
+            {form.variables && form.variables.length > 0 ? (
+              form.variables.map((variable, index) => (
+                <div key={`${variable.key}-${index}`} className="border-b border-gray-100 pb-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-gray-500">
+                      变量 {index + 1}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveVariable(index)}
+                      className="text-xs text-gray-400 hover:text-rose-500"
+                    >
+                      移除
+                    </button>
+                  </div>
+
+                  <div className="mt-3 grid gap-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                          Key
+                        </div>
+                        <input
+                          id={`variable-${index}-key`}
+                          name={`variable-${index}-key`}
+                          value={variable.key}
+                          onChange={(e) => updateVariableAt(index, { key: e.target.value })}
+                          className="w-full border-b border-gray-200 bg-transparent py-1 text-xs font-mono text-gray-700 outline-none focus:border-black"
+                          placeholder="key_name"
+                        />
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                          Label
+                        </div>
+                        <input
+                          id={`variable-${index}-label`}
+                          name={`variable-${index}-label`}
+                          value={variable.label}
+                          onChange={(e) => updateVariableAt(index, { label: e.target.value })}
+                          className="w-full border-b border-gray-200 bg-transparent py-1 text-xs text-gray-700 outline-none focus:border-black"
+                          placeholder="显示标签"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                          类型
+                        </div>
+                        <select
+                          id={`variable-${index}-type`}
+                          name={`variable-${index}-type`}
+                          value={variable.type}
+                          onChange={(e) => updateVariableAt(index, { type: e.target.value as ArtifactVariable["type"] })}
+                          className="w-full border-b border-gray-200 bg-transparent py-1 text-xs text-gray-700 outline-none focus:border-black"
+                        >
+                          <option value="string">单行文本</option>
+                          <option value="text">多行文本</option>
+                          <option value="number">数字</option>
+                          <option value="boolean">布尔值</option>
+                          <option value="enum">枚举</option>
+                          <option value="list">列表</option>
+                        </select>
+                      </div>
+                      <div className="flex items-end">
+                        <label className="flex items-center gap-2 text-xs text-gray-600">
+                          <input
+                            id={`variable-${index}-required`}
+                            name={`variable-${index}-required`}
+                            type="checkbox"
+                            checked={variable.required ?? true}
+                            onChange={(e) => updateVariableAt(index, { required: e.target.checked })}
+                            className="border-gray-300 text-black focus:ring-black"
+                          />
+                          必填
+                        </label>
+                      </div>
+                    </div>
+
+                    {variable.type === "enum" && (
+                      <div>
+                        <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                          选项
+                        </div>
+                        <input
+                          id={`variable-${index}-options`}
+                          name={`variable-${index}-options`}
+                          value={(variable.options ?? []).join(", ")}
+                          onChange={(e) => updateVariableAt(index, { options: parseListValue(e.target.value) })}
+                          className="w-full border-b border-gray-200 bg-transparent py-1 text-xs text-gray-700 outline-none focus:border-black"
+                          placeholder="选项A, 选项B"
+                        />
+                      </div>
+                    )}
+
+                    <div>
+                      <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                        Placeholder
+                      </div>
+                      <input
+                        id={`variable-${index}-placeholder`}
+                        name={`variable-${index}-placeholder`}
+                        value={variable.placeholder ?? ""}
+                        onChange={(e) => updateVariableAt(index, { placeholder: e.target.value })}
+                        className="w-full border-b border-gray-200 bg-transparent py-1 text-xs text-gray-700 outline-none focus:border-black"
+                        placeholder="给用户的输入提示..."
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-xs text-gray-400">暂无变量，请点击上方按钮添加。</p>
+            )}
           </div>
         </div>
       </div>
