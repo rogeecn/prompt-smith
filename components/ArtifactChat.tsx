@@ -19,7 +19,7 @@ const logDebug = (label: string, payload?: unknown) => {
 };
 
 const parseListInput = (value: string) =>
-  value.split(/[,，]/).map((item) => item.trim()).filter(Boolean);
+  value.split(/[,，\n]/).map((item) => item.trim()).filter(Boolean);
 
 const formatDefaultValue = (variable: ArtifactVariable) => {
   const fallback = variable.default;
@@ -236,7 +236,7 @@ export default function ArtifactChat({
                       </span>
                     </div>
                     
-                    {variable.type === "text" ? (
+                    {variable.type === "text" || variable.type === "list" ? (
                       <textarea
                         value={value}
                         onChange={(e) => updateVariableInput(variable.key, e.target.value)}
