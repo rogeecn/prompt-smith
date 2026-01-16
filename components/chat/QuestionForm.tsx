@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
-import { ClipboardList, CheckCircle2, AlertCircle } from "lucide-react";
+import { useEffect, useState } from "react";
 import type { Question, DraftAnswer } from "../../lib/schemas";
 
 type QuestionFormProps = {
@@ -14,272 +13,197 @@ type QuestionFormProps = {
   formError: string | null;
   onTextChange: (key: string, value: string) => void;
   onSingleSelect: (key: string, value: string) => void;
-  onMultiToggle: (key: string, value: string, maxSelect?: number) => void;
+  onMultiToggle: (key: string, value: string, max?: number) => void;
   onOtherChange: (key: string, value: string) => void;
-  onSelectAll: (key: string, options: Question["options"]) => void;
-  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  onSelectAll: (key: string, options: { id: string; label: string }[]) => void;
+  onSubmit: (e: React.FormEvent) => void;
   onRetry?: () => void;
 };
-
-const OTHER_OPTION_ID = "__other__";
-const NONE_OPTION_ID = "__none__";
 
 const getQuestionKey = (question: Question, index: number) =>
   question.id ?? `q-${index}`;
 
-const normalizeOptions = (
-  question: Question,
-  allowOther: boolean,
-  allowNone: boolean
-) => {
-  const baseOptions = question.options ?? [];
-  const seen = new Set<string>();
-
-  const isOtherLabel = (label: string) =>
-    label.trim() === "其他" || label.trim().startsWith("其他");
-  const isNoneLabel = (label: string) =>
-    label.trim() === "不需要此功能" || label.trim().startsWith("不需要");
-
-  const normalized = baseOptions
-    .map((option) => {
-      if (allowOther && isOtherLabel(option.label)) {
-        return { ...option, id: OTHER_OPTION_ID };
-      }
-      if (allowNone && isNoneLabel(option.label)) {
-        return { ...option, id: NONE_OPTION_ID };
-      }
-      return option;
-    })
-    .filter((option) => {
-      if (seen.has(option.id)) return false;
-      seen.add(option.id);
-      return true;
-    });
-
-  if (allowOther && !normalized.some((o) => o.id === OTHER_OPTION_ID)) {
-    normalized.push({ id: OTHER_OPTION_ID, label: "其他（自填）" });
-  }
-  if (allowNone && !normalized.some((o) => o.id === NONE_OPTION_ID)) {
-    normalized.push({ id: NONE_OPTION_ID, label: "不需要此功能" });
-  }
-  return normalized;
-};
-
 export default function QuestionForm({
   questions,
   draftAnswers,
-  fieldErrors,
   isLoading,
   isDisabled,
-  saveStatusLabel,
-  formError,
   onTextChange,
   onSingleSelect,
   onMultiToggle,
   onOtherChange,
-  onSelectAll,
   onSubmit,
-  onRetry,
 }: QuestionFormProps) {
-  const answeredCount = useMemo(() => {
-    return questions.reduce((count, question, index) => {
-      const key = getQuestionKey(question, index);
-      const draft = draftAnswers[key];
-      if (!draft) return count;
-      if (question.type === "text") {
-        return typeof draft.value === "string" && draft.value.trim() ? count + 1 : count;
-      }
-      if (question.type === "single") {
-        if (!draft.value) return count;
-        if (draft.value === OTHER_OPTION_ID && !draft.other?.trim()) return count;
-        return count + 1;
-      }
-      if (question.type === "multi") {
-        if (!Array.isArray(draft.value) || draft.value.length === 0) return count;
-        if (draft.value.includes(OTHER_OPTION_ID) && !draft.other?.trim()) return count;
-        return count + 1;
-      }
-      return count;
-    }, 0);
-  }, [questions, draftAnswers]);
+  const [visibleCount, setVisibleCount] = useState(questions.length);
+
+  useEffect(() => {
+    setVisibleCount(questions.length);
+  }, [questions.length]);
+
+  if (questions.length === 0) return null;
 
   return (
-    <div className="w-full bg-block-system border-y border-slate-200">
-      <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
-        <form onSubmit={onSubmit} className="border border-slate-200 bg-white p-6 sm:p-8">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-6 mb-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center border border-slate-200 text-indigo-600">
-                <ClipboardList className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-900">需求调研问卷</h3>
-                <p className="text-xs text-slate-500 mt-0.5">请补充以下信息以生成更精准的 Prompt</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-sm font-bold text-indigo-600">
-                {answeredCount} / {questions.length}
-              </div>
-              <p className="text-[10px] uppercase tracking-wider text-slate-400 mt-1 font-bold">完成进度</p>
-            </div>
-          </div>
+    <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <div className="mx-auto max-w-3xl px-6 py-8 border-t border-gray-100">
+        <p className="text-sm text-gray-500 mb-8 font-body italic">
+          Please answer the following to refine the prompt:
+        </p>
 
-          <div className="space-y-10">
-            {questions.map((question, index) => {
-              const key = getQuestionKey(question, index);
-              const draft = draftAnswers[key];
-              const allowOther = question.allow_other ?? question.type !== "text";
-              const allowNone = question.allow_none ?? question.type !== "text";
-              const options = normalizeOptions(question, allowOther, allowNone);
-              const error = fieldErrors[key];
+        <form onSubmit={onSubmit} className="space-y-10">
+          {questions.slice(0, visibleCount).map((q, i) => {
+            const key = getQuestionKey(q, i);
+            const draft = draftAnswers[key];
+            const otherValue = draft?.other ?? "";
+            const isOtherSelected =
+              draft?.value === "__other__" ||
+              (Array.isArray(draft?.value) && draft.value.includes("__other__"));
 
-              return (
-                <div key={key} className="group">
-                  <div className="flex items-start gap-4 mb-4">
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center border border-slate-200 bg-white text-[10px] font-bold text-slate-500 group-focus-within:bg-slate-900 group-focus-within:text-white">
-                      {index + 1}
-                    </span>
-                    <div className="flex-1">
-                      {question.step && (
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-500 block mb-1">
-                          {question.step}
-                        </span>
-                      )}
-                      <h4 className="text-sm font-bold text-slate-900 leading-snug">
-                        {question.text}
-                      </h4>
-                    </div>
+            return (
+              <div key={key} className="group">
+                <label className="block text-lg text-black mb-4 font-heading font-medium">
+                  {q.text}
+                </label>
+
+                {/* Text Input */}
+                {q.type === "text" && (
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={typeof draft?.value === "string" ? draft.value : ""}
+                      onChange={(e) => onTextChange(key, e.target.value)}
+                      placeholder={q.placeholder || "Type your answer..."}
+                      disabled={isDisabled || isLoading}
+                      className="
+                        w-full border-b border-gray-300 
+                        bg-transparent py-2 text-base text-black 
+                        placeholder:text-gray-400
+                        focus:border-accent focus:outline-none transition-colors duration-300
+                      "
+                    />
                   </div>
+                )}
 
-                  <div className="ml-10">
-                    {question.type === "text" ? (
-                      <div className="relative">
-                        {question.input_mode === "textarea" ? (
-                          <textarea
-                            value={typeof draft?.value === "string" ? draft.value : ""}
-                            onChange={(e) => onTextChange(key, e.target.value)}
-                            placeholder={question.placeholder ?? "输入你的回答..."}
-                            rows={3}
-                            className="w-full border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-600"
-                            disabled={isLoading || isDisabled}
-                          />
-                        ) : (
+                {/* Single Select */}
+                {q.type === "single" && (
+                  <div className="space-y-3">
+                    {q.options?.map((opt) => (
+                      <label 
+                        key={opt.id} 
+                        className="flex items-start gap-3 cursor-pointer group/opt"
+                      >
+                        <div className="relative flex items-center mt-1">
                           <input
-                            value={typeof draft?.value === "string" ? draft.value : ""}
-                            onChange={(e) => onTextChange(key, e.target.value)}
-                            placeholder={question.placeholder ?? "输入你的回答..."}
-                            className="w-full border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-600"
-                            disabled={isLoading || isDisabled}
+                            type="radio"
+                            name={key}
+                            value={opt.id}
+                            checked={draft?.value === opt.id}
+                            onChange={() => onSingleSelect(key, opt.id)}
+                            disabled={isDisabled || isLoading}
+                            className="peer sr-only"
                           />
-                        )}
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        {question.type === "multi" && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
-                              {question.max_select ? `最多可选 ${question.max_select} 项` : "多选题"}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => onSelectAll(key, options)}
-                              className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 transition-colors uppercase tracking-tight"
-                            >
-                              全选
-                            </button>
-                          </div>
-                        )}
-                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                          {options.map((option) => {
-                            const isSelected = question.type === "single" 
-                              ? draft?.value === option.id 
-                              : Array.isArray(draft?.value) && draft.value.includes(option.id);
-                            
-                            return (
-                              <button
-                                key={option.id}
-                                type="button"
-                                onClick={() => question.type === "single" ? onSingleSelect(key, option.id) : onMultiToggle(key, option.id, question.max_select)}
-                                className={`
-                                  flex items-center gap-3 border border-slate-200 px-3 py-2 text-left text-xs font-medium transition-colors
-                                  ${isSelected 
-                                    ? "bg-slate-900 text-white border-slate-900" 
-                                    : "bg-white text-slate-700 hover:bg-slate-50"
-                                  }
-                                `}
-                                disabled={isLoading || isDisabled}
-                              >
-                                <div className={`flex h-4 w-4 shrink-0 items-center justify-center border ${isSelected ? "border-white bg-white" : "border-slate-300 bg-white"}`}>
-                                  {isSelected && <div className="h-1.5 w-1.5 bg-slate-900" />}
-                                </div>
-                                {option.label}
-                              </button>
-                            );
-                          })}
+                          <div className="
+                            h-4 w-4 border border-gray-300 rounded-none bg-white
+                            peer-checked:bg-black peer-checked:border-black
+                            transition-all duration-200
+                          " />
                         </div>
-                      </div>
-                    )}
-
-                    {/* "Other" input field */}
-                    {(draft?.value === OTHER_OPTION_ID || (Array.isArray(draft?.value) && draft.value.includes(OTHER_OPTION_ID))) && (
-                      <div className="mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                        <input
-                          value={draft?.other ?? ""}
-                          onChange={(e) => onOtherChange(key, e.target.value)}
-                          placeholder="请详细说明..."
-                          className="w-full border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-600"
-                          autoFocus
-                        />
-                      </div>
-                    )}
-
-                    {error && (
-                      <div className="mt-3 flex items-center gap-1.5 text-rose-500">
-                        <AlertCircle className="h-3.5 w-3.5" />
-                        <span className="text-[11px] font-bold">{error}</span>
-                      </div>
+                        <span className={`
+                          text-sm text-gray-600 group-hover/opt:text-black transition-colors
+                          ${draft?.value === opt.id ? "text-black font-medium" : ""}
+                        `}>
+                          {opt.label}
+                        </span>
+                      </label>
+                    ))}
+                    {/* Other Input for Single Select */}
+                    {isOtherSelected && (
+                      <input
+                        type="text"
+                        value={otherValue}
+                        onChange={(e) => onOtherChange(key, e.target.value)}
+                        placeholder="Please specify..."
+                        className="
+                          ml-7 mt-2 w-2/3 border-b border-gray-200 
+                          bg-transparent py-1 text-sm text-black
+                          focus:border-accent focus:outline-none animate-in fade-in
+                        "
+                        autoFocus
+                      />
                     )}
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                )}
 
-          <div className="mt-12 flex flex-col items-center justify-between gap-6 border-t border-slate-100 pt-8 sm:flex-row">
-            <div className="flex items-center gap-2">
-              {saveStatusLabel && (
-                <div className="flex items-center gap-1.5 border border-slate-200 bg-white px-3 py-1 text-[10px] font-bold text-slate-500">
-                  <div className={`h-1.5 w-1.5 ${saveStatusLabel.includes("失败") ? "bg-rose-500" : "bg-emerald-500 animate-pulse"}`} />
-                  {saveStatusLabel}
-                </div>
-              )}
-            </div>
+                {/* Multi Select */}
+                {q.type === "multi" && (
+                  <div className="space-y-3">
+                    {q.options?.map((opt) => {
+                      const isChecked = Array.isArray(draft?.value) && draft.value.includes(opt.id);
+                      return (
+                        <label 
+                          key={opt.id} 
+                          className="flex items-start gap-3 cursor-pointer group/opt"
+                        >
+                          <div className="relative flex items-center mt-1">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => onMultiToggle(key, opt.id, q.max_select)}
+                              disabled={isDisabled || isLoading}
+                              className="peer sr-only"
+                            />
+                             <div className="
+                              h-4 w-4 border border-gray-300 rounded-none bg-white
+                              peer-checked:bg-black peer-checked:border-black
+                              transition-all duration-200
+                              flex items-center justify-center
+                            ">
+                              {isChecked && <div className="h-2 w-2 bg-white" />}
+                            </div>
+                          </div>
+                          <span className={`
+                            text-sm text-gray-600 group-hover/opt:text-black transition-colors
+                            ${isChecked ? "text-black font-medium" : ""}
+                          `}>
+                            {opt.label}
+                          </span>
+                        </label>
+                      );
+                    })}
+                     {/* Other Input for Multi Select */}
+                     {isOtherSelected && (
+                      <input
+                        type="text"
+                        value={otherValue}
+                        onChange={(e) => onOtherChange(key, e.target.value)}
+                        placeholder="Please specify..."
+                        className="
+                          ml-7 mt-2 w-2/3 border-b border-gray-200 
+                          bg-transparent py-1 text-sm text-black
+                          focus:border-accent focus:outline-none animate-in fade-in
+                        "
+                        autoFocus
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
 
-            <div className="flex flex-col items-center gap-4 sm:flex-row">
-              {formError && (
-                <div className="flex items-center gap-2 text-rose-500">
-                  <span className="text-xs font-bold">{formError}</span>
-                  {onRetry && (
-                    <button
-                      type="button"
-                      onClick={onRetry}
-                      className="border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-bold text-rose-600 hover:bg-rose-100"
-                    >
-                      重试
-                    </button>
-                  )}
-                </div>
-              )}
-              <button
-                type="submit"
-                disabled={isLoading || isDisabled}
-                className="group relative flex items-center gap-2 border border-slate-900 bg-slate-900 px-8 py-3 text-sm font-bold text-white transition-colors hover:bg-slate-800 disabled:opacity-50"
-              >
-                <CheckCircle2 className="h-4 w-4" />
-                <span>确认提交回答</span>
-              </button>
-            </div>
+          <div className="pt-8">
+            <button
+              type="submit"
+              disabled={isDisabled || isLoading}
+              className="
+                w-full sm:w-auto min-w-[200px]
+                bg-black text-white 
+                px-8 py-3 text-sm font-semibold tracking-wide
+                hover:bg-gray-800 disabled:bg-gray-200 disabled:text-gray-400
+                transition-all duration-200
+              "
+            >
+              {isLoading ? "Processing..." : "Submit & Continue"}
+            </button>
           </div>
         </form>
       </div>

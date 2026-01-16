@@ -3,18 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
-import {
-  Plus,
-  Search,
-  Layers,
-  Box,
-  Trash2,
-  Pencil,
-  Menu,
-  X,
-  MessageSquare,
-  RotateCw,
-} from "lucide-react";
+import { Plus, Search, Trash2, X, MoreVertical } from "lucide-react";
 import TopNav from "./TopNav";
 import ArtifactChat from "./ArtifactChat";
 import {
@@ -50,10 +39,7 @@ export default function ArtifactsClient({
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [isCreatingArtifact, setIsCreatingArtifact] = useState(false);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
-  const [isDeletingArtifactId, setIsDeletingArtifactId] = useState<string | null>(null);
   const [isLoadingContext, setIsLoadingContext] = useState(false);
-  const [contextError, setContextError] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const hasRequestedRef = useRef(false);
 
@@ -61,16 +47,14 @@ export default function ArtifactsClient({
     ? initialProjectId
     : null;
 
+  // Project Init
   const createAndRedirect = useCallback(async () => {
     if (isCreatingProject) return;
     setIsCreatingProject(true);
-    setError(null);
     try {
       const newProjectId = await createProject();
       setProjectId(newProjectId);
       router.replace(`/artifacts?projectId=${newProjectId}`);
-    } catch {
-      setError("创建项目失败，请重试。");
     } finally {
       setIsCreatingProject(false);
     }
@@ -79,7 +63,6 @@ export default function ArtifactsClient({
   useEffect(() => {
     if (validProjectId) {
       setProjectId(validProjectId);
-      setError(null);
       return;
     }
     if (hasRequestedRef.current) return;
@@ -87,8 +70,8 @@ export default function ArtifactsClient({
     void createAndRedirect();
   }, [validProjectId, createAndRedirect]);
 
+  // Artifact List
   const refreshArtifacts = useCallback(async (activeProjectId: string) => {
-    setError(null);
     try {
       let items = await listArtifacts(activeProjectId);
       if (items.length === 0) {
@@ -100,27 +83,25 @@ export default function ArtifactsClient({
         prev && items.some((item) => item.id === prev) ? prev : null
       );
     } catch {
-      setError("加载制品失败，请重试。");
+      // Error handling
     }
-  }, [listArtifacts, createArtifact]);
+  }, []);
 
   useEffect(() => {
     if (!projectId) return;
     void refreshArtifacts(projectId);
   }, [projectId, refreshArtifacts]);
 
+  // Context Loading
   const loadContext = useCallback(async (artifactId: string) => {
     if (!projectId) return;
     setIsLoadingContext(true);
-    setContextError(null);
     try {
       const context = await loadArtifactContext(projectId, artifactId);
       setArtifact(context.artifact);
       setSessions(context.sessions);
       setCurrentSessionId(context.currentSessionId);
       setInitialMessages(context.history);
-    } catch {
-      setContextError("加载制品失败，请重试。");
     } finally {
       setIsLoadingContext(false);
     }
@@ -132,12 +113,12 @@ export default function ArtifactsClient({
       setSessions([]);
       setCurrentSessionId(null);
       setInitialMessages([]);
-      setContextError(null);
       return;
     }
     void loadContext(currentArtifactId);
   }, [projectId, currentArtifactId, loadContext]);
 
+  // Actions
   const handleSelectArtifact = (artifactItem: Artifact) => {
     setCurrentArtifactId(artifactItem.id);
     setIsSidebarOpen(false);
@@ -146,66 +127,24 @@ export default function ArtifactsClient({
   const handleCreateArtifact = async () => {
     if (!projectId || isCreatingArtifact) return;
     setIsCreatingArtifact(true);
-    setError(null);
-    setIsSidebarOpen(false);
     try {
       const created = await createArtifact(projectId);
       const items = await listArtifacts(projectId);
       setArtifacts(items);
       setCurrentArtifactId(created.id);
-    } catch {
-      setError("新建制品失败，请重试。");
     } finally {
       setIsCreatingArtifact(false);
     }
   };
 
-  const handleDeleteArtifact = async (artifactItem: Artifact) => {
-    if (!projectId || isDeletingArtifactId) return;
-    const confirmed = window.confirm("确认删除该制品及其历史会话？");
-    if (!confirmed) return;
-    setIsDeletingArtifactId(artifactItem.id);
-    setError(null);
-    try {
-      await deleteArtifact(projectId, artifactItem.id);
-      const items = await listArtifacts(projectId);
-      setArtifacts(items);
-      if (currentArtifactId === artifactItem.id) {
-        setCurrentArtifactId(null);
-        setArtifact(null);
-        setSessions([]);
-        setCurrentSessionId(null);
-        setInitialMessages([]);
-      }
-    } catch {
-      setError("删除制品失败，请重试。");
-    } finally {
-      setIsDeletingArtifactId(null);
-    }
-  };
-
-  const handleEditArtifact = (artifactItem: Artifact) => {
-    if (!projectId) return;
-    router.push(`/artifacts/edit/${artifactItem.id}?projectId=${projectId}`);
-  };
-
   const handleSelectSession = useCallback(
     async (sessionId: string) => {
-      if (!projectId || !currentArtifactId || sessionId === currentSessionId) {
-        return;
-      }
+      if (!projectId || !currentArtifactId || sessionId === currentSessionId) return;
       setIsLoadingContext(true);
-      setContextError(null);
       try {
-        const context = await loadArtifactSession(
-          projectId,
-          currentArtifactId,
-          sessionId
-        );
+        const context = await loadArtifactSession(projectId, currentArtifactId, sessionId);
         setInitialMessages(context.history);
         setCurrentSessionId(sessionId);
-      } catch {
-        setContextError("加载会话失败，请重试。");
       } finally {
         setIsLoadingContext(false);
       }
@@ -216,17 +155,14 @@ export default function ArtifactsClient({
   const handleCreateSession = useCallback(async () => {
     if (!projectId || !currentArtifactId || isCreatingSession) return;
     setIsCreatingSession(true);
-    setContextError(null);
     try {
       const sessionId = await createArtifactSession(projectId, currentArtifactId);
       setCurrentSessionId(sessionId);
       setInitialMessages([]);
       setSessions((prev) => [
-        { id: sessionId, created_at: new Date(), last_message: "未开始" },
+        { id: sessionId, created_at: new Date(), last_message: "New Branch" },
         ...prev,
       ]);
-    } catch {
-      setContextError("创建会话失败，请重试。");
     } finally {
       setIsCreatingSession(false);
     }
@@ -236,18 +172,16 @@ export default function ArtifactsClient({
     setCurrentSessionId(sessionId);
     setSessions((prev) => {
       if (prev.some((item) => item.id === sessionId)) return prev;
-      return [{ id: sessionId, created_at: new Date(), last_message: "未开始" }, ...prev];
+      return [{ id: sessionId, created_at: new Date(), last_message: "New Branch" }, ...prev];
     });
   }, []);
 
-  const formatSessionLabel = (value: string | Date) => {
-    const dateValue = typeof value === "string" ? new Date(value) : value;
-    if (Number.isNaN(dateValue.getTime())) {
-      return "新对话";
-    }
-    return dateValue.toLocaleString("zh-CN", {
-      month: "2-digit",
-      day: "2-digit",
+  const formatDate = (value: string | Date) => {
+    const d = typeof value === "string" ? new Date(value) : value;
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleString("en-US", {
+      month: "numeric",
+      day: "numeric",
       hour: "2-digit",
       minute: "2-digit",
     });
@@ -260,21 +194,8 @@ export default function ArtifactsClient({
 
   if (!projectId) {
     return (
-      <div className="flex min-h-screen flex-col bg-slate-50">
-        <TopNav />
-        <div className="flex flex-1 items-center justify-center px-6">
-          <div className="w-full max-w-md border border-slate-200 bg-white p-8 text-center">
-            <p className="text-sm text-slate-500">
-              {isCreatingProject ? "正在创建新项目..." : "准备创建你的新项目。"}
-            </p>
-            <button
-              disabled
-              className="mt-6 w-full border border-slate-900 bg-slate-900 px-5 py-3 text-sm font-semibold text-white"
-            >
-              加载中...
-            </button>
-          </div>
-        </div>
+      <div className="flex min-h-screen flex-col bg-background items-center justify-center">
+        <div className="animate-pulse font-display text-2xl">Loading Artifacts...</div>
       </div>
     );
   }
@@ -282,199 +203,109 @@ export default function ArtifactsClient({
   return (
     <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-white">
       <TopNav />
-      <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 lg:hidden">
-        <button
-          onClick={() => setIsSidebarOpen(true)}
-          className="p-2 text-slate-600 hover:bg-slate-100"
-        >
-          <Menu className="h-5 w-5" />
+
+      {/* Mobile Toggle */}
+      <div className="lg:hidden border-b border-gray-200 p-4 flex justify-between items-center bg-white">
+        <span className="font-heading font-bold text-lg">Artifacts</span>
+        <button onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
+          <MoreVertical />
         </button>
-        <span className="text-sm font-semibold text-slate-900">制品库</span>
-        <div className="w-9" />
       </div>
 
-      <main className="flex flex-1 min-h-0 w-full overflow-hidden">
-        {isSidebarOpen && (
-          <div
-            className="fixed inset-0 z-40 bg-black/20 lg:hidden"
+      <main className="flex flex-1 min-h-0 w-full overflow-hidden relative">
+         {/* Sidebar Overlay */}
+         {isSidebarOpen && (
+          <div 
+            className="absolute inset-0 z-40 bg-black/20 backdrop-blur-sm lg:hidden"
             onClick={() => setIsSidebarOpen(false)}
           />
         )}
 
-        <aside
-          className={[
-            "fixed inset-y-0 left-0 z-50 flex w-72 transform flex-col bg-[#2C2D30] text-slate-200 transition-transform duration-300 ease-in-out lg:static lg:z-0 lg:w-80 lg:translate-x-0",
-            isSidebarOpen ? "translate-x-0" : "-translate-x-full",
-          ].join(" ")}
+        {/* 1. Left Sidebar: Artifact List */}
+        <aside 
+          className={`
+            absolute inset-y-0 left-0 z-50 w-80 transform border-r border-gray-200 bg-white transition-transform duration-300 ease-in-out lg:static lg:translate-x-0
+            ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}
+          `}
         >
           <div className="flex h-full flex-col">
-            <div className="border-b border-white/10 p-5">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2 font-bold text-white">
-                  <Layers className="h-5 w-5 text-white/80" />
-                  <span>制品库</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setIsSidebarOpen(false)}
-                    className="p-1 text-slate-300 hover:text-white lg:hidden"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-                  <button
-                    onClick={handleCreateArtifact}
-                    disabled={isCreatingArtifact}
-                    className="p-2 border border-white/10 bg-white/5 text-white/80 hover:bg-white/10"
-                    title="新建制品"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
-                <input
-                  placeholder="搜索制品..."
-                  className="w-full border border-white/10 bg-white/5 pl-9 pr-3 py-2 text-xs text-white placeholder:text-white/40 outline-none focus:border-white/30"
-                />
-              </div>
+            <div className="p-6 border-b border-gray-100">
+               <div className="relative mb-6">
+                 <input 
+                   type="text" 
+                   placeholder="Search artifacts..." 
+                   className="w-full border-b border-gray-300 py-2 text-sm font-body outline-none focus:border-black transition-colors bg-transparent"
+                 />
+                 <Search className="absolute right-0 top-2 h-4 w-4 text-gray-400" />
+               </div>
+               
+               <div className="flex items-center justify-between">
+                 <h2 className="font-heading font-bold text-lg text-black">Library</h2>
+                 <button 
+                   onClick={handleCreateArtifact}
+                   disabled={isCreatingArtifact}
+                   className="text-xs font-bold uppercase tracking-wider text-black hover:text-accent disabled:opacity-50"
+                 >
+                   + New Artifact
+                 </button>
+               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-3 space-y-1">
-              {artifacts.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <Box className="h-10 w-10 text-white/30 mb-2" />
-                  <p className="text-xs text-white/50">暂无制品</p>
+            <div className="flex-1 overflow-y-auto">
+              {artifacts.map((item) => {
+                const isActive = item.id === currentArtifactId;
+                return (
                   <button
-                    onClick={handleCreateArtifact}
-                    className="mt-3 text-xs font-bold text-white/80 hover:text-white"
+                    key={item.id}
+                    onClick={() => handleSelectArtifact(item)}
+                    className={`
+                      w-full text-left p-6 border-b border-gray-50 transition-all duration-200
+                      ${isActive ? "bg-surface-muted" : "hover:bg-gray-50"}
+                    `}
                   >
-                    立即新建
-                  </button>
-                </div>
-              ) : (
-                artifacts.map((item) => {
-                  const isActive = item.id === currentArtifactId;
-                  return (
-                    <div
-                      key={item.id}
-                      onClick={() => handleSelectArtifact(item)}
-                      className={[
-                        "group w-full cursor-pointer px-3 py-3",
-                        isActive ? "bg-white/10 text-white" : "text-white/80 hover:bg-white/5",
-                      ].join(" ")}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <h4 className="text-sm font-semibold break-words">
-                            {item.title || "未命名制品"}
-                          </h4>
-                          <p
-                            className={[
-                              "text-xs mt-1 line-clamp-2 break-words",
-                              isActive ? "text-white/70" : "text-white/40",
-                            ].join(" ")}
-                          >
-                            {item.problem || "暂无描述"}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              handleEditArtifact(item);
-                            }}
-                            className={[
-                              "p-1 opacity-0 transition-opacity group-hover:opacity-100",
-                              isActive ? "text-white/70 hover:text-white" : "text-white/40 hover:text-white/80",
-                            ].join(" ")}
-                            title="编辑制品"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void handleDeleteArtifact(item);
-                            }}
-                            disabled={isDeletingArtifactId === item.id}
-                            className={[
-                              "p-1 opacity-0 transition-opacity group-hover:opacity-100",
-                              isActive ? "text-white/70 hover:text-white" : "text-white/40 hover:text-rose-300",
-                            ].join(" ")}
-                            title="删除制品"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </div>
+                    <div className={`border-l-2 pl-4 ${isActive ? "border-accent" : "border-transparent"}`}>
+                      <h3 className={`font-heading font-bold text-base mb-1 ${isActive ? "text-black" : "text-gray-700"}`}>
+                        {item.title || "Untitled Artifact"}
+                      </h3>
+                      <p className="font-body text-xs text-gray-500 line-clamp-2">
+                        {item.problem || "No description provided."}
+                      </p>
                     </div>
-                  );
-                })
-              )}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </aside>
 
-        {!currentArtifact ? (
-          <section className="flex flex-1 items-center justify-center bg-white">
-            <div className="text-center text-slate-400">
-              <MessageSquare className="mx-auto h-10 w-10 text-slate-300" />
-              <p className="mt-3 text-sm">请选择左侧制品开始对话</p>
-              {error && <p className="mt-2 text-xs text-rose-500">{error}</p>}
+        {/* 2. Center: Chat Area */}
+        <section className="flex flex-1 flex-col overflow-hidden bg-white relative min-w-0">
+          {!currentArtifact ? (
+            <div className="flex h-full items-center justify-center text-gray-400">
+              Select an artifact to view details
             </div>
-          </section>
-        ) : (
-          <>
-            <section className="flex min-h-0 flex-1 flex-col bg-white">
-              <div className="flex items-center justify-between px-4 py-3">
-                <div className="min-w-0">
-                  <h2 className="text-sm font-bold text-slate-900 truncate">
-                    {artifact?.title ?? ""}
-                  </h2>
-                </div>
-                <div className="flex items-center gap-2">
-                  {contextError && (
-                    <span className="text-xs text-rose-500">{contextError}</span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => currentArtifactId && loadContext(currentArtifactId)}
-                    className="p-2 border border-slate-200 text-slate-500 hover:text-slate-700"
-                    title="刷新"
-                  >
-                    <RotateCw className="h-4 w-4" />
-                  </button>
-                </div>
+          ) : (
+            <>
+              {/* Artifact Header */}
+              <div className="border-b border-gray-100 px-8 py-6">
+                 <h1 className="font-display text-3xl font-bold text-black mb-2">
+                   {artifact?.title || "Untitled"}
+                 </h1>
+                 <p className="font-body text-sm text-gray-500 italic">
+                   {artifact?.problem || "Prompt engineering workspace"}
+                 </p>
               </div>
 
-              <div className="flex-1 min-h-0">
-                {contextError ? (
-                  <div className="flex h-full flex-col items-center justify-center text-slate-400">
-                    <p className="text-sm">加载失败，请重试。</p>
-                    <button
-                      type="button"
-                      onClick={() => currentArtifactId && loadContext(currentArtifactId)}
-                      className="mt-3 border border-slate-900 bg-slate-900 px-4 py-2 text-xs text-white"
-                    >
-                      重新加载
-                    </button>
+              {/* Chat Stream */}
+              <div className="flex-1 min-h-0 relative">
+                {isLoadingContext ? (
+                  <div className="absolute inset-0 flex items-center justify-center bg-white/50 backdrop-blur-sm z-10">
+                    <div className="font-mono text-xs">Loading context...</div>
                   </div>
-                ) : isLoadingContext ? (
-                  <div className="h-full p-6">
-                    <div className="h-4 w-40 bg-slate-100" />
-                    <div className="mt-4 space-y-3">
-                      <div className="h-10 bg-slate-100" />
-                      <div className="h-10 bg-slate-100" />
-                      <div className="h-10 bg-slate-100" />
-                    </div>
-                  </div>
-                ) : currentSessionId ? (
-                  <ArtifactChat
+                ) : currentSessionId && currentArtifactId ? (
+                   <ArtifactChat
                     key={`${currentArtifactId}-${currentSessionId}`}
-                    projectId={projectId}
+                    projectId={projectId as string}
                     artifactId={currentArtifactId}
                     sessionId={currentSessionId}
                     initialMessages={initialMessages}
@@ -483,57 +314,82 @@ export default function ArtifactsClient({
                   />
                 ) : null}
               </div>
-            </section>
+            </>
+          )}
+        </section>
 
-            <aside className="hidden w-72 shrink-0 flex-col bg-[#F5F7F9] lg:flex">
-              <div className="px-4 py-4">
-                <p className="text-xs text-slate-500">当前分支</p>
-                <div className="mt-2 flex items-center gap-2">
-                  <select
-                    value={currentSessionId ?? ""}
-                    onChange={(event) => {
-                      if (!event.target.value) return;
-                      void handleSelectSession(event.target.value);
-                    }}
-                    className="w-full border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-slate-500"
-                  >
-                    {sessions.length === 0 && <option value="">暂无会话</option>}
-                    {sessions.map((session, index) => (
-                      <option key={session.id} value={session.id}>
-                        会话 {sessions.length - index} · {formatSessionLabel(session.created_at)}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={handleCreateSession}
-                    disabled={isCreatingSession}
-                    className="border border-slate-900 bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
-                  >
-                    新建
-                  </button>
-                </div>
+        {/* 3. Right Sidebar: Session History & Variables */}
+        {currentArtifact && (
+          <aside className="hidden w-[280px] shrink-0 border-l border-gray-200 bg-white flex-col lg:flex">
+            
+            {/* Session History */}
+            <div className="flex-1 overflow-hidden flex flex-col min-h-0 border-b border-gray-200">
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                <h3 className="font-heading font-bold text-sm text-black">Sessions</h3>
+                <button 
+                  onClick={handleCreateSession}
+                  className="text-xs text-gray-500 hover:text-black transition-colors"
+                >
+                  + New
+                </button>
               </div>
-
-              <div className="flex-1 overflow-y-auto px-4 pb-6">
-                <p className="text-xs text-slate-500">当前 Prompt 变量快照</p>
-                <div className="mt-3 space-y-2">
-                  {artifact?.variables && artifact.variables.length > 0 ? (
-                    artifact.variables.map((variable) => (
-                      <div key={variable.key} className="bg-white px-3 py-2 text-xs text-slate-700">
-                        <span className="font-semibold text-slate-900">{variable.label}</span>
-                        <span className="ml-2 bg-[#EEE6FF] px-1.5 py-0.5 text-[10px] font-mono text-[#7C4DFF]">
-                          {variable.key}
+              
+              <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                {sessions.map((session, index) => {
+                  const isActive = session.id === currentSessionId;
+                  return (
+                    <button
+                      key={session.id}
+                      onClick={() => handleSelectSession(session.id)}
+                      className={`
+                        w-full text-left p-3 border transition-all duration-200
+                        ${isActive 
+                          ? "border-accent bg-accent-light" 
+                          : "border-gray-100 hover:bg-gray-50"
+                        }
+                      `}
+                    >
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="font-mono text-xs font-bold text-black">
+                          #{sessions.length - index}
+                        </span>
+                        <span className="text-[10px] text-gray-400">
+                          {formatDate(session.created_at)}
                         </span>
                       </div>
-                    ))
-                  ) : (
-                    <p className="text-xs text-slate-400">暂无变量。</p>
-                  )}
-                </div>
+                      <div className="text-xs text-gray-500 truncate font-body">
+                        {session.last_message || "Empty"}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
-            </aside>
-          </>
+            </div>
+
+            {/* Variables Snapshot */}
+            <div className="h-1/3 min-h-[200px] flex flex-col bg-surface-muted">
+              <div className="p-6 border-b border-gray-200/50">
+                <h3 className="font-heading font-bold text-sm text-black">Variables</h3>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6 pt-2">
+                {artifact?.variables && artifact.variables.length > 0 ? (
+                  <div className="space-y-4">
+                    {artifact.variables.map((v) => (
+                       <div key={v.key} className="border-l-2 border-gray-300 pl-3">
+                         <div className="text-xs text-gray-500 mb-1">{v.label}</div>
+                         <code className="text-xs font-mono text-black bg-white px-1 py-0.5">
+                           {`{{${v.key}}}`}
+                         </code>
+                       </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-400 italic">No variables defined yet.</p>
+                )}
+              </div>
+            </div>
+
+          </aside>
         )}
       </main>
     </div>

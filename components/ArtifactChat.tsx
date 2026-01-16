@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { AlignLeft, Code, Minus, Plus, Send, AlertCircle, Bot, User } from "lucide-react";
+import { Send, AlertCircle } from "lucide-react";
 import QuestionForm from "./chat/QuestionForm";
 import type {
   ArtifactChatRequest,
@@ -13,13 +13,6 @@ import type {
   HistoryItem,
   Question,
 } from "../lib/schemas";
-
-const isDebug = process.env.NODE_ENV !== "production";
-
-const logDebug = (label: string, payload?: unknown) => {
-  if (!isDebug) return;
-  console.log(`[ArtifactChat] ${label}`, payload || "");
-};
 
 const parseListInput = (value: string) =>
   value.split(/[,，\n]/).map((item) => item.trim()).filter(Boolean);
@@ -74,8 +67,8 @@ const buildVariableQuestions = (variables: ArtifactVariable[]): Question[] =>
         text: label,
         type: "single",
         options: [
-          { id: "true", label: variable.true_label ?? "是" },
-          { id: "false", label: variable.false_label ?? "否" },
+          { id: "true", label: variable.true_label ?? "Yes" },
+          { id: "false", label: variable.false_label ?? "No" },
         ],
         allow_other: false,
         allow_none: !(variable.required ?? true),
@@ -92,7 +85,7 @@ const buildVariableQuestions = (variables: ArtifactVariable[]): Question[] =>
     };
   });
 
-const INITIAL_DRAFT_MESSAGE = "请根据当前变量生成初稿。";
+const INITIAL_DRAFT_MESSAGE = "Generate initial draft based on variables.";
 
 type ArtifactChatProps = {
   projectId: string;
@@ -154,29 +147,6 @@ export default function ArtifactChat({
     }
   }, [messages, isLoading]);
 
-  const insertAtCursor = (value: string) => {
-    const textarea = textareaRef.current;
-    if (!textarea) {
-      setInput((prev) => prev + value);
-      return;
-    }
-    const start = textarea.selectionStart ?? input.length;
-    const end = textarea.selectionEnd ?? input.length;
-    const nextValue = `${input.slice(0, start)}${value}${input.slice(end)}`;
-    setInput(nextValue);
-    requestAnimationFrame(() => {
-      textarea.focus();
-      const cursor = start + value.length;
-      textarea.selectionStart = cursor;
-      textarea.selectionEnd = cursor;
-    });
-  };
-
-  const appendQuickAction = (label: string) => {
-    setInput((prev) => (prev.trim() ? `${prev.trim()}\n${label}` : label));
-    requestAnimationFrame(() => textareaRef.current?.focus());
-  };
-
   const updateVariableInput = (key: string, value: string) => {
     setDraftAnswers((prev) => ({ ...prev, [key]: { type: "text", value } }));
     setFormError(null);
@@ -210,24 +180,24 @@ export default function ArtifactChat({
       const hasValue = typeof fallback === "string" ? fallback.trim() !== "" : true;
 
       if (!hasValue) {
-        if (variable.required ?? true) inputErrors[variable.key] = "请填写该变量";
+        if (variable.required ?? true) inputErrors[variable.key] = "Required";
         return;
       }
 
       if (variable.type === "number") {
         const num = Number(fallback);
-        if (Number.isNaN(num)) inputErrors[variable.key] = "请输入数字";
+        if (Number.isNaN(num)) inputErrors[variable.key] = "Must be a number";
         else inputPayload[variable.key] = num;
       } else if (variable.type === "boolean") {
         if (fallback === "true") inputPayload[variable.key] = true;
         else if (fallback === "false") inputPayload[variable.key] = false;
-        else inputErrors[variable.key] = "请选择是或否";
+        else inputErrors[variable.key] = "Select Yes/No";
       } else if (variable.type === "list") {
         const list = parseListInput(fallback);
-        if ((variable.required ?? true) && list.length === 0) inputErrors[variable.key] = "请填写至少一项";
+        if ((variable.required ?? true) && list.length === 0) inputErrors[variable.key] = "Required";
         else inputPayload[variable.key] = list;
       } else if (variable.type === "enum") {
-        if (variable.options && !variable.options.includes(fallback)) inputErrors[variable.key] = "请选择可用选项";
+        if (variable.options && !variable.options.includes(fallback)) inputErrors[variable.key] = "Invalid option";
         else inputPayload[variable.key] = fallback;
       } else {
         inputPayload[variable.key] = fallback;
@@ -236,7 +206,7 @@ export default function ArtifactChat({
 
     setFieldErrors(inputErrors);
     if (Object.keys(inputErrors).length > 0) {
-      setFormError("请先完善变量配置。");
+      setFormError("Please complete configuration first.");
       return false;
     }
 
@@ -268,7 +238,7 @@ export default function ArtifactChat({
       setMessages((prev) => [...prev, { role: "assistant", content: payload.reply, timestamp: Date.now() }]);
       setInput("");
     } catch (error) {
-      const msg = error instanceof Error ? error.message : "请求失败";
+      const msg = error instanceof Error ? error.message : "Request failed";
       setMessages((prev) => [...prev, { role: "assistant", content: msg, timestamp: Date.now() }]);
       setFormError(msg);
       setRetryMessage(trimmed);
@@ -283,14 +253,10 @@ export default function ArtifactChat({
     await sendMessage(input);
   };
 
-  const handleInitialGenerate = async () => {
+  const handleInitialGenerateSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     const success = await sendMessage(INITIAL_DRAFT_MESSAGE, { appendUser: false });
     if (success) setIsConfigHidden(true);
-  };
-
-  const handleInitialGenerateSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    await handleInitialGenerate();
   };
 
   const hasConversation = messages.length > 0;
@@ -333,36 +299,44 @@ export default function ArtifactChat({
         </div>
       )}
 
-      {/* Message Stream - Forum Style */}
+      {/* Message Stream */}
       {shouldShowMessages && (
         <div ref={listRef} className="flex-1 overflow-y-auto">
           {messages.map((item, index) => {
             const isUser = item.role === "user";
             return (
-              <div key={`${item.timestamp}-${index}`} className="w-full bg-transparent">
-                <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8 flex gap-4">
-                  <div className="flex flex-col items-center pt-1">
-                    <div className={`flex h-8 w-8 items-center justify-center ${isUser ? "bg-[#F1F3F4] text-slate-700" : "bg-[#7C4DFF] text-white"}`}>
-                      {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
-                    </div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className={`prose prose-sm max-w-none leading-relaxed break-words px-3 py-2 ${isUser ? "text-[#3C4043]" : "text-[#1A1A1B]"}`}>
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.content}</ReactMarkdown>
-                    </div>
-                  </div>
+              <div key={`${item.timestamp}-${index}`} className="w-full">
+                <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+                   <div className="mb-2">
+                      <span className={`text-xs font-bold uppercase tracking-wider ${isUser ? "text-gray-400" : "text-black"}`}>
+                        {isUser ? "You" : "Assistant"}
+                      </span>
+                   </div>
+                   <div className={`
+                     prose prose-sm max-w-none leading-relaxed break-words font-body
+                     ${isUser ? "text-gray-800" : "text-black"}
+                     prose-headings:font-heading prose-headings:font-bold prose-headings:text-black
+                     prose-p:leading-7
+                     prose-pre:bg-gray-50 prose-pre:border prose-pre:border-gray-200 prose-pre:text-gray-800
+                     prose-code:text-black prose-code:font-mono prose-code:bg-gray-100 prose-code:px-1
+                   `}>
+                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.content}</ReactMarkdown>
+                   </div>
                 </div>
               </div>
             );
           })}
           
           {isLoading && (
-            <div className="w-full bg-transparent">
-              <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8 flex gap-6 animate-pulse">
-                <div className="h-8 w-8 rounded-lg bg-slate-200" />
-                <div className="flex-1 space-y-3 pt-1">
-                  <div className="h-4 w-1/3 rounded bg-slate-200" />
-                  <div className="h-4 w-2/3 rounded bg-slate-100" />
+            <div className="w-full">
+              <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+                <div className="text-xs font-bold uppercase tracking-wider text-black mb-4">
+                  Assistant
+                </div>
+                <div className="flex gap-2">
+                   <div className="h-2 w-2 bg-black rounded-full animate-bounce" />
+                   <div className="h-2 w-2 bg-black rounded-full animate-bounce delay-100" />
+                   <div className="h-2 w-2 bg-black rounded-full animate-bounce delay-200" />
                 </div>
               </div>
             </div>
@@ -370,78 +344,52 @@ export default function ArtifactChat({
         </div>
       )}
 
-      {/* Floating Input Area */}
+      {/* Simplified Input Area */}
       {shouldShowInput && (
-        <div className="border-t-2 border-[#DCD0FF] bg-white pb-6 pt-4">
-          <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+        <div className="border-t border-gray-200 bg-white p-6">
+          <div className="mx-auto max-w-4xl">
             <form onSubmit={handleSubmit} className="relative">
-              <div className="flex flex-col">
-                <div className="px-5 pt-4">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#7C4DFF]">继续对话</span>
-                </div>
-                <textarea
-                  ref={textareaRef}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendMessage(input); } }}
-                  placeholder="输入你的反馈或补充指令..."
-                  className="w-full resize-none bg-white px-5 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 min-h-[96px] border-b border-slate-200"
-                  rows={4}
-                />
-                <div className="flex items-center justify-between px-5 pb-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => insertAtCursor("{{variable}}")}
-                    className="flex items-center gap-2 text-xs font-semibold text-slate-500 hover:text-slate-900"
-                    title="插入变量占位符"
-                  >
-                    <Code className="h-4 w-4" />
-                    <span>{"{{x}}"}</span>
-                  </button>
-                  <div className="flex flex-col items-end gap-2">
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendMessage(input); } }}
+                placeholder="Type your message..."
+                className="
+                  w-full resize-none 
+                  border-0 bg-transparent 
+                  text-lg text-black placeholder:text-gray-300
+                  focus:outline-none focus:ring-0
+                  min-h-[96px]
+                  font-heading
+                  leading-relaxed
+                "
+                rows={4}
+              />
+              <div className="mt-4 flex justify-between items-center border-t border-gray-100 pt-4">
+                 {formError && (
+                    <div className="flex items-center gap-2 text-rose-500 text-xs font-bold">
+                      <AlertCircle className="h-4 w-4" />
+                      {formError}
+                    </div>
+                  )}
+                  <div className="ml-auto">
                     <button 
                       type="submit" 
                       disabled={isLoading || isDisabled || !input.trim()}
-                      className="flex h-9 w-9 items-center justify-center bg-[#7C4DFF] text-white transition-colors hover:bg-[#6F3FF0] disabled:bg-slate-200"
-                      title="发送"
+                      className="
+                        bg-black text-white 
+                        px-8 py-3 
+                        text-sm font-semibold tracking-wide
+                        hover:bg-gray-800 
+                        disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed
+                        transition-all duration-200
+                      "
                     >
-                      <Send className="h-4 w-4" />
+                      {isLoading ? "Sending..." : "Send"}
                     </button>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => appendQuickAction("请精简表达。")}
-                        className="p-1 text-slate-500 hover:text-slate-900"
-                        title="精简"
-                      >
-                        <Minus className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => appendQuickAction("请扩充细节。")}
-                        className="p-1 text-slate-500 hover:text-slate-900"
-                        title="扩充"
-                      >
-                        <Plus className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => appendQuickAction("请整理为清晰的段落结构。")}
-                        className="p-1 text-slate-500 hover:text-slate-900"
-                        title="格式化"
-                      >
-                        <AlignLeft className="h-4 w-4" />
-                      </button>
-                    </div>
                   </div>
-                </div>
               </div>
-              {formError && (
-                <div className="absolute -top-10 left-0 flex items-center gap-2 border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-600 animate-in fade-in slide-in-from-bottom-2">
-                  <AlertCircle className="h-3.5 w-3.5" />
-                  {formError}
-                </div>
-              )}
             </form>
           </div>
         </div>

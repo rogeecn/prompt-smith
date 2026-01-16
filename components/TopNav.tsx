@@ -3,13 +3,12 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { z } from "zod";
-import { Sparkles, Layers } from "lucide-react";
 
 const projectIdSchema = z.string().uuid();
 
 const navItems = [
-  { label: "生成向导", href: "/", icon: Sparkles },
-  { label: "制品库", href: "/artifacts", icon: Layers },
+  { label: "Wizard", href: "/" },
+  { label: "Artifacts", href: "/artifacts" },
 ];
 
 const buildHref = (href: string, projectId: string | null) => {
@@ -28,39 +27,36 @@ export default function TopNav() {
     : null;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-200/50 bg-white/80 backdrop-blur-xl">
-      <div className="mx-auto flex w-full items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-200">
-            <Sparkles className="h-4 w-4" />
-          </div>
-          <div>
-            <h1 className="text-sm font-bold text-slate-900 tracking-tight">Prompt Smith</h1>
-            <p className="hidden text-[10px] font-medium text-slate-500 sm:block">智能提示词构建工具</p>
-          </div>
+    <header className="sticky top-0 z-40 border-b border-gray-200 bg-white/95 backdrop-blur-sm">
+      <div className="flex h-14 w-full items-center justify-between px-6 lg:px-8">
+        {/* Brand */}
+        <div className="flex items-center">
+          <span className="font-display text-xl font-bold tracking-tight text-black">
+            PROMPT SMITH
+          </span>
         </div>
         
-        <nav className="flex items-center gap-1 rounded-full bg-slate-100/50 p-1 shadow-inner">
+        {/* Navigation - Minimal Text Links */}
+        <nav className="flex items-center gap-8">
           {navItems.map((item) => {
             const isActive =
               item.href === "/"
                 ? pathname === "/"
                 : pathname.startsWith(item.href);
-            const Icon = item.icon;
             
             return (
               <Link
                 key={item.href}
                 href={buildHref(item.href, projectId)}
-                className={[
-                  "flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-bold transition-all duration-200",
-                  isActive
-                    ? "bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200"
-                    : "text-slate-500 hover:bg-white/50 hover:text-slate-700",
-                ].join(" ")}
+                className={`
+                  relative text-sm font-medium transition-colors duration-200
+                  ${isActive ? "text-black" : "text-gray-400 hover:text-black"}
+                `}
               >
-                <Icon className={`h-3.5 w-3.5 ${isActive ? "text-indigo-500" : "text-slate-400"}`} />
                 {item.label}
+                {isActive && (
+                  <span className="absolute -bottom-[19px] left-0 h-[1px] w-full bg-black" />
+                )}
               </Link>
             );
           })}
