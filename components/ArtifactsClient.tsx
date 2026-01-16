@@ -418,7 +418,7 @@ export default function ArtifactsClient({
                 </button>
               </div>
               
-              <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              <div className="flex-1 overflow-y-auto py-4 space-y-2">
                 {sessions.map((session, index) => {
                   const isActive = session.id === currentSessionId;
                   return (
@@ -429,7 +429,7 @@ export default function ArtifactsClient({
                       <button
                         onClick={() => handleSelectSession(session.id)}
                         className={`
-                          w-full text-left p-3 transition-all duration-200
+                          w-full text-left px-5 py-3 transition-all duration-200
                           ${isActive ? "" : "hover:bg-gray-50"}
                         `}
                       >
