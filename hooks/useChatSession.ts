@@ -25,6 +25,16 @@ export type SendRequestPayload = {
   appendUserMessage?: boolean;
 };
 
+const STAGE_LABELS: Record<string, string> = {
+  start: "已接收请求",
+  load_session: "加载会话中...",
+  llm: "调用模型生成中...",
+  llm_retry: "补充生成中...",
+  alchemy: "整合生成结果中...",
+  guard: "安全审查与修复中...",
+  persist: "保存对话中...",
+};
+
 type UseChatSessionOptions = {
   projectId: string;
   sessionId: string;
@@ -53,6 +63,7 @@ type UseChatSessionResult = {
   setModelId: Dispatch<SetStateAction<string | null>>;
   outputFormat: OutputFormat | null;
   setOutputFormat: Dispatch<SetStateAction<OutputFormat | null>>;
+  loadingStage: string | null;
   sendRequest: (payload: SendRequestPayload) => Promise<void>;
 };
 
@@ -90,6 +101,7 @@ export const useChatSession = ({
   const [saveStatus, setSaveStatus] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
+  const [loadingStage, setLoadingStage] = useState<string | null>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [modelId, setModelId] = useState<string | null>(
     initialState?.model_id ??
@@ -122,6 +134,7 @@ export const useChatSession = ({
     setFormError(null);
     setRetryPayload(null);
     setIsLoading(false);
+    setLoadingStage(null);
     modelConfigInitRef.current = false;
   }, [projectId, sessionId, initialMessages, initialState]);
 
@@ -230,11 +243,30 @@ export const useChatSession = ({
     setIsLoading(true);
     setFormError(null);
     setDeliberations([]);
+    setLoadingStage("正在准备请求...");
+
+    const applyResponse = (payload: LLMResponse) => {
+      if (payload.final_prompt) {
+        setFinalPrompt(payload.final_prompt);
+      }
+      setIsFinished(payload.is_finished);
+      setDeliberations(payload.deliberations ?? []);
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: payload.reply, timestamp: Date.now() },
+      ]);
+      setPendingQuestions(payload.questions ?? []);
+      setDraftAnswers({});
+      setRetryPayload(null);
+    };
 
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "text/event-stream",
+        },
         body: JSON.stringify({
           projectId,
           sessionId,
@@ -248,25 +280,79 @@ export const useChatSession = ({
       if (!response.ok) {
         throw new Error("Request failed");
       }
-      const payload = LLMResponseSchema.parse(await response.json());
+      const contentType = response.headers.get("content-type") ?? "";
+      if (contentType.includes("text/event-stream") && response.body) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let receivedResult = false;
 
-      if (payload.final_prompt) {
-        setFinalPrompt(payload.final_prompt);
+        const parseEventBlock = (chunk: string) => {
+          const lines = chunk.split("\n");
+          let eventName = "message";
+          let data = "";
+          lines.forEach((line) => {
+            if (line.startsWith("event:")) {
+              eventName = line.slice(6).trim();
+            } else if (line.startsWith("data:")) {
+              data += line.slice(5).trim();
+            }
+          });
+          return { eventName, data };
+        };
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let delimiterIndex = buffer.indexOf("\n\n");
+          while (delimiterIndex !== -1) {
+            const chunk = buffer.slice(0, delimiterIndex).trim();
+            buffer = buffer.slice(delimiterIndex + 2);
+            delimiterIndex = buffer.indexOf("\n\n");
+            if (!chunk) continue;
+            const { eventName, data } = parseEventBlock(chunk);
+            if (!data) continue;
+            if (eventName === "stage") {
+              try {
+                const payload = JSON.parse(data) as { stage?: string };
+                const stage = payload.stage?.trim() ?? "";
+                if (stage) {
+                  setLoadingStage(STAGE_LABELS[stage] ?? stage);
+                }
+              } catch {
+                setLoadingStage("AI 正在处理...");
+              }
+              continue;
+            }
+            if (eventName === "result") {
+              const payload = LLMResponseSchema.parse(JSON.parse(data));
+              applyResponse(payload);
+              receivedResult = true;
+              break;
+            }
+            if (eventName === "error") {
+              const payload = JSON.parse(data) as { message?: string };
+              throw new Error(payload.message || "请求失败");
+            }
+          }
+          if (receivedResult) {
+            break;
+          }
+        }
+        if (!receivedResult) {
+          throw new Error("请求失败");
+        }
+      } else {
+        const payload = LLMResponseSchema.parse(await response.json());
+        applyResponse(payload);
       }
-      setIsFinished(payload.is_finished);
-      setDeliberations(payload.deliberations ?? []);
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: payload.reply, timestamp: Date.now() },
-      ]);
-      setPendingQuestions(payload.questions ?? []);
-      setDraftAnswers({});
-      setRetryPayload(null);
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "请求失败");
       setRetryPayload({ message, answers });
     } finally {
       setIsLoading(false);
+      setLoadingStage(null);
     }
   };
 
@@ -287,6 +373,7 @@ export const useChatSession = ({
     setModelId,
     outputFormat,
     setOutputFormat,
+    loadingStage,
     sendRequest,
   };
 };

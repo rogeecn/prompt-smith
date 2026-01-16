@@ -306,6 +306,64 @@ const jsonWithTrace = (
   return httpResponse;
 };
 
+class HttpError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+type StageNotifier = (stage: string, detail?: Record<string, unknown>) => void;
+
+const createSseResponse = (
+  traceId: string,
+  handler: (notifyStage: StageNotifier) => Promise<LLMResponse>
+) => {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    start(controller) {
+      const sendEvent = (event: string, data: Record<string, unknown>) => {
+        controller.enqueue(
+          encoder.encode(
+            `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`
+          )
+        );
+      };
+
+      const notifyStage: StageNotifier = (stage, detail = {}) => {
+        sendEvent("stage", { stage, ...detail });
+      };
+
+      sendEvent("trace", { traceId });
+
+      void handler(notifyStage)
+        .then((payload) => {
+          sendEvent("result", payload);
+          controller.close();
+        })
+        .catch((error) => {
+          const message =
+            error instanceof Error ? error.message : "Server error";
+          const status = error instanceof HttpError ? error.status : 500;
+          sendEvent("error", { message, status });
+          controller.close();
+        });
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+      "x-trace-id": traceId,
+    },
+  });
+};
+
 const buildSystemPrompt = ({
   completedRounds,
   roundLimit,
@@ -975,18 +1033,16 @@ export async function POST(req: Request) {
     traceId,
   });
 
-  try {
+  const runChat = async (notifyStage?: StageNotifier) => {
+    notifyStage?.("start");
+    notifyStage?.("load_session");
     const session = await prisma.session.findFirst({
       where: { id: sessionId, projectId },
     });
 
     if (!session) {
       console.error("[api/chat] Session not found", { projectId, sessionId });
-      return jsonWithTrace(
-        { error: "Session not found" },
-        { status: 404 },
-        traceId
-      );
+      throw new HttpError(404, "Session not found");
     }
 
     const sessionStateParsed = SessionStateSchema.safeParse(session.state ?? {});
@@ -1007,11 +1063,7 @@ export async function POST(req: Request) {
       console.error("[api/chat] Missing OPENAI_MODELS or OPENAI_MODEL", {
         error,
       });
-      return jsonWithTrace(
-        { error: "Missing OPENAI_MODELS or OPENAI_MODEL" },
-        { status: 500 },
-        traceId
-      );
+      throw new HttpError(500, "Missing OPENAI_MODELS or OPENAI_MODEL");
     }
 
     const modelRef = getCompatModel(modelConfig.model);
@@ -1051,6 +1103,9 @@ export async function POST(req: Request) {
         }`
       : formattedFormMessage ?? message ?? "";
 
+    notifyStage?.("llm", {
+      mode: shouldForceFinalize ? "finalize" : "interview",
+    });
     const llmResponse = await generateWithRetry({
       model: modelRef,
       messages: [
@@ -1081,6 +1136,7 @@ export async function POST(req: Request) {
         completedRounds,
         roundLimit: MAX_QUESTION_ROUNDS,
       });
+      notifyStage?.("llm_retry", { mode: "finalize" });
       const retryPrompt = buildSystemPrompt({
         completedRounds,
         roundLimit: MAX_QUESTION_ROUNDS,
@@ -1116,6 +1172,7 @@ export async function POST(req: Request) {
         normalizedResponse.questions.length === 0);
 
     if (shouldRunAlchemy) {
+      notifyStage?.("alchemy");
       const alchemy = await runAlchemyGeneration({
         model: modelRef,
         modelLabel,
@@ -1135,6 +1192,7 @@ export async function POST(req: Request) {
     normalizedResponse = normalizeDeliberationScores(normalizedResponse);
 
     if (normalizedResponse.final_prompt?.trim()) {
+      notifyStage?.("guard");
       const resolvedMinVariables =
         Number.isFinite(MIN_PROMPT_VARIABLES) && MIN_PROMPT_VARIABLES > 0
           ? MIN_PROMPT_VARIABLES
@@ -1303,15 +1361,34 @@ export async function POST(req: Request) {
         ? updatedHistory.slice(-MAX_HISTORY_ITEMS)
         : updatedHistory;
 
+    notifyStage?.("persist");
     await prisma.session.update({
       where: { id: session.id },
       data: { history: prunedHistory, state: sessionState },
     });
 
     console.info("[api/chat] done", { ms: Date.now() - startedAt });
-    return jsonWithTrace(normalizedResponse, undefined, traceId);
+    return normalizedResponse;
+  };
+
+  const wantsStream =
+    req.headers.get("accept")?.includes("text/event-stream") ?? false;
+  if (wantsStream) {
+    return createSseResponse(traceId, runChat);
+  }
+
+  try {
+    const response = await runChat();
+    return jsonWithTrace(response, undefined, traceId);
   } catch (error) {
     console.error("[api/chat] error", { traceId, error });
+    if (error instanceof HttpError) {
+      return jsonWithTrace(
+        { error: error.message },
+        { status: error.status },
+        traceId
+      );
+    }
     const isTimeout =
       error instanceof Error &&
       (error.message.toLowerCase().includes("timeout") ||

@@ -103,6 +103,7 @@ export default function ChatInterface({
     setModelId,
     outputFormat,
     setOutputFormat,
+    loadingStage,
     sendRequest,
   } = useChatSession({
     projectId,
@@ -416,6 +417,7 @@ export default function ChatInterface({
           messages={messages}
           deliberations={deliberations}
           isLoading={isLoading}
+          loadingStage={loadingStage}
           parseFormMessage={parseFormMessage}
         />
 
