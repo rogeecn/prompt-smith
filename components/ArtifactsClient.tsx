@@ -459,30 +459,6 @@ export default function ArtifactsClient({
                 })}
               </div>
             </div>
-
-            {/* Variables Snapshot */}
-            <div className="h-1/3 min-h-[200px] flex flex-col bg-surface-muted">
-              <div className="p-6 border-b border-gray-200/50">
-                <h3 className="font-heading font-bold text-sm text-black">Variables</h3>
-              </div>
-              <div className="flex-1 overflow-y-auto p-6 pt-2">
-                {artifact?.variables && artifact.variables.length > 0 ? (
-                  <div className="space-y-4">
-                    {artifact.variables.map((v) => (
-                       <div key={v.key} className="border-l-2 border-gray-300 pl-3">
-                         <div className="text-xs text-gray-500 mb-1">{v.label}</div>
-                         <code className="text-xs font-mono text-black bg-white px-1 py-0.5">
-                           {`{{${v.key}}}`}
-                         </code>
-                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-gray-400 italic">No variables defined yet.</p>
-                )}
-              </div>
-            </div>
-
           </aside>
         )}
       </main>
