@@ -408,13 +408,13 @@ export default function ArtifactsClient({
             
             {/* Session History */}
             <div className="flex-1 overflow-hidden flex flex-col min-h-0 border-b border-gray-200">
-              <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-                <h3 className="font-heading font-bold text-sm text-black">Sessions</h3>
-                <button 
+              <div className="p-3 border-b border-gray-100">
+                <button
+                  type="button"
                   onClick={handleCreateSession}
-                  className="text-xs text-gray-500 hover:text-black transition-colors"
+                  className="flex w-full items-center justify-center border border-gray-200 py-2 text-gray-600 hover:text-black transition-colors"
                 >
-                  + New
+                  <Plus className="h-4 w-4" />
                 </button>
               </div>
               
