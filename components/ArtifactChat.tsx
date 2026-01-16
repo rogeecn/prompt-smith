@@ -279,33 +279,35 @@ export default function ArtifactChat({
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-white">
       {/* Configuration Panel - Reuse Question Form */}
       {shouldShowForm && (
-        <QuestionForm
-          questions={variableQuestions}
-          draftAnswers={draftAnswers}
-          fieldErrors={fieldErrors}
-          isLoading={isLoading}
-          isDisabled={isDisabled}
-          saveStatusLabel=""
-          formError={formError}
-          onTextChange={updateVariableInput}
-          onSingleSelect={updateVariableSelect}
-          onMultiToggle={() => null}
-          onOtherChange={(key, value) =>
-            setDraftAnswers((prev) => ({
-              ...prev,
-              [key]: { ...(prev[key] ?? { type: "text", value: "" }), other: value },
-            }))
-          }
-          onSelectAll={() => null}
-          onSubmit={handleInitialGenerateSubmit}
-          onRetry={
-            retryMessage
-              ? () => {
-                  void sendMessage(retryMessage, { appendUser: false });
-                }
-              : undefined
-          }
-        />
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <QuestionForm
+            questions={variableQuestions}
+            draftAnswers={draftAnswers}
+            fieldErrors={fieldErrors}
+            isLoading={isLoading}
+            isDisabled={isDisabled}
+            saveStatusLabel=""
+            formError={formError}
+            onTextChange={updateVariableInput}
+            onSingleSelect={updateVariableSelect}
+            onMultiToggle={() => null}
+            onOtherChange={(key, value) =>
+              setDraftAnswers((prev) => ({
+                ...prev,
+                [key]: { ...(prev[key] ?? { type: "text", value: "" }), other: value },
+              }))
+            }
+            onSelectAll={() => null}
+            onSubmit={handleInitialGenerateSubmit}
+            onRetry={
+              retryMessage
+                ? () => {
+                    void sendMessage(retryMessage, { appendUser: false });
+                  }
+                : undefined
+            }
+          />
+        </div>
       )}
 
       {/* Message Stream - Forum Style */}
