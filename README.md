@@ -16,7 +16,7 @@ Prompt Smith 是一个面向产品与运营场景的提示词生产工具。
 ### 1) 环境准备
 
 - Node.js 18+ (建议 20+)
-- PostgreSQL 14+
+- SQLite（默认，单文件部署）
 
 ### 2) 安装依赖
 
@@ -29,7 +29,7 @@ npm install
 在项目根目录创建 `.env`，至少包含以下内容：
 
 ```bash
-DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DBNAME?schema=public"
+DATABASE_URL="file:./dev.db"
 OPENAI_API_KEY="YOUR_KEY"
 OPENAI_BASE_URL="https://api.openai.com/v1"
 OPENAI_MODEL="gpt-4o-mini"
@@ -119,8 +119,8 @@ npm run start
 
 ### 生产环境建议
 
-- 使用独立的 PostgreSQL 实例
-- 确保 `DATABASE_URL` 指向生产库
+- SQLite 适合轻量部署；若需要多实例并发或高可用，可切换到 PostgreSQL
+- 确保 `DATABASE_URL` 指向生产库/生产文件
 - 通过反向代理暴露 3000 端口
 - 推荐配置日志采集与监控
 
