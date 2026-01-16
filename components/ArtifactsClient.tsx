@@ -380,16 +380,6 @@ export default function ArtifactsClient({
             </div>
           ) : (
             <>
-              {/* Artifact Header */}
-              <div className="border-b border-gray-100 px-8 py-6">
-                 <h1 className="font-display text-3xl font-bold text-black mb-2">
-                   {artifact?.title || currentArtifact?.title || "Untitled"}
-                 </h1>
-                 <p className="font-body text-sm text-gray-500 italic">
-                   {artifact?.problem || currentArtifact?.problem || "Prompt engineering workspace"}
-                 </p>
-              </div>
-
               {/* Chat Stream */}
               <div className="flex-1 min-h-0 relative">
                 {isLoadingContext ? (
