@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
-import { Plus, X } from "lucide-react";
+import { Plus, Search, X } from "lucide-react";
 import ChatInterface from "./ChatInterface";
 import TopNav from "./TopNav";
 import {
@@ -167,7 +167,7 @@ export default function HomeClient({ initialProjectId = null }: HomeClientProps)
 
       {/* Mobile Header Toggle */}
       <div className="lg:hidden border-b border-gray-200 p-4 flex justify-between items-center bg-white">
-        <span className="font-heading font-bold text-lg">Menu</span>
+        <span className="font-heading font-bold text-lg">Sessions</span>
         <button onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
           {isSidebarOpen ? <X /> : <Plus className="rotate-45" />} 
           {/* Using rotate-45 plus as a menu icon alternative or just standard menu icon */}
@@ -191,46 +191,57 @@ export default function HomeClient({ initialProjectId = null }: HomeClientProps)
           `}
         >
           <div className="flex h-full flex-col">
-            <div className="p-8 pb-4">
-              <h2 className="font-display text-2xl font-bold text-black mb-6">History</h2>
-              <button
-                onClick={handleCreateSession}
-                disabled={isCreatingSession}
-                className="w-full border border-black bg-black text-white py-3 text-sm font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50"
-              >
-                + New Session
-              </button>
+            <div className="p-6 border-b border-gray-100">
+              <div className="relative mb-6">
+                <input
+                  type="text"
+                  id="session-search"
+                  name="sessionSearch"
+                  placeholder="Search sessions..."
+                  className="w-full border-b border-gray-300 py-2 text-sm font-body outline-none focus:border-black transition-colors bg-transparent"
+                />
+                <Search className="absolute right-0 top-2 h-4 w-4 text-gray-400" />
+              </div>
+              <div className="flex items-center justify-between">
+                <h2 className="font-heading font-bold text-lg text-black">Sessions</h2>
+                <button
+                  onClick={handleCreateSession}
+                  disabled={isCreatingSession}
+                  className="text-xs font-bold uppercase tracking-wider text-black hover:text-accent disabled:opacity-50"
+                >
+                  + New Session
+                </button>
+              </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-8 pb-8 space-y-1">
+            <div className="flex-1 overflow-y-auto">
               {sessions.map((session) => {
                 const isActive = session.id === currentSessionId;
                 const title = session.title || "Untitled Session";
+                const summary = session.last_message || formatSessionDate(session.created_at);
                 
                 return (
-                  <button
+                  <div
                     key={session.id}
-                    onClick={() => handleSelectSession(session.id)}
                     className={`
-                      group w-full text-left py-4 border-l-[3px] px-4 transition-all duration-200
-                      ${isActive 
-                        ? "border-accent bg-surface-muted" 
-                        : "border-transparent hover:border-gray-200 hover:bg-gray-50"
-                      }
+                      flex items-start gap-2 border-b border-gray-50 p-6 transition-all duration-200
+                      ${isActive ? "bg-surface-muted" : "hover:bg-gray-50"}
                     `}
                   >
-                    <div className="flex flex-col gap-1">
-                      <span className={`
-                        font-body text-sm font-medium transition-colors
-                        ${isActive ? "text-black" : "text-gray-600 group-hover:text-black"}
-                      `}>
-                        {title}
-                      </span>
-                      <span className="text-xs text-gray-400 font-mono">
-                        {formatSessionDate(session.created_at)}
-                      </span>
-                    </div>
-                  </button>
+                    <button
+                      onClick={() => handleSelectSession(session.id)}
+                      className="flex-1 text-left"
+                    >
+                      <div className={`border-l-2 pl-4 ${isActive ? "border-accent" : "border-transparent"}`}>
+                        <h3 className={`font-heading font-bold text-base mb-1 ${isActive ? "text-black" : "text-gray-700"}`}>
+                          {title}
+                        </h3>
+                        <p className="font-body text-xs text-gray-500 line-clamp-2">
+                          {summary}
+                        </p>
+                      </div>
+                    </button>
+                  </div>
                 );
               })}
             </div>
