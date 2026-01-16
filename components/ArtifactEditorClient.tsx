@@ -310,7 +310,7 @@ export default function ArtifactEditorClient({
   }
 
   return (
-    <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-slate-50">
+    <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-white">
       <TopNav />
       <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 lg:hidden">
         <button
@@ -333,36 +333,36 @@ export default function ArtifactEditorClient({
           )}
           <aside
             className={[
-              "fixed inset-y-0 left-0 z-50 flex w-72 transform flex-col border-r border-slate-200 bg-white transition-transform duration-300 ease-in-out lg:static lg:z-0 lg:w-80 lg:translate-x-0",
+              "fixed inset-y-0 left-0 z-50 flex w-72 transform flex-col bg-[#2C2D30] text-slate-200 transition-transform duration-300 ease-in-out lg:static lg:z-0 lg:w-80 lg:translate-x-0",
               isSidebarOpen ? "translate-x-0" : "-translate-x-full",
             ].join(" ")}
           >
           <div className="flex flex-col h-full">
-            <div className="p-5 border-b border-slate-200 bg-white">
+            <div className="p-5 border-b border-white/10">
               <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2 text-slate-900 font-bold">
-                  <Layers className="h-5 w-5 text-indigo-600" />
+                <div className="flex items-center gap-2 text-white font-bold">
+                  <Layers className="h-5 w-5 text-white/80" />
                   <span>制品库</span>
                 </div>
                 <button
                   onClick={() => setIsSidebarOpen(false)}
-                  className="p-1 text-slate-400 hover:bg-slate-100 lg:hidden"
+                  className="p-1 text-slate-300 hover:text-white lg:hidden"
                 >
                   <X className="h-5 w-5" />
                 </button>
                 <button
                   onClick={handleCreateArtifact}
                   disabled={isCreating}
-                  className="p-2 border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-colors"
+                  className="p-2 border border-white/10 bg-white/5 text-white/80 hover:bg-white/10 transition-colors"
                 >
                   <Plus className="h-4 w-4" />
                 </button>
               </div>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
                 <input 
                   placeholder="搜索制品..." 
-                  className="w-full bg-white border border-slate-200 pl-9 pr-4 py-2 text-xs outline-none focus:border-slate-500"
+                  className="w-full border border-white/10 bg-white/5 pl-9 pr-4 py-2 text-xs text-white placeholder:text-white/40 outline-none focus:border-white/30"
                 />
               </div>
             </div>
@@ -370,9 +370,9 @@ export default function ArtifactEditorClient({
             <div className="flex-1 overflow-y-auto p-3">
               {artifacts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <Box className="h-10 w-10 text-slate-300 mb-2" />
-                  <p className="text-xs text-slate-400">暂无制品</p>
-                  <button onClick={handleCreateArtifact} className="mt-3 text-xs font-bold text-slate-700 hover:text-slate-900">立即新建</button>
+                  <Box className="h-10 w-10 text-white/30 mb-2" />
+                  <p className="text-xs text-white/50">暂无制品</p>
+                  <button onClick={handleCreateArtifact} className="mt-3 text-xs font-bold text-white/80 hover:text-white">立即新建</button>
                 </div>
               ) : (
                 artifacts.map((item) => {
@@ -381,15 +381,15 @@ export default function ArtifactEditorClient({
                     <button
                       key={item.id}
                       onClick={() => handleSelectArtifact(item)}
-                      className={`
-                        w-full text-left px-3 py-3 border-b border-slate-100 last:border-b-0
-                        ${isActive ? "bg-slate-900 text-white" : "hover:bg-slate-50"}
-                      `}
+                      className={[
+                        "w-full text-left px-3 py-3",
+                        isActive ? "bg-white/10 text-white" : "text-white/80 hover:bg-white/5",
+                      ].join(" ")}
                     >
-                      <h4 className="text-sm font-bold break-words">
+                      <h4 className="text-sm font-semibold break-words">
                         {item.title || "未命名制品"}
                       </h4>
-                      <p className={`text-xs mt-1 line-clamp-2 ${isActive ? "text-slate-200" : "text-slate-400"}`}>
+                      <p className={`text-xs mt-1 line-clamp-2 ${isActive ? "text-white/70" : "text-white/40"}`}>
                         {item.problem || "暂无描述"}
                       </p>
                     </button>

@@ -280,7 +280,7 @@ export default function ArtifactsClient({
   }
 
   return (
-    <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-slate-50">
+    <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-white">
       <TopNav />
       <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 lg:hidden">
         <button
@@ -303,28 +303,28 @@ export default function ArtifactsClient({
 
         <aside
           className={[
-            "fixed inset-y-0 left-0 z-50 flex w-72 transform flex-col border-r border-slate-200 bg-white transition-transform duration-300 ease-in-out lg:static lg:z-0 lg:w-80 lg:translate-x-0",
+            "fixed inset-y-0 left-0 z-50 flex w-72 transform flex-col bg-[#2C2D30] text-slate-200 transition-transform duration-300 ease-in-out lg:static lg:z-0 lg:w-80 lg:translate-x-0",
             isSidebarOpen ? "translate-x-0" : "-translate-x-full",
           ].join(" ")}
         >
           <div className="flex h-full flex-col">
-            <div className="border-b border-slate-200 p-5">
+            <div className="border-b border-white/10 p-5">
               <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2 text-slate-900 font-bold">
-                  <Layers className="h-5 w-5 text-indigo-600" />
+                <div className="flex items-center gap-2 font-bold text-white">
+                  <Layers className="h-5 w-5 text-white/80" />
                   <span>制品库</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setIsSidebarOpen(false)}
-                    className="p-1 text-slate-400 hover:bg-slate-100 lg:hidden"
+                    className="p-1 text-slate-300 hover:text-white lg:hidden"
                   >
                     <X className="h-5 w-5" />
                   </button>
                   <button
                     onClick={handleCreateArtifact}
                     disabled={isCreatingArtifact}
-                    className="p-2 border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    className="p-2 border border-white/10 bg-white/5 text-white/80 hover:bg-white/10"
                     title="新建制品"
                   >
                     <Plus className="h-4 w-4" />
@@ -332,10 +332,10 @@ export default function ArtifactsClient({
                 </div>
               </div>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
                 <input
                   placeholder="搜索制品..."
-                  className="w-full border border-slate-200 bg-white pl-9 pr-3 py-2 text-xs outline-none focus:border-slate-400"
+                  className="w-full border border-white/10 bg-white/5 pl-9 pr-3 py-2 text-xs text-white placeholder:text-white/40 outline-none focus:border-white/30"
                 />
               </div>
             </div>
@@ -343,11 +343,11 @@ export default function ArtifactsClient({
             <div className="flex-1 overflow-y-auto p-3 space-y-1">
               {artifacts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <Box className="h-10 w-10 text-slate-300 mb-2" />
-                  <p className="text-xs text-slate-400">暂无制品</p>
+                  <Box className="h-10 w-10 text-white/30 mb-2" />
+                  <p className="text-xs text-white/50">暂无制品</p>
                   <button
                     onClick={handleCreateArtifact}
-                    className="mt-3 text-xs font-bold text-slate-700 hover:text-slate-900"
+                    className="mt-3 text-xs font-bold text-white/80 hover:text-white"
                   >
                     立即新建
                   </button>
@@ -360,19 +360,19 @@ export default function ArtifactsClient({
                       key={item.id}
                       onClick={() => handleSelectArtifact(item)}
                       className={[
-                        "w-full cursor-pointer px-3 py-3",
-                        isActive ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-50",
+                        "group w-full cursor-pointer px-3 py-3",
+                        isActive ? "bg-white/10 text-white" : "text-white/80 hover:bg-white/5",
                       ].join(" ")}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <h4 className="text-sm font-bold break-words">
+                          <h4 className="text-sm font-semibold break-words">
                             {item.title || "未命名制品"}
                           </h4>
                           <p
                             className={[
                               "text-xs mt-1 line-clamp-2 break-words",
-                              isActive ? "text-slate-200" : "text-slate-500",
+                              isActive ? "text-white/70" : "text-white/40",
                             ].join(" ")}
                           >
                             {item.problem || "暂无描述"}
@@ -386,8 +386,8 @@ export default function ArtifactsClient({
                               handleEditArtifact(item);
                             }}
                             className={[
-                              "p-1",
-                              isActive ? "text-slate-200 hover:text-white" : "text-slate-400 hover:text-slate-700",
+                              "p-1 opacity-0 transition-opacity group-hover:opacity-100",
+                              isActive ? "text-white/70 hover:text-white" : "text-white/40 hover:text-white/80",
                             ].join(" ")}
                             title="编辑制品"
                           >
@@ -401,8 +401,8 @@ export default function ArtifactsClient({
                             }}
                             disabled={isDeletingArtifactId === item.id}
                             className={[
-                              "p-1",
-                              isActive ? "text-slate-200 hover:text-white" : "text-slate-400 hover:text-rose-500",
+                              "p-1 opacity-0 transition-opacity group-hover:opacity-100",
+                              isActive ? "text-white/70 hover:text-white" : "text-white/40 hover:text-rose-300",
                             ].join(" ")}
                             title="删除制品"
                           >
@@ -419,7 +419,7 @@ export default function ArtifactsClient({
         </aside>
 
         {!currentArtifact ? (
-          <section className="flex flex-1 items-center justify-center border-l border-slate-200 bg-white">
+          <section className="flex flex-1 items-center justify-center bg-white">
             <div className="text-center text-slate-400">
               <MessageSquare className="mx-auto h-10 w-10 text-slate-300" />
               <p className="mt-3 text-sm">请选择左侧制品开始对话</p>
@@ -428,10 +428,9 @@ export default function ArtifactsClient({
           </section>
         ) : (
           <>
-            <section className="flex min-h-0 flex-1 flex-col border-l border-slate-200 bg-white">
-              <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+            <section className="flex min-h-0 flex-1 flex-col bg-white">
+              <div className="flex items-center justify-between px-4 py-3">
                 <div className="min-w-0">
-                  <p className="text-xs text-slate-400">会话窗口</p>
                   <h2 className="text-sm font-bold text-slate-900 truncate">
                     {artifact?.title ?? ""}
                   </h2>
@@ -486,59 +485,52 @@ export default function ArtifactsClient({
               </div>
             </section>
 
-            <aside className="hidden w-72 shrink-0 flex-col border-l border-slate-200 bg-white lg:flex">
-              <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-                <div>
-                  <p className="text-xs text-slate-400">会话列表</p>
-                  <p className="text-sm font-semibold text-slate-900">{artifact?.title ?? ""}</p>
+            <aside className="hidden w-72 shrink-0 flex-col bg-[#F5F7F9] lg:flex">
+              <div className="px-4 py-4">
+                <p className="text-xs text-slate-500">当前分支</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <select
+                    value={currentSessionId ?? ""}
+                    onChange={(event) => {
+                      if (!event.target.value) return;
+                      void handleSelectSession(event.target.value);
+                    }}
+                    className="w-full border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-slate-500"
+                  >
+                    {sessions.length === 0 && <option value="">暂无会话</option>}
+                    {sessions.map((session, index) => (
+                      <option key={session.id} value={session.id}>
+                        会话 {sessions.length - index} · {formatSessionLabel(session.created_at)}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleCreateSession}
+                    disabled={isCreatingSession}
+                    className="border border-slate-900 bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                  >
+                    新建
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleCreateSession}
-                  disabled={isCreatingSession}
-                  className="border border-slate-900 bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
-                >
-                  新建对话
-                </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-3">
-                {sessions.length === 0 ? (
-                  <p className="text-xs text-slate-400">暂无历史对话。</p>
-                ) : (
-                  <div className="space-y-1">
-                    {sessions.map((session, index) => {
-                      const isActive = session.id === currentSessionId;
-                      const summary = session.last_message ?? "未开始";
-                      return (
-                        <button
-                          key={session.id}
-                          type="button"
-                          onClick={() => handleSelectSession(session.id)}
-                          className={[
-                            "w-full cursor-pointer px-3 py-3 text-left text-xs",
-                            isActive ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-50",
-                          ].join(" ")}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span>会话 {sessions.length - index}</span>
-                            <span className="text-[10px] text-slate-400">
-                              {formatSessionLabel(session.created_at)}
-                            </span>
-                          </div>
-                          <p
-                            className={[
-                              "mt-2 truncate text-[11px]",
-                              isActive ? "text-slate-200" : "text-slate-500",
-                            ].join(" ")}
-                          >
-                            {summary}
-                          </p>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+              <div className="flex-1 overflow-y-auto px-4 pb-6">
+                <p className="text-xs text-slate-500">当前 Prompt 变量快照</p>
+                <div className="mt-3 space-y-2">
+                  {artifact?.variables && artifact.variables.length > 0 ? (
+                    artifact.variables.map((variable) => (
+                      <div key={variable.key} className="bg-white px-3 py-2 text-xs text-slate-700">
+                        <span className="font-semibold text-slate-900">{variable.label}</span>
+                        <span className="ml-2 bg-[#EEE6FF] px-1.5 py-0.5 text-[10px] font-mono text-[#7C4DFF]">
+                          {variable.key}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-slate-400">暂无变量。</p>
+                  )}
+                </div>
               </div>
             </aside>
           </>

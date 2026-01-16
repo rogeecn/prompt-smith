@@ -8,10 +8,10 @@
   --foreground: #0f172a; /* slate-900 */
 
   /* Primary Brand - Indigo */
-  --primary: #4f46e5; /* indigo-600 */
+  --primary: #7c4dff; /* purple */
   --primary-foreground: #ffffff;
-  --primary-hover: #4338ca; /* indigo-700 */
-  --primary-light: #e0e7ff; /* indigo-100 */
+  --primary-hover: #6f3ff0;
+  --primary-light: #ede7ff;
 
   /* Semantic Surfaces */
   --surface: #ffffff;
@@ -19,10 +19,10 @@
   --surface-highlight: #f8fafc; /* slate-50 */
   
   /* Message Blocks (Forum Style) */
-  --block-user: #f1f5f9; /* slate-100 */
+  --block-user: #ffffff;
   --block-ai: #ffffff;
-  --block-system: #eff6ff; /* blue-50 */
-  --block-system-foreground: #1e3a8a; /* blue-900 */
+  --block-system: #f5f7f9;
+  --block-system-foreground: #3c4043;
 
   /* Borders & Dividers */
   --border: #e2e8f0; /* slate-200 */
