@@ -351,6 +351,8 @@ export default function ArtifactChat({
             <form onSubmit={handleSubmit} className="relative">
               <textarea
                 ref={textareaRef}
+                id="artifact-chat-input"
+                name="artifactChatInput"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendMessage(input); } }}

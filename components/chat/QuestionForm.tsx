@@ -52,6 +52,7 @@ export default function QuestionForm({
         <form onSubmit={onSubmit} className="space-y-10">
           {questions.slice(0, visibleCount).map((q, i) => {
             const key = getQuestionKey(q, i);
+            const fieldId = `question-${key}`;
             const draft = draftAnswers[key];
             const otherValue = draft?.other ?? "";
             const isOtherSelected =
@@ -69,6 +70,8 @@ export default function QuestionForm({
                   <div className="relative">
                     <input
                       type="text"
+                      id={fieldId}
+                      name={fieldId}
                       value={typeof draft?.value === "string" ? draft.value : ""}
                       onChange={(e) => onTextChange(key, e.target.value)}
                       placeholder={q.placeholder || "Type your answer..."}
@@ -87,13 +90,14 @@ export default function QuestionForm({
                 {q.type === "single" && (
                   <div className="space-y-3">
                     {q.options?.map((opt) => (
-                      <label 
+                      <label
                         key={opt.id} 
                         className="flex items-start gap-3 cursor-pointer group/opt"
                       >
                         <div className="relative flex items-center mt-1">
                           <input
                             type="radio"
+                            id={`${fieldId}-${opt.id}`}
                             name={key}
                             value={opt.id}
                             checked={draft?.value === opt.id}
@@ -119,6 +123,8 @@ export default function QuestionForm({
                     {isOtherSelected && (
                       <input
                         type="text"
+                        id={`${fieldId}-other`}
+                        name={`${fieldId}-other`}
                         value={otherValue}
                         onChange={(e) => onOtherChange(key, e.target.value)}
                         placeholder="Please specify..."
@@ -139,13 +145,15 @@ export default function QuestionForm({
                     {q.options?.map((opt) => {
                       const isChecked = Array.isArray(draft?.value) && draft.value.includes(opt.id);
                       return (
-                        <label 
+                        <label
                           key={opt.id} 
                           className="flex items-start gap-3 cursor-pointer group/opt"
                         >
                           <div className="relative flex items-center mt-1">
                             <input
                               type="checkbox"
+                              id={`${fieldId}-${opt.id}`}
+                              name={`${key}[]`}
                               checked={isChecked}
                               onChange={() => onMultiToggle(key, opt.id, q.max_select)}
                               disabled={isDisabled || isLoading}
@@ -173,6 +181,8 @@ export default function QuestionForm({
                      {isOtherSelected && (
                       <input
                         type="text"
+                        id={`${fieldId}-other`}
+                        name={`${fieldId}-other`}
                         value={otherValue}
                         onChange={(e) => onOtherChange(key, e.target.value)}
                         placeholder="Please specify..."

@@ -299,6 +299,8 @@ export default function ChatInterface({
             <form onSubmit={handleStartSubmit} className="relative">
               <textarea
                 ref={textareaRef}
+                id="chat-input"
+                name="chatInput"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
