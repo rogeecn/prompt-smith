@@ -155,13 +155,24 @@ export default function QuestionForm({
                   <div className="ml-10">
                     {question.type === "text" ? (
                       <div className="relative">
-                        <input
-                          value={typeof draft?.value === "string" ? draft.value : ""}
-                          onChange={(e) => onTextChange(key, e.target.value)}
-                          placeholder={question.placeholder ?? "输入你的回答..."}
-                          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm transition-all focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none"
-                          disabled={isLoading || isDisabled}
-                        />
+                        {question.input_mode === "textarea" ? (
+                          <textarea
+                            value={typeof draft?.value === "string" ? draft.value : ""}
+                            onChange={(e) => onTextChange(key, e.target.value)}
+                            placeholder={question.placeholder ?? "输入你的回答..."}
+                            rows={3}
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm transition-all focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none"
+                            disabled={isLoading || isDisabled}
+                          />
+                        ) : (
+                          <input
+                            value={typeof draft?.value === "string" ? draft.value : ""}
+                            onChange={(e) => onTextChange(key, e.target.value)}
+                            placeholder={question.placeholder ?? "输入你的回答..."}
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm transition-all focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none"
+                            disabled={isLoading || isDisabled}
+                          />
+                        )}
                       </div>
                     ) : (
                       <div className="space-y-4">

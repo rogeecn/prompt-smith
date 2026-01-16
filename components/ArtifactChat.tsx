@@ -1,14 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Send, Settings, AlertCircle, Bot, User } from "lucide-react";
+import { Send, AlertCircle, Bot, User } from "lucide-react";
+import QuestionForm from "./chat/QuestionForm";
 import type {
   ArtifactChatRequest,
   ArtifactChatResponse,
   ArtifactVariable,
+  DraftAnswer,
   HistoryItem,
+  Question,
 } from "../lib/schemas";
 
 const isDebug = process.env.NODE_ENV !== "production";
@@ -36,11 +39,58 @@ const formatDefaultValue = (variable: ArtifactVariable) => {
   return String(fallback);
 };
 
-const buildInitialInputs = (variables: ArtifactVariable[]) =>
-  variables.reduce<Record<string, string>>((acc, variable) => {
-    acc[variable.key] = formatDefaultValue(variable);
+const buildInitialDraftAnswers = (variables: ArtifactVariable[]) =>
+  variables.reduce<Record<string, DraftAnswer>>((acc, variable) => {
+    const value = formatDefaultValue(variable);
+    if (variable.type === "enum" || variable.type === "boolean") {
+      acc[variable.key] = { type: "single", value };
+      return acc;
+    }
+    acc[variable.key] = { type: "text", value };
     return acc;
   }, {});
+
+const buildVariableQuestions = (variables: ArtifactVariable[]): Question[] =>
+  variables.map((variable) => {
+    const label = variable.label || variable.key;
+    if (variable.type === "enum") {
+      const options = (variable.options ?? []).map((option) => ({
+        id: option,
+        label: option,
+      }));
+      return {
+        id: variable.key,
+        text: label,
+        type: "single",
+        options,
+        allow_other: false,
+        allow_none: !(variable.required ?? true),
+        placeholder: variable.placeholder,
+      };
+    }
+    if (variable.type === "boolean") {
+      return {
+        id: variable.key,
+        text: label,
+        type: "single",
+        options: [
+          { id: "true", label: variable.true_label ?? "是" },
+          { id: "false", label: variable.false_label ?? "否" },
+        ],
+        allow_other: false,
+        allow_none: !(variable.required ?? true),
+        placeholder: variable.placeholder,
+      };
+    }
+    const useTextarea = variable.type === "text" || variable.type === "list";
+    return {
+      id: variable.key,
+      text: label,
+      type: "text",
+      placeholder: variable.placeholder,
+      input_mode: useTextarea ? "textarea" : "input",
+    };
+  });
 
 const INITIAL_DRAFT_MESSAGE = "请根据当前变量生成初稿。";
 
@@ -64,13 +114,14 @@ export default function ArtifactChat({
   onSessionIdChange,
 }: ArtifactChatProps) {
   const [messages, setMessages] = useState<HistoryItem[]>(initialMessages);
-  const [variableInputs, setVariableInputs] = useState<Record<string, string>>({});
-  const [variableErrors, setVariableErrors] = useState<Record<string, string>>({});
+  const [draftAnswers, setDraftAnswers] = useState<Record<string, DraftAnswer>>({});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [retryMessage, setRetryMessage] = useState<string | null>(null);
   const [isConfigHidden, setIsConfigHidden] = useState(false);
+  const variableQuestions = useMemo(() => buildVariableQuestions(variables), [variables]);
   
   const listRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -82,11 +133,12 @@ export default function ArtifactChat({
     setFormError(null);
     setRetryMessage(null);
     setIsConfigHidden(false);
+    setFieldErrors({});
   }, [projectId, artifactId, sessionId, initialMessages]);
 
   useEffect(() => {
-    setVariableInputs(buildInitialInputs(variables));
-    setVariableErrors({});
+    setDraftAnswers(buildInitialDraftAnswers(variables));
+    setFieldErrors({});
   }, [variables, projectId, artifactId, sessionId]);
 
   useEffect(() => {
@@ -103,9 +155,18 @@ export default function ArtifactChat({
   }, [messages, isLoading]);
 
   const updateVariableInput = (key: string, value: string) => {
-    setVariableInputs((prev) => ({ ...prev, [key]: value }));
+    setDraftAnswers((prev) => ({ ...prev, [key]: { type: "text", value } }));
     setFormError(null);
-    setVariableErrors((prev) => {
+    setFieldErrors((prev) => {
+      const { [key]: _, ...rest } = prev;
+      return rest;
+    });
+  };
+
+  const updateVariableSelect = (key: string, value: string) => {
+    setDraftAnswers((prev) => ({ ...prev, [key]: { type: "single", value } }));
+    setFormError(null);
+    setFieldErrors((prev) => {
       const { [key]: _, ...rest } = prev;
       return rest;
     });
@@ -120,7 +181,8 @@ export default function ArtifactChat({
     const inputPayload: Record<string, string | number | boolean | string[]> = {};
 
     variables.forEach((variable) => {
-      const raw = variableInputs[variable.key] ?? "";
+      const draft = draftAnswers[variable.key];
+      const raw = typeof draft?.value === "string" ? draft.value.trim() : "";
       const fallback = raw || formatDefaultValue(variable);
       const hasValue = typeof fallback === "string" ? fallback.trim() !== "" : true;
 
@@ -149,7 +211,7 @@ export default function ArtifactChat({
       }
     });
 
-    setVariableErrors(inputErrors);
+    setFieldErrors(inputErrors);
     if (Object.keys(inputErrors).length > 0) {
       setFormError("请先完善变量配置。");
       return false;
@@ -203,105 +265,44 @@ export default function ArtifactChat({
     if (success) setIsConfigHidden(true);
   };
 
+  const handleInitialGenerateSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    await handleInitialGenerate();
+  };
+
   const hasConversation = messages.length > 0;
   
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-white">
-      {/* Configuration Panel - Island Style */}
+      {/* Configuration Panel - Reuse Question Form */}
       {variables.length > 0 && !isConfigHidden && !hasConversation && (
-        <div className="flex-1 overflow-y-auto bg-slate-50/50 p-4 sm:p-8">
-          <div className="mx-auto max-w-2xl rounded-3xl bg-white p-6 shadow-xl shadow-slate-200/50 ring-1 ring-slate-100 sm:p-8">
-            <div className="mb-8 flex items-center gap-3 border-b border-slate-100 pb-6">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-                <Settings className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-900">变量配置</h3>
-                <p className="text-xs text-slate-500 mt-0.5">配置以下参数以生成个性化内容</p>
-              </div>
-            </div>
-
-            <div className="grid gap-6">
-              {variables.map((variable) => {
-                const label = variable.label || variable.key;
-                const value = variableInputs[variable.key] ?? "";
-                const error = variableErrors[variable.key];
-                
-                return (
-                  <div key={variable.key} className="group">
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs font-bold text-slate-700">{label}</label>
-                      <span className={`text-[10px] uppercase font-bold tracking-wider ${variable.required ? "text-rose-400" : "text-slate-300"}`}>
-                        {variable.required ? "Required" : "Optional"}
-                      </span>
-                    </div>
-                    
-                    {variable.type === "text" || variable.type === "list" ? (
-                      <textarea
-                        value={value}
-                        onChange={(e) => updateVariableInput(variable.key, e.target.value)}
-                        placeholder={variable.placeholder ?? "请输入内容..."}
-                        rows={3}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition-all focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10"
-                      />
-                    ) : variable.type === "enum" && variable.options ? (
-                      <select
-                        value={value}
-                        onChange={(e) => updateVariableInput(variable.key, e.target.value)}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition-all focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10"
-                      >
-                        <option value="">请选择...</option>
-                        {variable.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                      </select>
-                    ) : variable.type === "boolean" ? (
-                      <select
-                        value={value}
-                        onChange={(e) => updateVariableInput(variable.key, e.target.value)}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition-all focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10"
-                      >
-                        <option value="">请选择...</option>
-                        <option value="true">{variable.true_label ?? "是"}</option>
-                        <option value="false">{variable.false_label ?? "否"}</option>
-                      </select>
-                    ) : (
-                      <input
-                        type={variable.type === "number" ? "number" : "text"}
-                        value={value}
-                        onChange={(e) => updateVariableInput(variable.key, e.target.value)}
-                        placeholder={variable.placeholder ?? "请输入..."}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition-all focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10"
-                      />
-                    )}
-                    
-                    {error && (
-                      <div className="mt-2 flex items-center gap-1.5 text-rose-500 animate-in fade-in slide-in-from-top-1">
-                        <AlertCircle className="h-3.5 w-3.5" />
-                        <span className="text-xs font-bold">{error}</span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="mt-8 pt-6 border-t border-slate-100 flex items-center justify-between">
-              {formError ? (
-                <span className="text-xs font-bold text-rose-500 flex items-center gap-1">
-                  <AlertCircle className="h-3.5 w-3.5" /> {formError}
-                </span>
-              ) : <span />}
-              
-              <button
-                onClick={handleInitialGenerate}
-                disabled={isLoading || isDisabled}
-                className="flex items-center gap-2 rounded-xl bg-indigo-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-indigo-200 transition-all hover:bg-indigo-700 hover:translate-y-[-1px] disabled:opacity-50 disabled:translate-y-0"
-              >
-                <Bot className="h-4 w-4" />
-                {isLoading ? "生成中..." : "开始生成"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <QuestionForm
+          questions={variableQuestions}
+          draftAnswers={draftAnswers}
+          fieldErrors={fieldErrors}
+          isLoading={isLoading}
+          isDisabled={isDisabled}
+          saveStatusLabel=""
+          formError={formError}
+          onTextChange={updateVariableInput}
+          onSingleSelect={updateVariableSelect}
+          onMultiToggle={() => null}
+          onOtherChange={(key, value) =>
+            setDraftAnswers((prev) => ({
+              ...prev,
+              [key]: { ...(prev[key] ?? { type: "text", value: "" }), other: value },
+            }))
+          }
+          onSelectAll={() => null}
+          onSubmit={handleInitialGenerateSubmit}
+          onRetry={
+            retryMessage
+              ? () => {
+                  void sendMessage(retryMessage, { appendUser: false });
+                }
+              : undefined
+          }
+        />
       )}
 
       {/* Message Stream - Forum Style */}

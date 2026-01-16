@@ -15,6 +15,7 @@ export const QuestionSchema = z.object({
   allow_none: z.boolean().optional(),
   max_select: z.number().int().positive().optional(),
   placeholder: z.string().min(1).optional(),
+  input_mode: z.enum(["input", "textarea"]).optional(),
 }).superRefine((value, ctx) => {
   if (value.type === "text") {
     if (value.options && value.options.length > 0) {
