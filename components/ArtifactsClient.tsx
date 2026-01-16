@@ -41,6 +41,10 @@ export default function ArtifactsClient({
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [isLoadingContext, setIsLoadingContext] = useState(false);
   const [deletingArtifactId, setDeletingArtifactId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const hasRequestedRef = useRef(false);
 
@@ -143,10 +147,17 @@ export default function ArtifactsClient({
     router.push(`/artifacts/edit/${artifactId}?projectId=${projectId}`);
   };
 
-  const handleDeleteArtifact = async (artifactId: string) => {
+  const handleDeleteArtifact = (artifactItem: Artifact) => {
     if (!projectId || deletingArtifactId) return;
-    const confirmed = window.confirm("确定要删除该制品及其会话记录吗？");
-    if (!confirmed) return;
+    setDeleteTarget({
+      id: artifactItem.id,
+      title: artifactItem.title || "未命名制品",
+    });
+  };
+
+  const confirmDeleteArtifact = async () => {
+    if (!projectId || !deleteTarget) return;
+    const artifactId = deleteTarget.id;
     setDeletingArtifactId(artifactId);
     try {
       await deleteArtifact(projectId, artifactId);
@@ -157,6 +168,7 @@ export default function ArtifactsClient({
       }
     } finally {
       setDeletingArtifactId(null);
+      setDeleteTarget(null);
     }
   };
 
@@ -312,7 +324,7 @@ export default function ArtifactsClient({
                       <button
                         type="button"
                         aria-label="删除制品"
-                        onClick={() => handleDeleteArtifact(item.id)}
+                        onClick={() => handleDeleteArtifact(item)}
                         disabled={deletingArtifactId === item.id}
                         className="text-gray-400 hover:text-rose-500 transition-colors disabled:opacity-40"
                       >
@@ -440,6 +452,47 @@ export default function ArtifactsClient({
           </aside>
         )}
       </main>
+
+      {deleteTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => {
+            if (!deletingArtifactId) {
+              setDeleteTarget(null);
+            }
+          }}
+        >
+          <div
+            className="w-full max-w-md border border-gray-200 bg-white p-6"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 className="text-base font-bold text-black">删除制品</h3>
+            <p className="mt-2 text-sm text-gray-600">
+              确定要删除“{deleteTarget.title}”及其会话记录吗？此操作无法撤销。
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                className="border border-gray-200 bg-white px-4 py-2 text-sm text-gray-600 hover:text-black"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deletingArtifactId === deleteTarget.id}
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                className="border border-rose-500 bg-rose-500 px-4 py-2 text-sm text-white hover:bg-rose-600 disabled:opacity-60"
+                onClick={confirmDeleteArtifact}
+                disabled={deletingArtifactId === deleteTarget.id}
+              >
+                {deletingArtifactId === deleteTarget.id ? "删除中..." : "删除"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
