@@ -393,7 +393,7 @@ export default function ArtifactChat({
 
       {/* Simplified Input Area */}
       {shouldShowInput && (
-      <div className="bg-white px-6 pb-6">
+      <div className="bg-gray-50 px-6 pb-6 pt-4">
         <div className="mx-auto max-w-4xl">
           <form onSubmit={handleSubmit} className="relative">
             <div className="flex items-start gap-4">
