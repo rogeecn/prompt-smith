@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { z } from "zod";
 import { MoreVertical, Pencil, Plus, Search, Trash2 } from "lucide-react";
-import TopNav from "./TopNav";
 import ArtifactEditor from "./ArtifactEditor";
 import ArtifactChat from "./ArtifactChat";
 import {
@@ -28,6 +28,7 @@ export default function ArtifactsClient({
   initialProjectId = null,
 }: ArtifactsClientProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const [projectId, setProjectId] = useState<string | null>(null);
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [currentArtifactId, setCurrentArtifactId] = useState<string | null>(null);
@@ -257,19 +258,23 @@ export default function ArtifactsClient({
     );
   }
 
+  const buildHref = (href: string) => `${href}?projectId=${projectId}`;
+  const isWizardActive = pathname === "/";
+  const isArtifactsActive = pathname.startsWith("/artifacts");
+
   return (
     <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-white">
-      <TopNav />
-
-      {/* Mobile Toggle */}
-      <div className="lg:hidden border-b border-gray-200 p-4 flex justify-between items-center bg-white">
-        <span className="font-heading font-bold text-lg">Artifacts</span>
-        <button onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
-          <MoreVertical />
-        </button>
-      </div>
-
       <main className="flex flex-1 min-h-0 w-full overflow-hidden relative">
+        {!isSidebarOpen && (
+          <button
+            type="button"
+            onClick={() => setIsSidebarOpen(true)}
+            className="absolute left-3 top-3 z-30 flex h-9 w-9 items-center justify-center border border-gray-200 bg-white text-gray-600 lg:hidden"
+            aria-label="打开侧栏"
+          >
+            <MoreVertical className="h-4 w-4" />
+          </button>
+        )}
          {/* Sidebar Overlay */}
          {isSidebarOpen && (
           <div 
@@ -286,6 +291,26 @@ export default function ArtifactsClient({
           `}
         >
           <div className="flex h-full flex-col">
+            <div className="border-b border-gray-100 px-6 py-5">
+              <div className="font-display text-lg font-bold text-black">
+                PROMPT SMITH
+              </div>
+              <nav className="mt-4 flex flex-col gap-2 text-sm font-medium text-gray-500">
+                <Link
+                  href={buildHref("/")}
+                  className={isWizardActive ? "text-black" : "hover:text-black"}
+                >
+                  Wizard
+                </Link>
+                <Link
+                  href={buildHref("/artifacts")}
+                  className={isArtifactsActive ? "text-black" : "hover:text-black"}
+                >
+                  Artifacts
+                </Link>
+              </nav>
+            </div>
+
             <div className="p-6 border-b border-gray-100">
               <div className="flex items-center gap-3">
                 <div className="relative flex-1">
