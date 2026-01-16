@@ -151,7 +151,9 @@ export default function ChatInterface({
     const textarea = textareaRef.current;
     if (!textarea) return;
     textarea.style.height = "auto";
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+    const nextHeight = Math.min(textarea.scrollHeight, 140);
+    textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY = textarea.scrollHeight > 140 ? "auto" : "hidden";
   }, [input]);
 
   useEffect(() => {
@@ -430,9 +432,10 @@ export default function ChatInterface({
 
       {/* Simplified Input Area */}
       {showChatInput && (
-        <div className="border-t border-gray-200 bg-white p-6">
-          <div className="mx-auto max-w-3xl">
-            <form onSubmit={handleStartSubmit} className="relative">
+      <div className="bg-gray-50 px-6 pb-6 pt-4">
+        <div className="mx-auto max-w-3xl">
+          <form onSubmit={handleStartSubmit} className="relative">
+            <div className="flex items-start gap-4">
               <textarea
                 ref={textareaRef}
                 id="chat-input"
@@ -451,32 +454,32 @@ export default function ChatInterface({
                   border-0 bg-transparent 
                   text-lg text-black placeholder:text-gray-300
                   focus:outline-none focus:ring-0
-                  min-h-[120px]
+                  min-h-[40px] max-h-[140px]
                   font-heading
                   leading-relaxed
                 "
-                style={{ fontFamily: 'var(--font-heading)' }}
+                rows={1}
+                style={{ fontFamily: "var(--font-heading)" }}
               />
-              
-              <div className="mt-4 flex justify-end border-t border-gray-100 pt-4">
-                <button 
-                  type="submit"
-                  disabled={isLoading || isDisabled || (!input.trim() && messages.length > 0)}
-                  className="
-                    bg-black text-white 
-                    px-8 py-3 
-                    text-sm font-semibold tracking-wide
-                    hover:bg-gray-800 
-                    disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed
-                    transition-all duration-200
-                  "
-                >
-                  {isLoading ? "Thinking..." : "Send"}
-                </button>
-              </div>
-            </form>
-          </div>
+              <button 
+                type="submit"
+                disabled={isLoading || isDisabled || (!input.trim() && messages.length > 0)}
+                className="
+                  self-center
+                  bg-black text-white 
+                  px-8 py-3 
+                  text-sm font-semibold tracking-wide
+                  hover:bg-gray-800 
+                  disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed
+                  transition-all duration-200
+                "
+              >
+                {isLoading ? "Thinking..." : "Send"}
+              </button>
+            </div>
+          </form>
         </div>
+      </div>
       )}
     </div>
   );
