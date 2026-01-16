@@ -360,7 +360,9 @@ export default function ArtifactEditorClient({
               </div>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
-                <input 
+                <input
+                  id="artifact-editor-search"
+                  name="artifactEditorSearch"
                   placeholder="搜索制品..." 
                   className="w-full border border-white/10 bg-white/5 pl-9 pr-4 py-2 text-xs text-white placeholder:text-white/40 outline-none focus:border-white/30"
                 />
@@ -412,13 +414,17 @@ export default function ArtifactEditorClient({
                     <Box className="h-5 w-5" />
                   </div>
                   <div>
-                    <input 
+                    <input
+                      id="artifact-title"
+                      name="artifactTitle"
                       value={form.title}
                       onChange={(e) => setForm(p => ({ ...p, title: e.target.value }))}
                       className="text-lg font-bold text-slate-900 bg-transparent outline-none placeholder:text-slate-300 w-full"
                       placeholder="输入制品标题"
                     />
-                    <input 
+                    <input
+                      id="artifact-problem"
+                      name="artifactProblem"
                       value={form.problem}
                       onChange={(e) => setForm(p => ({ ...p, problem: e.target.value }))}
                       className="text-xs text-slate-500 bg-transparent outline-none placeholder:text-slate-300 w-full mt-0.5"
@@ -463,7 +469,9 @@ export default function ArtifactEditorClient({
                         <Layers className="h-4 w-4 text-slate-400" />
                         <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Prompt 模板内容</span>
                       </div>
-                      <textarea 
+                      <textarea
+                        id="artifact-prompt"
+                        name="artifactPrompt"
                         value={form.prompt_content}
                         onChange={(e) => setForm(p => ({ ...p, prompt_content: e.target.value }))}
                         className="w-full min-h-[500px] p-4 text-sm font-mono text-slate-800 leading-relaxed outline-none resize-none bg-white"
@@ -522,7 +530,9 @@ export default function ArtifactEditorClient({
                                 <div className="grid grid-cols-2 gap-3">
                                   <div>
                                     <label className="text-[10px] font-bold text-slate-400 mb-1 block">变量名 (Key)</label>
-                                    <input 
+                                    <input
+                                      id={`variable-${index}-key`}
+                                      name={`variable-${index}-key`}
                                       value={variable.key}
                                       onChange={(e) => updateVariableAt(index, { key: e.target.value })}
                                       className="w-full border border-slate-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-slate-600 font-mono"
@@ -531,7 +541,9 @@ export default function ArtifactEditorClient({
                                   </div>
                                   <div>
                                     <label className="text-[10px] font-bold text-slate-400 mb-1 block">显示名称 (Label)</label>
-                                    <input 
+                                    <input
+                                      id={`variable-${index}-label`}
+                                      name={`variable-${index}-label`}
                                       value={variable.label}
                                       onChange={(e) => updateVariableAt(index, { label: e.target.value })}
                                       className="w-full border border-slate-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-slate-600"
@@ -543,7 +555,9 @@ export default function ArtifactEditorClient({
                                 <div className="grid grid-cols-2 gap-3">
                                   <div>
                                     <label className="text-[10px] font-bold text-slate-400 mb-1 block">类型</label>
-                                    <select 
+                                    <select
+                                      id={`variable-${index}-type`}
+                                      name={`variable-${index}-type`}
                                       value={variable.type}
                                       onChange={(e) => updateVariableAt(index, { type: e.target.value as any })}
                                       className="w-full border border-slate-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-slate-600"
@@ -558,7 +572,9 @@ export default function ArtifactEditorClient({
                                   </div>
                                   <div className="flex items-end pb-2">
                                     <label className="flex items-center gap-2 cursor-pointer">
-                                      <input 
+                                      <input
+                                        id={`variable-${index}-required`}
+                                        name={`variable-${index}-required`}
                                         type="checkbox"
                                         checked={variable.required ?? true}
                                         onChange={(e) => updateVariableAt(index, { required: e.target.checked })}
@@ -572,7 +588,9 @@ export default function ArtifactEditorClient({
                                 {variable.type === "enum" && (
                                   <div>
                                     <label className="text-[10px] font-bold text-slate-400 mb-1 block">选项 (逗号分隔)</label>
-                                    <input 
+                                    <input
+                                      id={`variable-${index}-options`}
+                                      name={`variable-${index}-options`}
                                       value={(variable.options ?? []).join(", ")}
                                       onChange={(e) => updateVariableAt(index, { options: parseListValue(e.target.value) })}
                                       className="w-full border border-slate-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-slate-600"
@@ -583,7 +601,9 @@ export default function ArtifactEditorClient({
 
                                 <div>
                                   <label className="text-[10px] font-bold text-slate-400 mb-1 block">输入提示 (Placeholder)</label>
-                                  <input 
+                                  <input
+                                    id={`variable-${index}-placeholder`}
+                                    name={`variable-${index}-placeholder`}
                                     value={variable.placeholder ?? ""}
                                     onChange={(e) => updateVariableAt(index, { placeholder: e.target.value })}
                                     className="w-full border border-slate-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-slate-600"

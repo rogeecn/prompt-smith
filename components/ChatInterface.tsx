@@ -10,6 +10,9 @@ import {
   type HistoryItem,
   type Question,
   type SessionState,
+  type ModelCatalog,
+  ModelCatalogSchema,
+  type OutputFormat,
 } from "../lib/schemas";
 import { createArtifactFromPrompt, updateSessionTitle } from "../src/app/actions";
 import { useChatSession } from "../hooks/useChatSession";
@@ -62,8 +65,12 @@ export default function ChatInterface({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [input, setInput] = useState("");
   const [sessionTitle, setSessionTitle] = useState(initialState?.title ?? "");
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
   const [copyState, setCopyState] = useState<"idle" | "success" | "error">("idle");
   const [exportStatus, setExportStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
+  const [modelCatalog, setModelCatalog] = useState<ModelCatalog | null>(null);
+  const [modelCatalogError, setModelCatalogError] = useState<string | null>(null);
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -84,6 +91,10 @@ export default function ChatInterface({
     saveStatus,
     loadingStage,
     sendRequest,
+    modelId,
+    setModelId,
+    outputFormat,
+    setOutputFormat,
   } = useChatSession({
     projectId,
     sessionId,
@@ -91,9 +102,40 @@ export default function ChatInterface({
     initialState,
     isDisabled,
     onSessionTitleUpdate,
-    defaultModelId: null,
-    defaultOutputFormat: null,
+    defaultModelId: modelCatalog?.defaultModelId ?? null,
+    defaultOutputFormat: modelCatalog?.defaultFormat ?? null,
   });
+
+  useEffect(() => {
+    let isActive = true;
+    const loadModelCatalog = async () => {
+      try {
+        const response = await fetch("/api/models");
+        if (!response.ok) {
+          throw new Error("模型配置读取失败");
+        }
+        const payload = await response.json();
+        const parsed = ModelCatalogSchema.safeParse(payload);
+        if (!parsed.success) {
+          throw new Error("模型配置格式错误");
+        }
+        if (isActive) {
+          setModelCatalog(parsed.data);
+          setModelCatalogError(null);
+        }
+      } catch (error) {
+        if (isActive) {
+          setModelCatalogError(
+            error instanceof Error ? error.message : "模型配置读取失败"
+          );
+        }
+      }
+    };
+    void loadModelCatalog();
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   useEffect(() => {
     setInput("");
@@ -101,6 +143,8 @@ export default function ChatInterface({
     const initialTitle = initialState?.title ?? "";
     hasCustomTitleRef.current = Boolean(initialTitle);
     setSessionTitle(initialTitle);
+    setTitleDraft(initialTitle);
+    setIsEditingTitle(false);
   }, [projectId, sessionId, initialMessages, initialState]);
 
   useEffect(() => {
@@ -122,10 +166,33 @@ export default function ChatInterface({
     }
     const derived = deriveTitleFromPrompt(finalPrompt);
     setSessionTitle(derived);
+    setTitleDraft(derived);
     void updateSessionTitle(projectId, sessionId, derived);
     onSessionTitleUpdate?.(derived);
     hasCustomTitleRef.current = true;
   }, [finalPrompt, onSessionTitleUpdate, projectId, sessionId]);
+
+  const commitTitle = async () => {
+    const trimmed = titleDraft.trim();
+    if (!trimmed) {
+      setTitleDraft(sessionTitle);
+      setIsEditingTitle(false);
+      return;
+    }
+    if (trimmed === sessionTitle) {
+      setIsEditingTitle(false);
+      return;
+    }
+    setSessionTitle(trimmed);
+    hasCustomTitleRef.current = true;
+    setIsEditingTitle(false);
+    try {
+      await updateSessionTitle(projectId, sessionId, trimmed);
+      onSessionTitleUpdate?.(trimmed);
+    } catch {
+      // ignore error, keep local title
+    }
+  };
 
   const handleStartSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -213,12 +280,81 @@ export default function ChatInterface({
       {/* Top Bar - Minimal */}
       <div className="border-b border-gray-100 bg-white/95 px-6 py-4 backdrop-blur-sm">
         <div className="mx-auto max-w-3xl flex items-center justify-between">
-          <h1 className="text-sm font-medium text-gray-500 font-body truncate max-w-[80%]">
-            {sessionTitle || "New Session"}
-          </h1>
-          {saveStatus === "saving" && (
-            <span className="text-xs text-gray-400">Saving...</span>
-          )}
+          <div className="max-w-[55%]">
+            {isEditingTitle ? (
+              <input
+                id="session-title"
+                name="sessionTitle"
+                value={titleDraft}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                onBlur={() => void commitTitle()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void commitTitle();
+                  }
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    setTitleDraft(sessionTitle);
+                    setIsEditingTitle(false);
+                  }
+                }}
+                className="w-full border-b border-gray-200 bg-transparent text-sm font-medium text-gray-700 outline-none focus:border-black"
+                placeholder="输入向导标题"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsEditingTitle(true)}
+                className="text-sm font-medium text-gray-500 font-body truncate text-left hover:text-black transition-colors"
+              >
+                {sessionTitle || "New Session"}
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            {modelCatalog ? (
+              <>
+                <select
+                  aria-label="模型选择"
+                  id="model-select"
+                  name="modelSelect"
+                  value={modelId ?? modelCatalog.defaultModelId}
+                  onChange={(e) => setModelId(e.target.value)}
+                  className="rounded-none border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 focus:border-black focus:outline-none"
+                >
+                  {modelCatalog.models.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  aria-label="输出格式"
+                  id="format-select"
+                  name="formatSelect"
+                  value={outputFormat ?? modelCatalog.defaultFormat}
+                  onChange={(e) =>
+                    setOutputFormat(e.target.value as OutputFormat)
+                  }
+                  className="rounded-none border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 focus:border-black focus:outline-none"
+                >
+                  {modelCatalog.formats.map((format) => (
+                    <option key={format} value={format}>
+                      {format.toUpperCase()}
+                    </option>
+                  ))}
+                </select>
+              </>
+            ) : modelCatalogError ? (
+              <span className="text-xs text-rose-400">{modelCatalogError}</span>
+            ) : (
+              <span className="text-xs text-gray-400">模型加载中...</span>
+            )}
+            {saveStatus === "saving" && (
+              <span className="text-xs text-gray-400">Saving...</span>
+            )}
+          </div>
         </div>
       </div>
 

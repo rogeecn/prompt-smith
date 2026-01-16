@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
-import { Plus, Search, Trash2, X, MoreVertical } from "lucide-react";
+import { Pencil, Search, Trash2, MoreVertical } from "lucide-react";
 import TopNav from "./TopNav";
 import ArtifactChat from "./ArtifactChat";
 import {
@@ -40,6 +40,7 @@ export default function ArtifactsClient({
   const [isCreatingArtifact, setIsCreatingArtifact] = useState(false);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [isLoadingContext, setIsLoadingContext] = useState(false);
+  const [deletingArtifactId, setDeletingArtifactId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const hasRequestedRef = useRef(false);
 
@@ -134,6 +135,28 @@ export default function ArtifactsClient({
       setCurrentArtifactId(created.id);
     } finally {
       setIsCreatingArtifact(false);
+    }
+  };
+
+  const handleEditArtifact = (artifactId: string) => {
+    if (!projectId) return;
+    router.push(`/artifacts/edit/${artifactId}?projectId=${projectId}`);
+  };
+
+  const handleDeleteArtifact = async (artifactId: string) => {
+    if (!projectId || deletingArtifactId) return;
+    const confirmed = window.confirm("确定要删除该制品及其会话记录吗？");
+    if (!confirmed) return;
+    setDeletingArtifactId(artifactId);
+    try {
+      await deleteArtifact(projectId, artifactId);
+      const items = await listArtifacts(projectId);
+      setArtifacts(items);
+      if (currentArtifactId === artifactId) {
+        setCurrentArtifactId(items[0]?.id ?? null);
+      }
+    } finally {
+      setDeletingArtifactId(null);
     }
   };
 
@@ -257,23 +280,46 @@ export default function ArtifactsClient({
               {artifacts.map((item) => {
                 const isActive = item.id === currentArtifactId;
                 return (
-                  <button
+                  <div
                     key={item.id}
-                    onClick={() => handleSelectArtifact(item)}
                     className={`
-                      w-full text-left p-6 border-b border-gray-50 transition-all duration-200
+                      flex items-start gap-2 border-b border-gray-50 p-6 transition-all duration-200
                       ${isActive ? "bg-surface-muted" : "hover:bg-gray-50"}
                     `}
                   >
-                    <div className={`border-l-2 pl-4 ${isActive ? "border-accent" : "border-transparent"}`}>
-                      <h3 className={`font-heading font-bold text-base mb-1 ${isActive ? "text-black" : "text-gray-700"}`}>
-                        {item.title || "Untitled Artifact"}
-                      </h3>
-                      <p className="font-body text-xs text-gray-500 line-clamp-2">
-                        {item.problem || "No description provided."}
-                      </p>
+                    <button
+                      onClick={() => handleSelectArtifact(item)}
+                      className="flex-1 text-left"
+                    >
+                      <div className={`border-l-2 pl-4 ${isActive ? "border-accent" : "border-transparent"}`}>
+                        <h3 className={`font-heading font-bold text-base mb-1 ${isActive ? "text-black" : "text-gray-700"}`}>
+                          {item.title || "Untitled Artifact"}
+                        </h3>
+                        <p className="font-body text-xs text-gray-500 line-clamp-2">
+                          {item.problem || "No description provided."}
+                        </p>
+                      </div>
+                    </button>
+                    <div className="flex flex-col items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        aria-label="编辑制品"
+                        onClick={() => handleEditArtifact(item.id)}
+                        className="text-gray-400 hover:text-black transition-colors"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="删除制品"
+                        onClick={() => handleDeleteArtifact(item.id)}
+                        disabled={deletingArtifactId === item.id}
+                        className="text-gray-400 hover:text-rose-500 transition-colors disabled:opacity-40"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
