@@ -294,6 +294,30 @@ export async function updateArtifact(
   };
 }
 
+export async function deleteArtifact(projectId: string, artifactId: string) {
+  const parsedProjectId = projectIdSchema.safeParse(projectId);
+  const parsedArtifactId = artifactIdSchema.safeParse(artifactId);
+  if (!parsedProjectId.success || !parsedArtifactId.success) {
+    logDebug("deleteArtifact:invalid", { projectId, artifactId });
+    throw new Error("Invalid artifact");
+  }
+
+  await prisma.artifactSession.deleteMany({
+    where: { artifactId: parsedArtifactId.data },
+  });
+
+  const result = await prisma.artifact.deleteMany({
+    where: { id: parsedArtifactId.data, projectId: parsedProjectId.data },
+  });
+
+  if (result.count === 0) {
+    logDebug("deleteArtifact:not-found", { projectId, artifactId });
+    throw new Error("Artifact not found");
+  }
+
+  logDebug("deleteArtifact:done", { artifactId: parsedArtifactId.data });
+}
+
 export async function loadArtifact(projectId: string, artifactId: string) {
   const parsedProjectId = projectIdSchema.safeParse(projectId);
   const parsedArtifactId = artifactIdSchema.safeParse(artifactId);
