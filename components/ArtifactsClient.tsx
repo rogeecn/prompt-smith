@@ -412,9 +412,10 @@ export default function ArtifactsClient({
                 <button
                   type="button"
                   onClick={handleCreateSession}
-                  className="flex w-full items-center justify-center border border-gray-200 py-2 text-gray-600 hover:text-black transition-colors"
+                  className="flex w-full items-center justify-center gap-2 border border-gray-200 py-2 text-xs font-semibold uppercase tracking-wider text-gray-600 hover:text-black transition-colors"
                 >
                   <Plus className="h-4 w-4" />
+                  New
                 </button>
               </div>
               
