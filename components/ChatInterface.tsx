@@ -274,7 +274,7 @@ export default function ChatInterface({
     try {
       const artifact = await createArtifactFromPrompt(projectId, finalPrompt);
       setExportStatus("success");
-      router.push(`/artifacts/${artifact.id}?projectId=${projectId}`);
+      router.push(`/artifacts?projectId=${projectId}&artifactId=${artifact.id}`);
     } catch {
       setExportStatus("error");
     }

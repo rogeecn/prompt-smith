@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { MoreVertical, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import ArtifactEditor from "./ArtifactEditor";
@@ -29,6 +29,7 @@ export default function ArtifactsClient({
   initialProjectId = null,
 }: ArtifactsClientProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [projectId, setProjectId] = useState<string | null>(null);
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [currentArtifactId, setCurrentArtifactId] = useState<string | null>(null);
@@ -55,6 +56,7 @@ export default function ArtifactsClient({
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [sessionTitleDraft, setSessionTitleDraft] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const requestedArtifactId = searchParams.get("artifactId");
   const validProjectId = projectIdSchema.safeParse(initialProjectId).success
     ? initialProjectId
     : null;
@@ -72,18 +74,28 @@ export default function ArtifactsClient({
         items = await listArtifacts(activeProjectId);
       }
       setArtifacts(items);
-      setCurrentArtifactId((prev) =>
-        prev && items.some((item) => item.id === prev) ? prev : null
-      );
+      setCurrentArtifactId((prev) => {
+        if (requestedArtifactId && items.some((item) => item.id === requestedArtifactId)) {
+          return requestedArtifactId;
+        }
+        return prev && items.some((item) => item.id === prev) ? prev : null;
+      });
     } catch {
       // Error handling
     }
-  }, []);
+  }, [requestedArtifactId]);
 
   useEffect(() => {
     if (!projectId) return;
     void refreshArtifacts(projectId);
   }, [projectId, refreshArtifacts]);
+
+  useEffect(() => {
+    if (!requestedArtifactId || artifacts.length === 0) return;
+    if (!artifacts.some((item) => item.id === requestedArtifactId)) return;
+    setCurrentArtifactId(requestedArtifactId);
+    setViewMode("chat");
+  }, [artifacts, requestedArtifactId]);
 
   // Context Loading
   const loadContext = useCallback(async (artifactId: string) => {
