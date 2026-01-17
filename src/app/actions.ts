@@ -21,6 +21,10 @@ const projectIdSchema = z.string().uuid();
 const sessionIdSchema = z.string().min(1);
 const artifactIdSchema = z.string().min(1);
 const titleSchema = z.string().trim().min(1);
+const projectCreateSchema = z.object({
+  name: z.string().trim().min(1),
+  description: z.string().trim().max(1000).optional(),
+});
 const prisma = getPrisma();
 const isDebug =
   process.env.DEBUG_ACTIONS === "true" || process.env.DEBUG_ACTIONS === "1";
@@ -150,10 +154,18 @@ const requireProjectForUser = async (projectId: string, userId: string) => {
   return project;
 };
 
-export async function createProject(userId: string) {
+export async function createProject(
+  userId: string,
+  payload: { name: string; description?: string }
+) {
   const session = await requireSession();
   if (userId !== session.userId) {
     throw new Error("Unauthorized");
+  }
+
+  const parsed = projectCreateSchema.safeParse(payload);
+  if (!parsed.success) {
+    throw new Error("Invalid project payload");
   }
 
   const projectId = randomUUID();
@@ -162,9 +174,11 @@ export async function createProject(userId: string) {
   await prisma.project.create({
     data: {
       id: projectId,
-      name: "默认项目",
+      name: parsed.data.name,
+      description: parsed.data.description || null,
       userId: session.userId,
     },
+    select: { id: true, name: true, description: true, created_at: true },
   });
 
   logDebug("createProject:done", { projectId });
@@ -183,6 +197,7 @@ export async function getUserProjects(userId: string) {
     select: {
       id: true,
       name: true,
+      description: true,
       created_at: true,
     },
   });
