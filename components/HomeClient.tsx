@@ -155,6 +155,14 @@ export default function HomeClient({
     });
   };
 
+  useEffect(() => {
+    if (!projectId || !currentSessionId) return;
+    const target = `/projects/${projectId}/wizard/sessions/${currentSessionId}`;
+    if (pathname !== target) {
+      router.replace(target);
+    }
+  }, [projectId, currentSessionId, pathname, router]);
+
   if (!projectId) {
     return (
       <div className="flex min-h-screen flex-col bg-white items-center justify-center px-6 text-center">
@@ -170,14 +178,6 @@ export default function HomeClient({
   const artifactsHref = `/projects/${projectId}/artifacts`;
   const isWizardActive = pathname.includes("/wizard");
   const isArtifactsActive = pathname.includes("/artifacts");
-
-  useEffect(() => {
-    if (!projectId || !currentSessionId) return;
-    const target = `/projects/${projectId}/wizard/sessions/${currentSessionId}`;
-    if (pathname !== target) {
-      router.replace(target);
-    }
-  }, [projectId, currentSessionId, pathname, router]);
 
   return (
     <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-background">

@@ -352,6 +352,15 @@ export default function ArtifactsClient({
     setViewMode("chat");
   };
 
+  useEffect(() => {
+    if (!projectId || !currentArtifactId || !currentSessionId) return;
+    if (!pathname.includes("/sessions/")) return;
+    const target = `/projects/${projectId}/artifacts/${currentArtifactId}/sessions/${currentSessionId}`;
+    if (pathname !== target) {
+      router.replace(target);
+    }
+  }, [projectId, currentArtifactId, currentSessionId, pathname, router]);
+
   if (!projectId) {
     return (
       <div className="flex min-h-screen flex-col bg-white items-center justify-center px-6 text-center">
@@ -367,15 +376,6 @@ export default function ArtifactsClient({
   const artifactsHref = `/projects/${projectId}/artifacts`;
   const isWizardActive = pathname.includes("/wizard");
   const isArtifactsActive = pathname.includes("/artifacts");
-
-  useEffect(() => {
-    if (!projectId || !currentArtifactId || !currentSessionId) return;
-    if (!pathname.includes("/sessions/")) return;
-    const target = `/projects/${projectId}/artifacts/${currentArtifactId}/sessions/${currentSessionId}`;
-    if (pathname !== target) {
-      router.replace(target);
-    }
-  }, [projectId, currentArtifactId, currentSessionId, pathname, router]);
 
   return (
     <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-white">
