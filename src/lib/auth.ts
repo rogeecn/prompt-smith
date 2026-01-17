@@ -6,6 +6,7 @@ import {
   verifySessionToken,
   type SessionPayload,
 } from "./auth-core";
+import { getPrisma } from "./prisma";
 
 const buildCookieOptions = () => ({
   httpOnly: true,
@@ -19,7 +20,15 @@ export const getSession = async (): Promise<SessionPayload | null> => {
   const cookieStore = await cookies();
   const token = cookieStore.get(getSessionCookieName())?.value;
   if (!token) return null;
-  return verifySessionToken(token);
+  const payload = await verifySessionToken(token);
+  if (!payload) return null;
+  const prisma = getPrisma();
+  const user = await prisma.user.findUnique({ where: { id: payload.userId } });
+  if (!user) {
+    await clearSessionCookie();
+    return null;
+  }
+  return payload;
 };
 
 export const requireSession = async (): Promise<SessionPayload> => {
