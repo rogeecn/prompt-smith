@@ -41,6 +41,9 @@ const formatErrorMessage = (message: string) => {
   if (normalized.includes("Missing GOOGLE_API_KEY")) {
     return "未配置 Gemini API Key，请设置 GOOGLE_API_KEY。";
   }
+  if (normalized.includes("API key not valid") || normalized.includes("API_KEY_INVALID")) {
+    return "Gemini API Key 无效，请检查 GOOGLE_API_KEY。";
+  }
   if (normalized.includes("Missing OPENAI_API_KEY")) {
     return "未配置 OpenAI API Key，请设置 OPENAI_API_KEY。";
   }
@@ -383,7 +386,12 @@ export const useChatSession = ({
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "请求失败";
-      setFormError(formatErrorMessage(message));
+      const displayMessage = formatErrorMessage(message);
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: displayMessage, timestamp: Date.now() },
+      ]);
+      setFormError(displayMessage);
       setRetryPayload({ message, answers });
     } finally {
       setIsLoading(false);

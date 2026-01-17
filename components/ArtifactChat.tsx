@@ -45,6 +45,9 @@ const formatErrorMessage = (message: string) => {
   if (normalized.includes("Missing GOOGLE_API_KEY")) {
     return "未配置 Gemini API Key，请设置 GOOGLE_API_KEY。";
   }
+  if (normalized.includes("API key not valid") || normalized.includes("API_KEY_INVALID")) {
+    return "Gemini API Key 无效，请检查 GOOGLE_API_KEY。";
+  }
   if (normalized.includes("Missing OPENAI_API_KEY")) {
     return "未配置 OpenAI API Key，请设置 OPENAI_API_KEY。";
   }
