@@ -382,11 +382,10 @@ export default function ChatInterface({
             formError={formError}
             onTextChange={(k, v) => setDraftAnswers(p => ({ ...p, [k]: { type: "text", value: v } }))}
             onSingleSelect={(k, v) => setDraftAnswers(p => ({ ...p, [k]: { type: "single", value: v, other: v === "__other__" ? p[k]?.other : undefined } }))}
-            onMultiToggle={(k, v, m) => setDraftAnswers(p => {
+            onMultiToggle={(k, v) => setDraftAnswers(p => {
               const cur = Array.isArray(p[k]?.value) ? p[k].value : [];
               if (v === "__none__") return { ...p, [k]: { type: "multi", value: [v] } };
               const next = cur.includes(v) ? cur.filter(x => x !== v) : [...cur.filter(x => x !== "__none__"), v];
-              if (m && next.length > m) return p;
               return { ...p, [k]: { type: "multi", value: next, other: next.includes("__other__") ? p[k]?.other : undefined } };
             })}
             onOtherChange={(k, v) => setDraftAnswers(p => ({ ...p, [k]: { ...p[k]!, other: v } }))}

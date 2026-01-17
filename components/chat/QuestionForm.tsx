@@ -33,6 +33,7 @@ export default function QuestionForm({
   onSingleSelect,
   onMultiToggle,
   onOtherChange,
+  onSelectAll,
   onSubmit,
 }: QuestionFormProps) {
   const [visibleCount, setVisibleCount] = useState(questions.length);
@@ -62,9 +63,26 @@ export default function QuestionForm({
 
             return (
               <div key={key} className="group">
-                <label className="block text-lg text-black mb-4 font-heading font-medium">
-                  {q.text}
-                </label>
+                <div className="flex items-start justify-between gap-3">
+                  <label className="block text-lg text-black mb-4 font-heading font-medium">
+                    {q.text}
+                    {(q.type === "single" || q.type === "multi") && (
+                      <span className="ml-2 text-xs uppercase tracking-wide text-gray-400">
+                        {q.type === "single" ? "单选" : "多选"}
+                      </span>
+                    )}
+                  </label>
+                  {q.type === "multi" && (q.options?.length ?? 0) > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => onSelectAll(key, q.options ?? [])}
+                      disabled={isDisabled || isLoading}
+                      className="text-xs text-gray-500 hover:text-black disabled:text-gray-300"
+                    >
+                      全选
+                    </button>
+                  )}
+                </div>
 
                 {/* Text Input */}
                 {q.type === "text" && (
@@ -107,7 +125,7 @@ export default function QuestionForm({
                             className="peer sr-only"
                           />
                           <div className="
-                            h-4 w-4 border border-gray-300 rounded-none bg-white
+                            h-4 w-4 border border-gray-300 rounded-full bg-white
                             peer-checked:bg-black peer-checked:border-black
                             transition-all duration-200
                           " />
@@ -156,7 +174,7 @@ export default function QuestionForm({
                               id={`${fieldId}-${opt.id}`}
                               name={`${key}[]`}
                               checked={isChecked}
-                              onChange={() => onMultiToggle(key, opt.id, q.max_select)}
+                            onChange={() => onMultiToggle(key, opt.id)}
                               disabled={isDisabled || isLoading}
                               className="peer sr-only"
                             />

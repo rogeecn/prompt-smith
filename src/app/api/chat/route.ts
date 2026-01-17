@@ -30,6 +30,17 @@ const MAX_QUESTION_ROUNDS = Number(process.env.MAX_QUESTION_ROUNDS ?? "3");
 const MIN_PROMPT_VARIABLES = Number(process.env.MIN_PROMPT_VARIABLES ?? "3");
 const FORM_MESSAGE_PREFIX = "__FORM__:";
 const prisma = getPrisma();
+type HistoryItem = z.infer<typeof HistoryItemSchema>;
+
+const truncateLog = (value: string, limit = 2000) =>
+  value.length > limit ? `${value.slice(0, limit)}...<truncated>` : value;
+
+const formatHistoryForLog = (items: HistoryItem[]) =>
+  items.map((item) => ({
+    role: item.role,
+    content: truncateLog(item.content, 1000),
+    timestamp: item.timestamp,
+  }));
 
 const INJECTION_PATTERNS = [
   { label: "ignore-previous", regex: /ignore\s+(all|previous|above)\s+instructions?/i },
@@ -1111,6 +1122,22 @@ export async function POST(req: Request) {
         }`
       : formattedFormMessage ?? message ?? "";
 
+    console.info("[api/chat] context", {
+      traceId,
+      projectId,
+      sessionId,
+      model: {
+        id: modelConfig.id,
+        label: modelConfig.label,
+        provider: modelConfig.provider,
+        model: modelConfig.model,
+      },
+      promptFormat,
+      systemPrompt: truncateLog(systemPrompt, 4000),
+      history: formatHistoryForLog(trimmedHistory),
+      userContent: truncateLog(userContent, 4000),
+    });
+
     notifyStage?.("llm", {
       mode: shouldForceFinalize ? "finalize" : "interview",
     });
@@ -1326,6 +1353,18 @@ export async function POST(req: Request) {
         final_prompt: finalPrompt,
       };
     }
+
+    console.info("[api/chat] response", {
+      traceId,
+      reply: truncateLog(normalizedResponse.reply, 4000),
+      questions: normalizedResponse.questions,
+      final_prompt: normalizedResponse.final_prompt
+        ? truncateLog(normalizedResponse.final_prompt, 4000)
+        : null,
+      deliberations: normalizedResponse.deliberations,
+      is_finished: normalizedResponse.is_finished,
+    });
+
     const sessionState = SessionStateSchema.parse({
       questions: normalizedResponse.questions,
       deliberations: normalizedResponse.deliberations,

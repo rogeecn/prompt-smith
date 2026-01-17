@@ -17,6 +17,16 @@ const MAX_RETRIES = Number(process.env.OPENAI_MAX_RETRIES ?? "2");
 const MAX_HISTORY_ITEMS = Number(process.env.MAX_HISTORY_ITEMS ?? "60");
 const prisma = getPrisma();
 
+const truncateLog = (value: string, limit = 2000) =>
+  value.length > limit ? `${value.slice(0, limit)}...<truncated>` : value;
+
+const formatHistoryForLog = (items: { role: string; content: string; timestamp: number }[]) =>
+  items.map((item) => ({
+    role: item.role,
+    content: truncateLog(item.content, 1000),
+    timestamp: item.timestamp,
+  }));
+
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -465,6 +475,23 @@ export async function POST(req: Request) {
         ? history.slice(-MAX_HISTORY_ITEMS)
         : history;
 
+    console.info("[api/artifacts/chat] context", {
+      traceId,
+      projectId,
+      artifactId,
+      sessionId: session.id,
+      model: {
+        id: modelConfig.id,
+        label: modelConfig.label,
+        provider: modelConfig.provider,
+        model: modelConfig.model,
+      },
+      inputs: renderedValues,
+      message: truncateLog(message, 4000),
+      systemPrompt: truncateLog(systemPrompt, 4000),
+      history: formatHistoryForLog(trimmedHistory),
+    });
+
     const llmResponse = await generateWithRetry({
       model: modelRef,
       messages: [
@@ -497,11 +524,12 @@ export async function POST(req: Request) {
       data: { history: prunedHistory },
     });
 
-    if (isDebug) {
-      console.info("[api/artifacts/chat] response", {
-        reply_length: reply.length,
-      });
-    }
+    console.info("[api/artifacts/chat] response", {
+      traceId,
+      sessionId: session.id,
+      reply: truncateLog(reply, 4000),
+      reply_length: reply.length,
+    });
 
     console.info("[api/artifacts/chat] done", { ms: Date.now() - startedAt });
     return jsonWithTrace({ reply, sessionId: session.id }, undefined, traceId);
