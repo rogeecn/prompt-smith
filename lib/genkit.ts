@@ -33,7 +33,7 @@ export const getModelRef = (config: ModelConfig) => {
     if (!googlePlugin) {
       throw new Error("Missing GOOGLE_API_KEY");
     }
-    return googlePlugin.model(config.model);
+    return googleAI.model(config.model);
   }
 
   return compatOaiModelRef({
