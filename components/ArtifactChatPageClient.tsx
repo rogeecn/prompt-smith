@@ -246,7 +246,11 @@ export default function ArtifactChatPageClient({
             </p>
             <button
               type="button"
-              onClick={() => router.push("/artifacts")}
+              onClick={() =>
+                router.push(
+                  validProjectId ? `/projects/${validProjectId}/artifacts` : "/"
+                )
+              }
               className="mt-5 w-full rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
             >
               返回制品库
@@ -325,7 +329,11 @@ export default function ArtifactChatPageClient({
             )}
             <button
               type="button"
-              onClick={() => router.push(`/artifacts?projectId=${validProjectId}`)}
+              onClick={() => {
+                if (validProjectId) {
+                  router.push(`/projects/${validProjectId}/artifacts`);
+                }
+              }}
               className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600 transition hover:bg-slate-100"
             >
               返回制品库

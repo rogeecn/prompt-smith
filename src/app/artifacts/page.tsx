@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import ArtifactsClient from "../../../components/ArtifactsClient";
 
 type PageProps = {
   searchParams?: Promise<{
@@ -16,5 +15,5 @@ export default async function ArtifactsPage({ searchParams }: PageProps) {
     redirect("/");
   }
 
-  return <ArtifactsClient initialProjectId={projectId} />;
+  redirect(`/projects/${projectId}/artifacts`);
 }

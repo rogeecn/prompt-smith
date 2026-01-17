@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { z } from "zod";
 import { MoreVertical, Plus, Search } from "lucide-react";
 import ChatInterface from "./ChatInterface";
@@ -10,13 +10,19 @@ import { createSession, deleteSession, loadProjectContext, loadSessionContext } 
 import type { HistoryItem, SessionState } from "../lib/schemas";
 
 const projectIdSchema = z.string().uuid();
+const sessionIdSchema = z.string().uuid();
 
 type HomeClientProps = {
   initialProjectId?: string | null;
+  initialSessionId?: string | null;
 };
 
-export default function HomeClient({ initialProjectId = null }: HomeClientProps) {
+export default function HomeClient({
+  initialProjectId = null,
+  initialSessionId = null,
+}: HomeClientProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const [projectId, setProjectId] = useState<string | null>(null);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
@@ -36,29 +42,53 @@ export default function HomeClient({ initialProjectId = null }: HomeClientProps)
   const validProjectId = projectIdSchema.safeParse(initialProjectId).success
     ? initialProjectId
     : null;
+  const validInitialSessionId = sessionIdSchema.safeParse(initialSessionId).success
+    ? initialSessionId
+    : null;
 
   useEffect(() => {
     setProjectId(validProjectId);
   }, [validProjectId]);
 
   // Context Loading Logic
-  const loadContext = useCallback(async (activeProjectId: string) => {
-    setIsLoadingContext(true);
-    try {
-      const context = await loadProjectContext(activeProjectId);
-      setInitialMessages(context.history);
-      setSessions(context.sessions);
-      setCurrentSessionId(context.currentSessionId);
-      setInitialState(context.state);
-    } finally {
-      setIsLoadingContext(false);
-    }
-  }, []);
-
   useEffect(() => {
     if (!projectId) return;
-    void loadContext(projectId);
-  }, [projectId, loadContext]);
+    let isActive = true;
+    const run = async () => {
+      setIsLoadingContext(true);
+      try {
+        const context = await loadProjectContext(projectId);
+        if (!isActive) return;
+        setInitialMessages(context.history);
+        setSessions(context.sessions);
+        setCurrentSessionId(context.currentSessionId);
+        setInitialState(context.state);
+
+        if (
+          validInitialSessionId &&
+          validInitialSessionId !== context.currentSessionId &&
+          context.sessions.some((session) => session.id === validInitialSessionId)
+        ) {
+          const sessionContext = await loadSessionContext(
+            projectId,
+            validInitialSessionId
+          );
+          if (!isActive) return;
+          setInitialMessages(sessionContext.history);
+          setInitialState(sessionContext.state);
+          setCurrentSessionId(validInitialSessionId);
+        }
+      } finally {
+        if (isActive) {
+          setIsLoadingContext(false);
+        }
+      }
+    };
+    void run();
+    return () => {
+      isActive = false;
+    };
+  }, [projectId, validInitialSessionId]);
 
   // Session Management Logic
   const handleSelectSession = useCallback(
@@ -74,11 +104,12 @@ export default function HomeClient({ initialProjectId = null }: HomeClientProps)
         setInitialMessages(context.history);
         setInitialState(context.state);
         setCurrentSessionId(sessionId);
+        router.push(`/projects/${projectId}/wizard/sessions/${sessionId}`);
       } finally {
         setIsLoadingContext(false);
       }
     },
-    [projectId, currentSessionId]
+    [projectId, currentSessionId, router]
   );
 
   const handleCreateSession = useCallback(async () => {
@@ -94,10 +125,11 @@ export default function HomeClient({ initialProjectId = null }: HomeClientProps)
         { id: sessionId, created_at: new Date(), last_message: "New Session" },
         ...prev,
       ]);
+      router.push(`/projects/${projectId}/wizard/sessions/${sessionId}`);
     } finally {
       setIsCreatingSession(false);
     }
-  }, [projectId, isCreatingSession]);
+  }, [projectId, isCreatingSession, router]);
 
   const handleSessionTitleUpdate = useCallback(
     (title: string) => {
@@ -134,10 +166,18 @@ export default function HomeClient({ initialProjectId = null }: HomeClientProps)
     );
   }
 
-  const buildHref = (href: string) => `${href}?projectId=${projectId}`;
-  const wizardHref = `/project/${projectId}`;
-  const isWizardActive = pathname.startsWith("/project");
-  const isArtifactsActive = pathname.startsWith("/artifacts");
+  const wizardHref = `/projects/${projectId}/wizard`;
+  const artifactsHref = `/projects/${projectId}/artifacts`;
+  const isWizardActive = pathname.includes("/wizard");
+  const isArtifactsActive = pathname.includes("/artifacts");
+
+  useEffect(() => {
+    if (!projectId || !currentSessionId) return;
+    const target = `/projects/${projectId}/wizard/sessions/${currentSessionId}`;
+    if (pathname !== target) {
+      router.replace(target);
+    }
+  }, [projectId, currentSessionId, pathname, router]);
 
   return (
     <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-background">
@@ -186,7 +226,7 @@ export default function HomeClient({ initialProjectId = null }: HomeClientProps)
                   Wizard
                 </Link>
                 <Link
-                  href={buildHref("/artifacts")}
+                  href={artifactsHref}
                   className={isArtifactsActive ? "text-black" : "hover:text-black"}
                 >
                   Artifacts

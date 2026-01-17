@@ -126,14 +126,14 @@ export default function Dashboard({ userId, projects }: DashboardProps) {
                   <div className="mt-4 flex flex-wrap gap-3 text-sm">
                     <button
                       type="button"
-                      onClick={() => router.push(`/project/${project.id}`)}
+                      onClick={() => router.push(`/projects/${project.id}/wizard`)}
                       className="border border-gray-200 px-4 py-2 text-sm text-gray-700 hover:text-black"
                     >
                       进入向导
                     </button>
                     <button
                       type="button"
-                      onClick={() => router.push(`/artifacts?projectId=${project.id}`)}
+                      onClick={() => router.push(`/projects/${project.id}/artifacts`)}
                       className="border border-gray-200 px-4 py-2 text-sm text-gray-700 hover:text-black"
                     >
                       打开制品库

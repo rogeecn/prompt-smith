@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { z } from "zod";
 import { MoreVertical, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import ArtifactEditor from "./ArtifactEditor";
@@ -23,13 +23,17 @@ const projectIdSchema = z.string().uuid();
 
 type ArtifactsClientProps = {
   initialProjectId?: string | null;
+  initialArtifactId?: string | null;
+  initialSessionId?: string | null;
 };
 
 export default function ArtifactsClient({
   initialProjectId = null,
+  initialArtifactId = null,
+  initialSessionId = null,
 }: ArtifactsClientProps) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const router = useRouter();
   const [projectId, setProjectId] = useState<string | null>(null);
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [currentArtifactId, setCurrentArtifactId] = useState<string | null>(null);
@@ -56,7 +60,8 @@ export default function ArtifactsClient({
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [sessionTitleDraft, setSessionTitleDraft] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const requestedArtifactId = searchParams.get("artifactId");
+  const requestedArtifactId = typeof initialArtifactId === "string" ? initialArtifactId : null;
+  const requestedSessionId = typeof initialSessionId === "string" ? initialSessionId : null;
   const validProjectId = projectIdSchema.safeParse(initialProjectId).success
     ? initialProjectId
     : null;
@@ -107,10 +112,23 @@ export default function ArtifactsClient({
       setSessions(context.sessions);
       setCurrentSessionId(context.currentSessionId);
       setInitialMessages(context.history);
+      if (
+        requestedSessionId &&
+        requestedSessionId !== context.currentSessionId &&
+        context.sessions.some((session) => session.id === requestedSessionId)
+      ) {
+        const sessionContext = await loadArtifactSession(
+          projectId,
+          artifactId,
+          requestedSessionId
+        );
+        setInitialMessages(sessionContext.history);
+        setCurrentSessionId(requestedSessionId);
+      }
     } finally {
       setIsLoadingContext(false);
     }
-  }, [projectId]);
+  }, [projectId, requestedSessionId]);
 
   useEffect(() => {
     if (!projectId || !currentArtifactId) {
@@ -129,6 +147,9 @@ export default function ArtifactsClient({
     setArtifact(artifactItem);
     setViewMode("chat");
     setIsSidebarOpen(false);
+    if (projectId) {
+      router.push(`/projects/${projectId}/artifacts/${artifactItem.id}`);
+    }
   };
 
   const handleCreateArtifact = async () => {
@@ -141,6 +162,7 @@ export default function ArtifactsClient({
       setCurrentArtifactId(created.id);
       setArtifact(created);
       setViewMode("edit");
+      router.push(`/projects/${projectId}/artifacts/${created.id}`);
     } finally {
       setIsCreatingArtifact(false);
     }
@@ -171,9 +193,15 @@ export default function ArtifactsClient({
       const items = await listArtifacts(projectId);
       setArtifacts(items);
       if (currentArtifactId === artifactId) {
-        setCurrentArtifactId(items[0]?.id ?? null);
+        const nextArtifactId = items[0]?.id ?? null;
+        setCurrentArtifactId(nextArtifactId);
         setViewMode("chat");
         setArtifact(items[0] ?? null);
+        if (nextArtifactId) {
+          router.push(`/projects/${projectId}/artifacts/${nextArtifactId}`);
+        } else {
+          router.push(`/projects/${projectId}/artifacts`);
+        }
       }
     } finally {
       setDeletingArtifactId(null);
@@ -189,11 +217,14 @@ export default function ArtifactsClient({
         const context = await loadArtifactSession(projectId, currentArtifactId, sessionId);
         setInitialMessages(context.history);
         setCurrentSessionId(sessionId);
+        router.push(
+          `/projects/${projectId}/artifacts/${currentArtifactId}/sessions/${sessionId}`
+        );
       } finally {
         setIsLoadingContext(false);
       }
     },
-    [projectId, currentArtifactId, currentSessionId]
+    [projectId, currentArtifactId, currentSessionId, router]
   );
 
   const handleCreateSession = useCallback(async () => {
@@ -207,10 +238,13 @@ export default function ArtifactsClient({
         { id: sessionId, title: null, created_at: new Date(), last_message: "New Branch" },
         ...prev,
       ]);
+      router.push(
+        `/projects/${projectId}/artifacts/${currentArtifactId}/sessions/${sessionId}`
+      );
     } finally {
       setIsCreatingSession(false);
     }
-  }, [projectId, currentArtifactId, isCreatingSession]);
+  }, [projectId, currentArtifactId, isCreatingSession, router]);
 
   const handleSessionIdChange = useCallback((sessionId: string) => {
     setCurrentSessionId(sessionId);
@@ -221,7 +255,12 @@ export default function ArtifactsClient({
         ...prev,
       ];
     });
-  }, []);
+    if (projectId && currentArtifactId) {
+      router.push(
+        `/projects/${projectId}/artifacts/${currentArtifactId}/sessions/${sessionId}`
+      );
+    }
+  }, [projectId, currentArtifactId, router]);
 
   const handleEditSessionTitle = (sessionId: string, title?: string | null) => {
     setEditingSessionId(sessionId);
@@ -264,6 +303,9 @@ export default function ArtifactsClient({
           setCurrentSessionId(nextSession.id);
           const context = await loadArtifactSession(projectId, currentArtifactId, nextSession.id);
           setInitialMessages(context.history);
+          router.push(
+            `/projects/${projectId}/artifacts/${currentArtifactId}/sessions/${nextSession.id}`
+          );
         } else {
           const newSessionId = await createArtifactSession(projectId, currentArtifactId);
           setCurrentSessionId(newSessionId);
@@ -272,6 +314,9 @@ export default function ArtifactsClient({
             { id: newSessionId, title: null, created_at: new Date(), last_message: "New Branch" },
             ...prev,
           ]);
+          router.push(
+            `/projects/${projectId}/artifacts/${currentArtifactId}/sessions/${newSessionId}`
+          );
         }
       }
     } finally {
@@ -318,10 +363,19 @@ export default function ArtifactsClient({
     );
   }
 
-  const buildHref = (href: string) => `${href}?projectId=${projectId}`;
-  const wizardHref = `/project/${projectId}`;
-  const isWizardActive = pathname.startsWith("/project");
-  const isArtifactsActive = pathname.startsWith("/artifacts");
+  const wizardHref = `/projects/${projectId}/wizard`;
+  const artifactsHref = `/projects/${projectId}/artifacts`;
+  const isWizardActive = pathname.includes("/wizard");
+  const isArtifactsActive = pathname.includes("/artifacts");
+
+  useEffect(() => {
+    if (!projectId || !currentArtifactId || !currentSessionId) return;
+    if (!pathname.includes("/sessions/")) return;
+    const target = `/projects/${projectId}/artifacts/${currentArtifactId}/sessions/${currentSessionId}`;
+    if (pathname !== target) {
+      router.replace(target);
+    }
+  }, [projectId, currentArtifactId, currentSessionId, pathname, router]);
 
   return (
     <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-white">
@@ -370,7 +424,7 @@ export default function ArtifactsClient({
                   Wizard
                 </Link>
                 <Link
-                  href={buildHref("/artifacts")}
+                  href={artifactsHref}
                   className={isArtifactsActive ? "text-black" : "hover:text-black"}
                 >
                   Artifacts

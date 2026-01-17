@@ -19,5 +19,7 @@ export default async function ArtifactChatPage({ params, searchParams }: PagePro
     redirect("/");
   }
 
-  redirect(`/artifacts?projectId=${projectId}&artifactId=${resolvedParams.artifactId}`);
+  redirect(
+    `/projects/${projectId}/artifacts/${resolvedParams.artifactId}`
+  );
 }

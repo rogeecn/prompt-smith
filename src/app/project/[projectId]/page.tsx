@@ -1,4 +1,4 @@
-import HomeClient from "../../../../components/HomeClient";
+import { redirect } from "next/navigation";
 
 type PageProps = {
   params: Promise<{
@@ -8,5 +8,5 @@ type PageProps = {
 
 export default async function ProjectPage({ params }: PageProps) {
   const resolvedParams = await params;
-  return <HomeClient initialProjectId={resolvedParams.projectId} />;
+  redirect(`/projects/${resolvedParams.projectId}/wizard`);
 }
