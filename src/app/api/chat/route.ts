@@ -4,6 +4,7 @@ import { z } from "zod";
 import { ai, getCompatModel } from "../../../../lib/genkit";
 import { resolveModelConfig } from "../../../../lib/model-config";
 import { prisma } from "../../../../lib/prisma";
+import { getSession } from "../../../lib/auth";
 import {
   ChatRequestSchema,
   DeliberationAgentSchema,
@@ -986,6 +987,10 @@ export async function POST(req: Request) {
   const startedAt = Date.now();
   let traceId: string = randomUUID();
   let body: unknown;
+  const authSession = await getSession();
+  if (!authSession) {
+    return jsonWithTrace({ error: "Unauthorized" }, { status: 401 }, traceId);
+  }
   try {
     body = await req.json();
   } catch {
@@ -1038,7 +1043,7 @@ export async function POST(req: Request) {
     notifyStage?.("start");
     notifyStage?.("load_session");
     const session = await prisma.session.findFirst({
-      where: { id: sessionId, projectId },
+      where: { id: sessionId, projectId, project: { userId: authSession.userId } },
     });
 
     if (!session) {

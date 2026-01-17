@@ -8,6 +8,7 @@ import {
   HistoryItemSchema,
 } from "../../../../../lib/schemas";
 import { extractTemplateVariables, renderTemplate } from "../../../../../lib/template";
+import { getSession } from "../../../../lib/auth";
 
 const historyArraySchema = HistoryItemSchema.array();
 const isDebug = process.env.NODE_ENV !== "production";
@@ -287,6 +288,10 @@ export async function POST(req: Request) {
   const startedAt = Date.now();
   let traceId: string = randomUUID();
   let body: unknown;
+  const authSession = await getSession();
+  if (!authSession) {
+    return jsonWithTrace({ error: "Unauthorized" }, { status: 401 }, traceId);
+  }
   try {
     body = await req.json();
   } catch {
@@ -349,7 +354,11 @@ export async function POST(req: Request) {
 
   try {
     const artifact = await prisma.artifact.findFirst({
-      where: { id: artifactId, projectId },
+      where: {
+        id: artifactId,
+        projectId,
+        project: { userId: authSession.userId },
+      },
       select: { id: true, prompt_content: true, variables: true },
     });
 
@@ -404,7 +413,11 @@ export async function POST(req: Request) {
     let session = null;
     if (sessionId) {
       session = await prisma.artifactSession.findFirst({
-        where: { id: sessionId, artifactId },
+        where: {
+          id: sessionId,
+          artifactId,
+          artifact: { projectId, project: { userId: authSession.userId } },
+        },
       });
       if (!session) {
         console.error("[api/artifacts/chat] Session not found", {
