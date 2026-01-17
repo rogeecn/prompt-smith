@@ -4,12 +4,13 @@ import { googleAI } from "@genkit-ai/googleai";
 import type { ModelConfig } from "./model-config";
 
 const openaiNamespace = "openai-compat";
-const googleNamespace = "googleai";
-
 const hasGoogleKey = Boolean(process.env.GOOGLE_API_KEY);
 
 const googlePlugin = hasGoogleKey
-  ? googleAI({ apiKey: process.env.GOOGLE_API_KEY ?? "" })
+  ? googleAI({
+      apiKey: process.env.GOOGLE_API_KEY ?? "",
+      baseUrl: process.env.GOOGLE_BASE_URL,
+    })
   : null;
 
 export const ai = genkit({

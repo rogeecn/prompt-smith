@@ -40,6 +40,7 @@ MODEL_DEFAULT_ID="gpt-4o-mini"
 OPENAI_API_KEY="YOUR_KEY"
 OPENAI_BASE_URL="https://api.openai.com/v1"
 GOOGLE_API_KEY="YOUR_GOOGLE_KEY"
+GOOGLE_BASE_URL="https://generativelanguage.googleapis.com"
 ```
 
 如需启用多模型配置（前端模型列表来自后端配置），推荐使用 `MODEL_CATALOG`：
@@ -57,8 +58,7 @@ MODEL_DEFAULT_ID="gpt-4o-mini"
 - `MODEL_CATALOG` 支持多供应商；`provider` 目前支持 `openai` / `google`。
 - `id` 用于前端选择；`model` 为实际请求模型；`label` 为展示文案。
 - 选择 `openai` 供应商时，需要配置 `OPENAI_API_KEY` 与 `OPENAI_BASE_URL`。
-- 选择 `google` 供应商时，需要配置 `GOOGLE_API_KEY`。
-- 兼容旧配置：仍可使用 `OPENAI_MODEL` 或 `OPENAI_MODELS`（仅 OpenAI）。
+- 选择 `google` 供应商时，需要配置 `GOOGLE_API_KEY`，如需自建网关可配置 `GOOGLE_BASE_URL`。
 - `AUTH_SECRET` 用于签发登录会话，必须设置。
 
 可选配置：
@@ -192,6 +192,6 @@ public/         # 静态资源
 
 ## 说明
 
-- 使用 `openai` 供应商时必须配置 `OPENAI_BASE_URL`，并提供 `MODEL_CATALOG` 或 `OPENAI_MODEL`/`OPENAI_MODELS`
+- 使用 `openai` 供应商时必须配置 `OPENAI_BASE_URL`，并提供 `MODEL_CATALOG`
 - 模型选择与输出格式在 UI 中独立配置
 - 如果出现跨域开发警告，确认 `next.config.ts` 中的 `allowedDevOrigins`

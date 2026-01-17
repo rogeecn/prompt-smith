@@ -1049,14 +1049,8 @@ export async function POST(req: Request) {
     try {
       modelConfig = resolveModelConfig(requestedModelId ?? sessionModelId);
     } catch (error) {
-      console.error(
-        "[api/chat] Missing MODEL_CATALOG or OPENAI_MODEL/OPENAI_MODELS",
-        { error }
-      );
-      throw new HttpError(
-        500,
-        "Missing MODEL_CATALOG or OPENAI_MODEL/OPENAI_MODELS"
-      );
+      console.error("[api/chat] Missing MODEL_CATALOG", { error });
+      throw new HttpError(500, "Missing MODEL_CATALOG");
     }
 
     if (modelConfig.provider === "openai") {

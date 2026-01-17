@@ -310,12 +310,9 @@ export async function POST(req: Request) {
   try {
     modelConfig = resolveModelConfig(null);
   } catch (error) {
-    console.error(
-      "[api/artifacts/chat] Missing MODEL_CATALOG or OPENAI_MODEL/OPENAI_MODELS",
-      { error }
-    );
+    console.error("[api/artifacts/chat] Missing MODEL_CATALOG", { error });
     return jsonWithTrace(
-      { error: "Missing MODEL_CATALOG or OPENAI_MODEL/OPENAI_MODELS" },
+      { error: "Missing MODEL_CATALOG" },
       { status: 500 },
       traceId
     );
