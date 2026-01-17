@@ -71,6 +71,11 @@ export default function LoginPage() {
             {isSubmitting ? "登录中..." : "登录"}
           </button>
         </form>
+        <div className="mt-4 text-xs text-gray-500">
+          <a href="/forgot-password" className="text-black underline">
+            忘记密码？
+          </a>
+        </div>
         <div className="mt-6 text-xs text-gray-500">
           还没有账号？{" "}
           <a href="/register" className="text-black underline">

@@ -78,6 +78,26 @@ export const AuthCredentialsSchema = z.object({
 
 export type AuthCredentials = z.infer<typeof AuthCredentialsSchema>;
 
+export const PasswordChangeSchema = z.object({
+  currentPassword: z.string().min(8),
+  newPassword: z.string().min(8),
+});
+
+export type PasswordChange = z.infer<typeof PasswordChangeSchema>;
+
+export const PasswordResetRequestSchema = z.object({
+  email: z.string().email(),
+});
+
+export type PasswordResetRequest = z.infer<typeof PasswordResetRequestSchema>;
+
+export const PasswordResetConfirmSchema = z.object({
+  token: z.string().min(12),
+  newPassword: z.string().min(8),
+});
+
+export type PasswordResetConfirm = z.infer<typeof PasswordResetConfirmSchema>;
+
 export const DraftAnswerRecordSchema = z.preprocess(
   (value) => {
     if (!value || typeof value !== "object" || Array.isArray(value)) {

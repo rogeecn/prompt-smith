@@ -58,6 +58,7 @@ OPENAI_MAX_RETRIES="2"
 MAX_HISTORY_ITEMS="60"
 MAX_QUESTION_ROUNDS="3"
 MIN_PROMPT_VARIABLES="3"
+PASSWORD_RESET_TTL_MS="1800000"
 ```
 
 ### 4) 初始化数据库
@@ -85,6 +86,11 @@ http://<你的内网IP>:3000/
 1. 访问 `/login` 或 `/register` 完成登录/注册。
 2. 登录后进入项目列表 `/`，点击“新建项目”创建项目。
 3. 选择项目进入向导 `/project/[projectId]` 或制品库 `/artifacts?projectId=...`。
+
+### 账号与密码
+
+- 登录后可在 `/account` 修改密码。
+- 忘记密码：访问 `/forgot-password` 生成一次性重置令牌（无邮件服务时直接展示），再到 `/reset-password` 输入令牌与新密码完成重置。
 
 ### 生成 (对话生成 Prompt)
 

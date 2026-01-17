@@ -191,6 +191,12 @@ export default function HomeClient({ initialProjectId = null }: HomeClientProps)
                 >
                   Artifacts
                 </Link>
+                <Link
+                  href="/account"
+                  className={pathname.startsWith("/account") ? "text-black" : "hover:text-black"}
+                >
+                  Account
+                </Link>
               </nav>
             </div>
 

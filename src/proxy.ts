@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getSessionCookieName, verifySessionToken } from "./lib/auth-core";
 
-const PUBLIC_PATHS = ["/login", "/register"];
+const PUBLIC_PATHS = ["/login", "/register", "/forgot-password", "/reset-password"];
 
 const isPublicPath = (pathname: string) =>
   PUBLIC_PATHS.some((path) => pathname === path);
