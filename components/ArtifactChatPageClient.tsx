@@ -3,14 +3,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
-import { Check, Pencil, X } from "lucide-react";
+import { Check, Pencil, Trash2, X } from "lucide-react";
 import ArtifactChat from "./ArtifactChat";
 import TopNav from "./TopNav";
 import {
   createArtifactSession,
+  deleteArtifactSession,
   loadArtifactContext,
   loadArtifactSession,
   updateArtifact,
+  updateArtifactSessionTitle,
 } from "../src/app/actions";
 import type { Artifact, HistoryItem } from "../lib/schemas";
 
@@ -32,12 +34,19 @@ export default function ArtifactChatPageClient({
 
   const [artifact, setArtifact] = useState<Artifact | null>(null);
   const [sessions, setSessions] = useState<
-    { id: string; created_at: string | Date; last_message?: string }[]
+    { id: string; title?: string | null; created_at: string | Date; last_message?: string }[]
   >([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [initialMessages, setInitialMessages] = useState<HistoryItem[]>([]);
   const [isLoadingContext, setIsLoadingContext] = useState(false);
   const [contextError, setContextError] = useState<string | null>(null);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [sessionTitleDraft, setSessionTitleDraft] = useState("");
+  const [sessionDeleteTarget, setSessionDeleteTarget] = useState<{
+    id: string;
+    title?: string | null;
+  } | null>(null);
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
@@ -115,7 +124,7 @@ export default function ArtifactChatPageClient({
       setCurrentSessionId(sessionId);
       setInitialMessages([]);
       setSessions((prev) => [
-        { id: sessionId, created_at: new Date(), last_message: "未开始" },
+        { id: sessionId, title: null, created_at: new Date(), last_message: "未开始" },
         ...prev,
       ]);
     } catch {
@@ -124,6 +133,67 @@ export default function ArtifactChatPageClient({
       setIsCreatingSession(false);
     }
   }, [validProjectId, artifactId, isCreatingSession]);
+
+  const handleEditSessionTitle = (sessionId: string, title?: string | null) => {
+    setEditingSessionId(sessionId);
+    setSessionTitleDraft(title ?? "");
+  };
+
+  const commitSessionTitle = async (sessionId: string) => {
+    if (!validProjectId || !artifactId) return;
+    const trimmed = sessionTitleDraft.trim();
+    if (!trimmed) {
+      setEditingSessionId(null);
+      setSessionTitleDraft("");
+      return;
+    }
+    try {
+      await updateArtifactSessionTitle(validProjectId, artifactId, sessionId, trimmed);
+      setSessions((prev) =>
+        prev.map((item) =>
+          item.id === sessionId ? { ...item, title: trimmed } : item
+        )
+      );
+    } finally {
+      setEditingSessionId(null);
+    }
+  };
+
+  const handleDeleteSession = (sessionId: string, title?: string | null) => {
+    setSessionDeleteTarget({ id: sessionId, title });
+  };
+
+  const confirmDeleteSession = async () => {
+    if (!validProjectId || !artifactId || !sessionDeleteTarget) return;
+    setDeletingSessionId(sessionDeleteTarget.id);
+    try {
+      await deleteArtifactSession(validProjectId, artifactId, sessionDeleteTarget.id);
+      setSessions((prev) => prev.filter((item) => item.id !== sessionDeleteTarget.id));
+      if (currentSessionId === sessionDeleteTarget.id) {
+        const nextSession = sessions.find((item) => item.id !== sessionDeleteTarget.id);
+        if (nextSession) {
+          setCurrentSessionId(nextSession.id);
+          const context = await loadArtifactSession(
+            validProjectId,
+            artifactId,
+            nextSession.id
+          );
+          setInitialMessages(context.history);
+        } else {
+          const newSessionId = await createArtifactSession(validProjectId, artifactId);
+          setCurrentSessionId(newSessionId);
+          setInitialMessages([]);
+          setSessions((prev) => [
+            { id: newSessionId, title: null, created_at: new Date(), last_message: "未开始" },
+            ...prev,
+          ]);
+        }
+      }
+    } finally {
+      setDeletingSessionId(null);
+      setSessionDeleteTarget(null);
+    }
+  };
 
   const handleSaveTitle = useCallback(async () => {
     if (!validProjectId || !artifact || isSavingTitle) {
@@ -334,33 +404,97 @@ export default function ArtifactChatPageClient({
                     {sessions.map((session, index) => {
                       const isActive = session.id === currentSessionId;
                       const summary = session.last_message ?? "未开始";
+                      const title = session.title?.trim() || `会话 ${sessions.length - index}`;
                       return (
-                        <button
-                          key={session.id}
-                          type="button"
-                          onClick={() => handleSelectSession(session.id)}
-                          className={[
-                            "w-full cursor-pointer rounded-xl border px-3 py-3 text-left text-sm transition",
-                            isActive
-                              ? "border-slate-900 bg-slate-900 text-white"
-                              : "border-transparent bg-slate-50 text-slate-700 hover:border-slate-200 hover:bg-slate-100",
-                          ].join(" ")}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span>会话 {sessions.length - index}</span>
-                            <span className="text-xs text-slate-400">
-                              {formatSessionLabel(session.created_at)}
-                            </span>
+                        <div key={session.id} className="group relative">
+                          {editingSessionId === session.id ? (
+                            <div
+                              className={[
+                                "w-full rounded-xl border px-3 py-3 text-left text-sm transition",
+                                isActive
+                                  ? "border-slate-900 bg-slate-900 text-white"
+                                  : "border-transparent bg-slate-50 text-slate-700",
+                              ].join(" ")}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <input
+                                  value={sessionTitleDraft}
+                                  onChange={(event) => setSessionTitleDraft(event.target.value)}
+                                  onBlur={() => void commitSessionTitle(session.id)}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter") {
+                                      event.preventDefault();
+                                      void commitSessionTitle(session.id);
+                                    }
+                                    if (event.key === "Escape") {
+                                      event.preventDefault();
+                                      setEditingSessionId(null);
+                                      setSessionTitleDraft(session.title ?? "");
+                                    }
+                                  }}
+                                  className="w-full border-b border-slate-200 bg-transparent text-xs font-semibold text-slate-900 outline-none focus:border-slate-900"
+                                  placeholder="输入会话标题"
+                                />
+                                <span className="text-xs text-slate-400">
+                                  {formatSessionLabel(session.created_at)}
+                                </span>
+                              </div>
+                              <p
+                                className={[
+                                  "mt-2 truncate text-xs",
+                                  isActive ? "text-slate-200" : "text-slate-500",
+                                ].join(" ")}
+                              >
+                                {summary}
+                              </p>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleSelectSession(session.id)}
+                              className={[
+                                "w-full cursor-pointer rounded-xl border px-3 py-3 text-left text-sm transition",
+                                isActive
+                                  ? "border-slate-900 bg-slate-900 text-white"
+                                  : "border-transparent bg-slate-50 text-slate-700 hover:border-slate-200 hover:bg-slate-100",
+                              ].join(" ")}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-semibold">{title}</span>
+                                <span className="text-xs text-slate-400">
+                                  {formatSessionLabel(session.created_at)}
+                                </span>
+                              </div>
+                              <p
+                                className={[
+                                  "mt-2 truncate text-xs",
+                                  isActive ? "text-slate-200" : "text-slate-500",
+                                ].join(" ")}
+                              >
+                                {summary}
+                              </p>
+                            </button>
+                          )}
+                          <div className="absolute right-2 top-2 flex flex-col gap-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible">
+                            <button
+                              type="button"
+                              aria-label="编辑会话"
+                              onClick={() => handleEditSessionTitle(session.id, session.title)}
+                              className="text-slate-400 hover:text-slate-900 transition-colors"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label="删除会话"
+                              onClick={() => handleDeleteSession(session.id, session.title)}
+                              disabled={deletingSessionId === session.id}
+                              className="text-slate-400 hover:text-rose-500 transition-colors disabled:opacity-40"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
                           </div>
-                          <p
-                            className={[
-                              "mt-2 truncate text-xs",
-                              isActive ? "text-slate-200" : "text-slate-500",
-                            ].join(" ")}
-                          >
-                            {summary}
-                          </p>
-                        </button>
+                        </div>
                       );
                     })}
                   </div>
@@ -370,6 +504,47 @@ export default function ArtifactChatPageClient({
           </aside>
         </div>
       </main>
+
+      {sessionDeleteTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => {
+            if (!deletingSessionId) {
+              setSessionDeleteTarget(null);
+            }
+          }}
+        >
+          <div
+            className="w-full max-w-md border border-slate-200 bg-white p-6"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 className="text-base font-semibold text-slate-900">删除会话</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              确定要删除“{sessionDeleteTarget.title || "未命名会话"}”吗？此操作无法撤销。
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                className="border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600 hover:text-slate-900"
+                onClick={() => setSessionDeleteTarget(null)}
+                disabled={deletingSessionId === sessionDeleteTarget.id}
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                className="border border-rose-500 bg-rose-500 px-4 py-2 text-sm text-white hover:bg-rose-600 disabled:opacity-60"
+                onClick={confirmDeleteSession}
+                disabled={deletingSessionId === sessionDeleteTarget.id}
+              >
+                {deletingSessionId === sessionDeleteTarget.id ? "删除中..." : "删除"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

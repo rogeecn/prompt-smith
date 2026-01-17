@@ -65,6 +65,7 @@ model ArtifactSession {
   id         String   @id @default(cuid())
   artifact   Artifact @relation(fields: [artifactId], references: [id])
   artifactId String
+  title      String?
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
   history    Json

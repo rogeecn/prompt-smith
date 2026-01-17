@@ -10,10 +10,12 @@ import ArtifactChat from "./ArtifactChat";
 import {
   createArtifact,
   createArtifactSession,
+  deleteArtifactSession,
   deleteArtifact,
   listArtifacts,
   loadArtifactContext,
   loadArtifactSession,
+  updateArtifactSessionTitle,
 } from "../src/app/actions";
 import type { Artifact, HistoryItem } from "../lib/schemas";
 
@@ -33,7 +35,7 @@ export default function ArtifactsClient({
   const [artifact, setArtifact] = useState<Artifact | null>(null);
   const [viewMode, setViewMode] = useState<"chat" | "edit">("chat");
   const [sessions, setSessions] = useState<
-    { id: string; created_at: string | Date; last_message?: string }[]
+    { id: string; title?: string | null; created_at: string | Date; last_message?: string }[]
   >([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [initialMessages, setInitialMessages] = useState<HistoryItem[]>([]);
@@ -45,6 +47,13 @@ export default function ArtifactsClient({
     id: string;
     title: string;
   } | null>(null);
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
+  const [sessionDeleteTarget, setSessionDeleteTarget] = useState<{
+    id: string;
+    title?: string | null;
+  } | null>(null);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [sessionTitleDraft, setSessionTitleDraft] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const validProjectId = projectIdSchema.safeParse(initialProjectId).success
     ? initialProjectId
@@ -183,7 +192,7 @@ export default function ArtifactsClient({
       setCurrentSessionId(sessionId);
       setInitialMessages([]);
       setSessions((prev) => [
-        { id: sessionId, created_at: new Date(), last_message: "New Branch" },
+        { id: sessionId, title: null, created_at: new Date(), last_message: "New Branch" },
         ...prev,
       ]);
     } finally {
@@ -195,9 +204,69 @@ export default function ArtifactsClient({
     setCurrentSessionId(sessionId);
     setSessions((prev) => {
       if (prev.some((item) => item.id === sessionId)) return prev;
-      return [{ id: sessionId, created_at: new Date(), last_message: "New Branch" }, ...prev];
+      return [
+        { id: sessionId, title: null, created_at: new Date(), last_message: "New Branch" },
+        ...prev,
+      ];
     });
   }, []);
+
+  const handleEditSessionTitle = (sessionId: string, title?: string | null) => {
+    setEditingSessionId(sessionId);
+    setSessionTitleDraft(title ?? "");
+  };
+
+  const commitSessionTitle = async (sessionId: string) => {
+    if (!projectId || !currentArtifactId) return;
+    const trimmed = sessionTitleDraft.trim();
+    if (!trimmed) {
+      setSessionTitleDraft("");
+      setEditingSessionId(null);
+      return;
+    }
+    try {
+      await updateArtifactSessionTitle(projectId, currentArtifactId, sessionId, trimmed);
+      setSessions((prev) =>
+        prev.map((item) =>
+          item.id === sessionId ? { ...item, title: trimmed } : item
+        )
+      );
+    } finally {
+      setEditingSessionId(null);
+    }
+  };
+
+  const handleDeleteSession = (sessionId: string, title?: string | null) => {
+    setSessionDeleteTarget({ id: sessionId, title });
+  };
+
+  const confirmDeleteSession = async () => {
+    if (!projectId || !currentArtifactId || !sessionDeleteTarget) return;
+    setDeletingSessionId(sessionDeleteTarget.id);
+    try {
+      await deleteArtifactSession(projectId, currentArtifactId, sessionDeleteTarget.id);
+      setSessions((prev) => prev.filter((item) => item.id !== sessionDeleteTarget.id));
+      if (currentSessionId === sessionDeleteTarget.id) {
+        const nextSession = sessions.find((item) => item.id !== sessionDeleteTarget.id);
+        if (nextSession) {
+          setCurrentSessionId(nextSession.id);
+          const context = await loadArtifactSession(projectId, currentArtifactId, nextSession.id);
+          setInitialMessages(context.history);
+        } else {
+          const newSessionId = await createArtifactSession(projectId, currentArtifactId);
+          setCurrentSessionId(newSessionId);
+          setInitialMessages([]);
+          setSessions((prev) => [
+            { id: newSessionId, title: null, created_at: new Date(), last_message: "New Branch" },
+            ...prev,
+          ]);
+        }
+      }
+    } finally {
+      setDeletingSessionId(null);
+      setSessionDeleteTarget(null);
+    }
+  };
 
   const formatDate = (value: string | Date) => {
     const d = typeof value === "string" ? new Date(value) : value;
@@ -439,32 +508,89 @@ export default function ArtifactsClient({
               <div className="flex-1 overflow-y-auto">
                 {sessions.map((session, index) => {
                   const isActive = session.id === currentSessionId;
+                  const title = session.title?.trim() || `会话 ${sessions.length - index}`;
                   return (
                     <div
                       key={session.id}
-                      className={`w-full ${isActive ? "bg-surface-muted" : ""}`}
+                      className={`group w-full ${isActive ? "bg-surface-muted" : ""}`}
                     >
-                      <button
-                        onClick={() => handleSelectSession(session.id)}
+                      <div
                         className={`
-                          w-full text-left px-5 py-3 transition-all duration-200
+                          flex items-start gap-2 px-5 py-3 transition-all duration-200
                           ${isActive ? "" : "hover:bg-gray-50"}
                         `}
                       >
-                        <div className={`border-l-2 pl-3 ${isActive ? "border-accent" : "border-transparent"}`}>
-                          <div className="flex justify-between items-start mb-1">
-                            <span className="font-mono text-xs font-bold text-black">
-                              #{sessions.length - index}
-                            </span>
-                            <span className="text-[10px] text-gray-400">
-                              {formatDate(session.created_at)}
-                            </span>
+                        {editingSessionId === session.id ? (
+                          <div className="flex-1">
+                            <div className={`border-l-2 pl-3 ${isActive ? "border-accent" : "border-transparent"}`}>
+                              <div className="flex items-start justify-between gap-2">
+                                <input
+                                  value={sessionTitleDraft}
+                                  onChange={(event) => setSessionTitleDraft(event.target.value)}
+                                  onBlur={() => void commitSessionTitle(session.id)}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter") {
+                                      event.preventDefault();
+                                      void commitSessionTitle(session.id);
+                                    }
+                                    if (event.key === "Escape") {
+                                      event.preventDefault();
+                                      setEditingSessionId(null);
+                                      setSessionTitleDraft(session.title ?? "");
+                                    }
+                                  }}
+                                  className="w-full border-b border-gray-200 bg-transparent text-xs font-semibold text-gray-700 outline-none focus:border-black"
+                                  placeholder="输入会话标题"
+                                />
+                                <span className="text-[10px] text-gray-400">
+                                  {formatDate(session.created_at)}
+                                </span>
+                              </div>
+                              <div className="mt-1 text-xs text-gray-500 truncate font-body">
+                                {session.last_message || "Empty"}
+                              </div>
+                            </div>
                           </div>
-                          <div className="text-xs text-gray-500 truncate font-body">
-                            {session.last_message || "Empty"}
-                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleSelectSession(session.id)}
+                            className="flex-1 text-left"
+                          >
+                            <div className={`border-l-2 pl-3 ${isActive ? "border-accent" : "border-transparent"}`}>
+                              <div className="flex justify-between items-start gap-2">
+                                <span className="text-xs font-semibold text-gray-700">
+                                  {title}
+                                </span>
+                                <span className="text-[10px] text-gray-400">
+                                  {formatDate(session.created_at)}
+                                </span>
+                              </div>
+                              <div className="mt-1 text-xs text-gray-500 truncate font-body">
+                                {session.last_message || "Empty"}
+                              </div>
+                            </div>
+                          </button>
+                        )}
+                        <div className="flex flex-col items-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            aria-label="编辑会话"
+                            onClick={() => handleEditSessionTitle(session.id, session.title)}
+                            className="text-gray-400 opacity-0 invisible group-hover:opacity-100 group-hover:visible hover:text-black transition-colors"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="删除会话"
+                            onClick={() => handleDeleteSession(session.id, session.title)}
+                            disabled={deletingSessionId === session.id}
+                            className="text-gray-400 opacity-0 invisible group-hover:opacity-100 group-hover:visible hover:text-rose-500 transition-colors disabled:opacity-40"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         </div>
-                      </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -509,6 +635,47 @@ export default function ArtifactsClient({
                 disabled={deletingArtifactId === deleteTarget.id}
               >
                 {deletingArtifactId === deleteTarget.id ? "删除中..." : "删除"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {sessionDeleteTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => {
+            if (!deletingSessionId) {
+              setSessionDeleteTarget(null);
+            }
+          }}
+        >
+          <div
+            className="w-full max-w-md border border-gray-200 bg-white p-6"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 className="text-base font-bold text-black">删除会话</h3>
+            <p className="mt-2 text-sm text-gray-600">
+              确定要删除“{sessionDeleteTarget.title || "未命名会话"}”吗？此操作无法撤销。
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                className="border border-gray-200 bg-white px-4 py-2 text-sm text-gray-600 hover:text-black"
+                onClick={() => setSessionDeleteTarget(null)}
+                disabled={deletingSessionId === sessionDeleteTarget.id}
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                className="border border-rose-500 bg-rose-500 px-4 py-2 text-sm text-white hover:bg-rose-600 disabled:opacity-60"
+                onClick={confirmDeleteSession}
+                disabled={deletingSessionId === sessionDeleteTarget.id}
+              >
+                {deletingSessionId === sessionDeleteTarget.id ? "删除中..." : "删除"}
               </button>
             </div>
           </div>

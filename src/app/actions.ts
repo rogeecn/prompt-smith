@@ -466,7 +466,7 @@ export async function loadArtifactContext(projectId: string, artifactId: string)
   let sessions = await prisma.artifactSession.findMany({
     where: { artifactId: parsedArtifactId.data },
     orderBy: { created_at: "desc" },
-    select: { id: true, created_at: true, history: true },
+    select: { id: true, title: true, created_at: true, history: true },
   });
 
   if (sessions.length === 0) {
@@ -476,7 +476,7 @@ export async function loadArtifactContext(projectId: string, artifactId: string)
         artifactId: parsedArtifactId.data,
         history: [],
       },
-      select: { id: true, created_at: true, history: true },
+      select: { id: true, title: true, created_at: true, history: true },
     });
     sessions = [session];
   }
@@ -506,6 +506,7 @@ export async function loadArtifactContext(projectId: string, artifactId: string)
     history,
     sessions: sessions.map((session) => ({
       id: session.id,
+      title: session.title,
       created_at: session.created_at,
       last_message: formatSessionSummary(session.history),
     })),
@@ -600,6 +601,82 @@ export async function createArtifactSession(
 
   logDebug("createArtifactSession:done", { sessionId: artifactSession.id });
   return artifactSession.id;
+}
+
+export async function updateArtifactSessionTitle(
+  projectId: string,
+  artifactId: string,
+  sessionId: string,
+  title: string
+) {
+  const userSession = await requireSession();
+  const parsedProjectId = projectIdSchema.safeParse(projectId);
+  const parsedArtifactId = artifactIdSchema.safeParse(artifactId);
+  const parsedSessionId = sessionIdSchema.safeParse(sessionId);
+  const parsedTitle = titleSchema.safeParse(title);
+  if (
+    !parsedProjectId.success ||
+    !parsedArtifactId.success ||
+    !parsedSessionId.success ||
+    !parsedTitle.success
+  ) {
+    logDebug("updateArtifactSessionTitle:invalid", {
+      projectId,
+      artifactId,
+      sessionId,
+    });
+    throw new Error("Invalid artifact session");
+  }
+
+  const result = await prisma.artifactSession.updateMany({
+    where: {
+      id: parsedSessionId.data,
+      artifactId: parsedArtifactId.data,
+      artifact: { projectId: parsedProjectId.data, project: { userId: userSession.userId } },
+    },
+    data: { title: parsedTitle.data },
+  });
+
+  if (result.count === 0) {
+    logDebug("updateArtifactSessionTitle:not-found", {
+      projectId,
+      artifactId,
+      sessionId,
+    });
+    throw new Error("Artifact session not found");
+  }
+}
+
+export async function deleteArtifactSession(
+  projectId: string,
+  artifactId: string,
+  sessionId: string
+) {
+  const userSession = await requireSession();
+  const parsedProjectId = projectIdSchema.safeParse(projectId);
+  const parsedArtifactId = artifactIdSchema.safeParse(artifactId);
+  const parsedSessionId = sessionIdSchema.safeParse(sessionId);
+  if (
+    !parsedProjectId.success ||
+    !parsedArtifactId.success ||
+    !parsedSessionId.success
+  ) {
+    logDebug("deleteArtifactSession:invalid", { projectId, artifactId, sessionId });
+    throw new Error("Invalid artifact session");
+  }
+
+  const result = await prisma.artifactSession.deleteMany({
+    where: {
+      id: parsedSessionId.data,
+      artifactId: parsedArtifactId.data,
+      artifact: { projectId: parsedProjectId.data, project: { userId: userSession.userId } },
+    },
+  });
+
+  if (result.count === 0) {
+    logDebug("deleteArtifactSession:not-found", { projectId, artifactId, sessionId });
+    throw new Error("Artifact session not found");
+  }
 }
 
 export async function createSession(projectId: string) {
