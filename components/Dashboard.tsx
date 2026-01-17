@@ -107,7 +107,15 @@ export default function Dashboard({ userId, projects }: DashboardProps) {
                       {project.name}
                     </div>
                     {project.description ? (
-                      <div className="mt-2 text-sm text-gray-500">
+                      <div
+                        className="mt-2 text-sm text-gray-500 break-words"
+                        style={{
+                          display: "-webkit-box",
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: "vertical",
+                          overflow: "hidden",
+                        }}
+                      >
                         {project.description}
                       </div>
                     ) : null}
