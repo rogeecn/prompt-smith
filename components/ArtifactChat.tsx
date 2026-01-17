@@ -39,6 +39,30 @@ const stripThinkingBlock = (content: string) =>
 
 const normalizeMarkdown = (content: string) => content.replace(/\n/g, "  \n");
 
+const formatErrorMessage = (message: string) => {
+  const normalized = message.trim();
+  if (!normalized || normalized === "Request failed") return "请求失败，请稍后重试";
+  if (normalized.includes("Missing GOOGLE_API_KEY")) {
+    return "未配置 Gemini API Key，请设置 GOOGLE_API_KEY。";
+  }
+  if (normalized.includes("Missing OPENAI_API_KEY")) {
+    return "未配置 OpenAI API Key，请设置 OPENAI_API_KEY。";
+  }
+  if (normalized.includes("Missing OPENAI_BASE_URL")) {
+    return "未配置 OpenAI Base URL，请设置 OPENAI_BASE_URL。";
+  }
+  if (normalized.includes("Missing MODEL_CATALOG")) {
+    return "未配置模型列表，请设置 MODEL_CATALOG。";
+  }
+  if (normalized.includes("Model provider error")) {
+    return "模型配置错误，请检查模型名称与供应商配置。";
+  }
+  if (normalized.includes("LLM request timeout")) {
+    return "模型响应超时，请稍后重试。";
+  }
+  return normalized;
+};
+
 const buildInitialDraftAnswers = (variables: ArtifactVariable[]) =>
   variables.reduce<Record<string, DraftAnswer>>((acc, variable) => {
     const value = formatDefaultValue(variable);
@@ -274,7 +298,16 @@ export default function ArtifactChat({
         } as ArtifactChatRequest),
       });
 
-      if (!response.ok) throw new Error("Request failed");
+      if (!response.ok) {
+        let errorMessage = "请求失败";
+        try {
+          const payload = await response.json();
+          if (payload?.error) errorMessage = String(payload.error);
+        } catch {
+          // ignore
+        }
+        throw new Error(errorMessage);
+      }
       const payload = (await response.json()) as ArtifactChatResponse;
       
       if (payload.sessionId && payload.sessionId !== sessionId) {
@@ -288,11 +321,12 @@ export default function ArtifactChat({
       setInput("");
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Request failed";
+      const display = formatErrorMessage(msg);
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: msg, timestamp: Date.now() },
+        { role: "assistant", content: display, timestamp: Date.now() },
       ]);
-      setFormError(msg);
+      setFormError(display);
       setRetryMessage(resolvedMessage);
     } finally {
       setIsLoading(false);

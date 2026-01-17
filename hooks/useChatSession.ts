@@ -35,6 +35,33 @@ const STAGE_LABELS: Record<string, string> = {
   persist: "保存对话中...",
 };
 
+const formatErrorMessage = (message: string) => {
+  const normalized = message.trim();
+  if (!normalized || normalized === "Request failed") return "请求失败，请稍后重试";
+  if (normalized.includes("Missing GOOGLE_API_KEY")) {
+    return "未配置 Gemini API Key，请设置 GOOGLE_API_KEY。";
+  }
+  if (normalized.includes("Missing OPENAI_API_KEY")) {
+    return "未配置 OpenAI API Key，请设置 OPENAI_API_KEY。";
+  }
+  if (normalized.includes("Missing OPENAI_BASE_URL")) {
+    return "未配置 OpenAI Base URL，请设置 OPENAI_BASE_URL。";
+  }
+  if (normalized.includes("Missing MODEL_CATALOG")) {
+    return "未配置模型列表，请设置 MODEL_CATALOG。";
+  }
+  if (normalized.includes("Model provider error")) {
+    return "模型配置错误，请检查模型名称与供应商配置。";
+  }
+  if (normalized.includes("LLM request timeout")) {
+    return "模型响应超时，请稍后重试。";
+  }
+  if (normalized.includes("Unauthorized")) {
+    return "登录状态已失效，请重新登录。";
+  }
+  return normalized;
+};
+
 type UseChatSessionOptions = {
   projectId: string;
   sessionId: string;
@@ -278,7 +305,14 @@ export const useChatSession = ({
       });
 
       if (!response.ok) {
-        throw new Error("Request failed");
+        let errorMessage = "请求失败";
+        try {
+          const payload = await response.json();
+          if (payload?.error) errorMessage = String(payload.error);
+        } catch {
+          // ignore
+        }
+        throw new Error(errorMessage);
       }
       const contentType = response.headers.get("content-type") ?? "";
       if (contentType.includes("text/event-stream") && response.body) {
@@ -348,7 +382,8 @@ export const useChatSession = ({
         applyResponse(payload);
       }
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : "请求失败");
+      const message = error instanceof Error ? error.message : "请求失败";
+      setFormError(formatErrorMessage(message));
       setRetryPayload({ message, answers });
     } finally {
       setIsLoading(false);

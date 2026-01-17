@@ -28,6 +28,7 @@ export default function QuestionForm({
   draftAnswers,
   isLoading,
   isDisabled,
+  formError,
   onTextChange,
   onSingleSelect,
   onMultiToggle,
@@ -201,6 +202,11 @@ export default function QuestionForm({
           })}
 
           <div className="pt-8">
+            {formError && (
+              <div className="mb-3 text-sm font-medium text-rose-500">
+                {formError}
+              </div>
+            )}
             <button
               type="submit"
               disabled={isDisabled || isLoading}

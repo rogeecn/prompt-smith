@@ -276,6 +276,7 @@ export default function ChatInterface({
 
   const showChatInput = !isLoading && pendingQuestions.length === 0 && (messages.length === 0 || isFinished || !!finalPrompt);
   const showQuestionForm = pendingQuestions.length > 0 && !finalPrompt && !isFinished;
+  const showInlineError = Boolean(formError) && !showQuestionForm;
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-white">
@@ -435,6 +436,11 @@ export default function ChatInterface({
       <div className="bg-gray-50 px-6 pb-6 pt-4">
         <div className="mx-auto max-w-3xl">
           <form onSubmit={handleStartSubmit} className="relative">
+            {showInlineError && (
+              <div className="mb-3 text-sm font-medium text-rose-500">
+                {formError}
+              </div>
+            )}
             <div className="flex items-start gap-4">
               <textarea
                 ref={textareaRef}
