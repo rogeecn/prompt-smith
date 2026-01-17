@@ -16,7 +16,8 @@ const buildCookieOptions = () => ({
 });
 
 export const getSession = async (): Promise<SessionPayload | null> => {
-  const token = cookies().get(getSessionCookieName())?.value;
+  const cookieStore = await cookies();
+  const token = cookieStore.get(getSessionCookieName())?.value;
   if (!token) return null;
   return verifySessionToken(token);
 };
@@ -31,11 +32,13 @@ export const requireSession = async (): Promise<SessionPayload> => {
 
 export const setSessionCookie = async (payload: SessionPayload) => {
   const token = await signSession(payload);
-  cookies().set(getSessionCookieName(), token, buildCookieOptions());
+  const cookieStore = await cookies();
+  cookieStore.set(getSessionCookieName(), token, buildCookieOptions());
 };
 
-export const clearSessionCookie = () => {
-  cookies().set(getSessionCookieName(), "", {
+export const clearSessionCookie = async () => {
+  const cookieStore = await cookies();
+  cookieStore.set(getSessionCookieName(), "", {
     ...buildCookieOptions(),
     maxAge: 0,
   });

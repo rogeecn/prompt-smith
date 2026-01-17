@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { ai, getCompatModel } from "../../../../../lib/genkit";
 import { resolveModelConfig } from "../../../../../lib/model-config";
-import { prisma } from "../../../../../lib/prisma";
+import { getPrisma } from "../../../../lib/prisma";
 import {
   ArtifactVariablesSchema,
   HistoryItemSchema,
@@ -15,6 +15,7 @@ const isDebug = process.env.NODE_ENV !== "production";
 const REQUEST_TIMEOUT_MS = Number(process.env.OPENAI_TIMEOUT_MS ?? "180000");
 const MAX_RETRIES = Number(process.env.OPENAI_MAX_RETRIES ?? "2");
 const MAX_HISTORY_ITEMS = Number(process.env.MAX_HISTORY_ITEMS ?? "60");
+const prisma = getPrisma();
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

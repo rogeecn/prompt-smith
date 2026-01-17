@@ -1,7 +1,7 @@
 "use server";
 
 import { randomUUID } from "crypto";
-import { prisma } from "../../lib/prisma";
+import { getPrisma } from "../lib/prisma";
 import {
   DeliberationStageSchema,
   DraftAnswerSchema,
@@ -21,6 +21,7 @@ const projectIdSchema = z.string().uuid();
 const sessionIdSchema = z.string().min(1);
 const artifactIdSchema = z.string().min(1);
 const titleSchema = z.string().trim().min(1);
+const prisma = getPrisma();
 const isDebug =
   process.env.DEBUG_ACTIONS === "true" || process.env.DEBUG_ACTIONS === "1";
 

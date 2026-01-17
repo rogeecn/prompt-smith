@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ai, getCompatModel } from "../../../../lib/genkit";
 import { resolveModelConfig } from "../../../../lib/model-config";
-import { prisma } from "../../../../lib/prisma";
+import { getPrisma } from "../../../lib/prisma";
 import { getSession } from "../../../lib/auth";
 import {
   ChatRequestSchema,
@@ -29,6 +29,7 @@ const MAX_HISTORY_ITEMS = Number(process.env.MAX_HISTORY_ITEMS ?? "60");
 const MAX_QUESTION_ROUNDS = Number(process.env.MAX_QUESTION_ROUNDS ?? "3");
 const MIN_PROMPT_VARIABLES = Number(process.env.MIN_PROMPT_VARIABLES ?? "3");
 const FORM_MESSAGE_PREFIX = "__FORM__:";
+const prisma = getPrisma();
 
 const INJECTION_PATTERNS = [
   { label: "ignore-previous", regex: /ignore\s+(all|previous|above)\s+instructions?/i },

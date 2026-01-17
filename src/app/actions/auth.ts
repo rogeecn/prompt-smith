@@ -1,11 +1,12 @@
 "use server";
 
 import bcrypt from "bcryptjs";
-import { prisma } from "../../../lib/prisma";
+import { getPrisma } from "../../lib/prisma";
 import { AuthCredentialsSchema } from "../../../lib/schemas";
 import { clearSessionCookie, setSessionCookie } from "../../lib/auth";
 
 export async function register(email: string, password: string) {
+  const prisma = getPrisma();
   const parsed = AuthCredentialsSchema.safeParse({ email, password });
   if (!parsed.success) {
     throw new Error("Invalid credentials");
@@ -34,6 +35,7 @@ export async function register(email: string, password: string) {
 }
 
 export async function login(email: string, password: string) {
+  const prisma = getPrisma();
   const parsed = AuthCredentialsSchema.safeParse({ email, password });
   if (!parsed.success) {
     throw new Error("Invalid credentials");
@@ -58,5 +60,5 @@ export async function login(email: string, password: string) {
 }
 
 export async function logout() {
-  clearSessionCookie();
+  await clearSessionCookie();
 }
