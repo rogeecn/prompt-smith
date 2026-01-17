@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import ArtifactsClient from "../../../components/ArtifactsClient";
 
 type PageProps = {
@@ -10,6 +11,10 @@ export default async function ArtifactsPage({ searchParams }: PageProps) {
   const resolvedSearchParams = await searchParams;
   const rawProjectId = resolvedSearchParams?.projectId;
   const projectId = typeof rawProjectId === "string" ? rawProjectId : null;
+
+  if (!projectId) {
+    redirect("/");
+  }
 
   return <ArtifactsClient initialProjectId={projectId} />;
 }

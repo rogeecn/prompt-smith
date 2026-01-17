@@ -1,18 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { z } from "zod";
 import { MoreVertical, Plus, Search } from "lucide-react";
 import ChatInterface from "./ChatInterface";
-import {
-  createProject,
-  createSession,
-  deleteSession,
-  loadProjectContext,
-  loadSessionContext,
-} from "../src/app/actions";
+import { createSession, deleteSession, loadProjectContext, loadSessionContext } from "../src/app/actions";
 import type { HistoryItem, SessionState } from "../lib/schemas";
 
 const projectIdSchema = z.string().uuid();
@@ -22,11 +16,9 @@ type HomeClientProps = {
 };
 
 export default function HomeClient({ initialProjectId = null }: HomeClientProps) {
-  const router = useRouter();
   const pathname = usePathname();
   const [projectId, setProjectId] = useState<string | null>(null);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [isLoadingContext, setIsLoadingContext] = useState(false);
   const [initialMessages, setInitialMessages] = useState<HistoryItem[]>([]);
@@ -40,37 +32,14 @@ export default function HomeClient({ initialProjectId = null }: HomeClientProps)
     }[]
   >([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const hasRequestedRef = useRef(false);
 
   const validProjectId = projectIdSchema.safeParse(initialProjectId).success
     ? initialProjectId
     : null;
 
-  // Project Creation Logic
-  const createAndRedirect = useCallback(async () => {
-    if (isCreating) return;
-    setIsCreating(true);
-    try {
-      const newProjectId = await createProject();
-      setProjectId(newProjectId);
-      setInitialMessages([]);
-      router.replace(`/?projectId=${newProjectId}`);
-    } catch {
-      // Error handling
-    } finally {
-      setIsCreating(false);
-    }
-  }, [isCreating, router]);
-
   useEffect(() => {
-    if (validProjectId) {
-      setProjectId(validProjectId);
-      return;
-    }
-    if (hasRequestedRef.current) return;
-    hasRequestedRef.current = true;
-    void createAndRedirect();
-  }, [validProjectId, createAndRedirect]);
+    setProjectId(validProjectId);
+  }, [validProjectId]);
 
   // Context Loading Logic
   const loadContext = useCallback(async (activeProjectId: string) => {
@@ -156,14 +125,18 @@ export default function HomeClient({ initialProjectId = null }: HomeClientProps)
 
   if (!projectId) {
     return (
-      <div className="flex min-h-screen flex-col bg-background items-center justify-center">
-         <div className="animate-pulse font-display text-2xl">Initializing...</div>
+      <div className="flex min-h-screen flex-col bg-white items-center justify-center px-6 text-center">
+        <div className="font-display text-2xl text-black">请先选择一个项目</div>
+        <a href="/" className="mt-4 text-sm text-black underline">
+          返回项目列表
+        </a>
       </div>
     );
   }
 
   const buildHref = (href: string) => `${href}?projectId=${projectId}`;
-  const isWizardActive = pathname === "/";
+  const wizardHref = `/project/${projectId}`;
+  const isWizardActive = pathname.startsWith("/project");
   const isArtifactsActive = pathname.startsWith("/artifacts");
 
   return (
@@ -201,7 +174,13 @@ export default function HomeClient({ initialProjectId = null }: HomeClientProps)
               </div>
               <nav className="mt-4 flex flex-col gap-2 text-sm font-medium text-gray-500">
                 <Link
-                  href={buildHref("/")}
+                  href="/"
+                  className={pathname === "/" ? "text-black" : "hover:text-black"}
+                >
+                  Projects
+                </Link>
+                <Link
+                  href={wizardHref}
                   className={isWizardActive ? "text-black" : "hover:text-black"}
                 >
                   Wizard

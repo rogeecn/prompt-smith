@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import ArtifactChatPageClient from "../../../../components/ArtifactChatPageClient";
 
 type PageProps = {
@@ -14,6 +15,10 @@ export default async function ArtifactChatPage({ params, searchParams }: PagePro
   const resolvedSearchParams = await searchParams;
   const rawProjectId = resolvedSearchParams?.projectId;
   const projectId = typeof rawProjectId === "string" ? rawProjectId : null;
+
+  if (!projectId) {
+    redirect("/");
+  }
 
   return (
     <ArtifactChatPageClient

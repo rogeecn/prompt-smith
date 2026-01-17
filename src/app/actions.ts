@@ -15,6 +15,7 @@ import {
 } from "../../lib/schemas";
 import { z } from "zod";
 import { deriveTitleFromPrompt, parseTemplateVariables } from "../../lib/template";
+import { requireSession } from "../lib/auth";
 
 const projectIdSchema = z.string().uuid();
 const sessionIdSchema = z.string().min(1);
@@ -137,7 +138,23 @@ const logDebug = (label: string, payload?: unknown) => {
   console.info(`[actions] ${label}`, payload);
 };
 
-export async function createProject() {
+const requireProjectForUser = async (projectId: string, userId: string) => {
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, userId },
+    select: { id: true },
+  });
+  if (!project) {
+    throw new Error("Project not found");
+  }
+  return project;
+};
+
+export async function createProject(userId: string) {
+  const session = await requireSession();
+  if (userId !== session.userId) {
+    throw new Error("Unauthorized");
+  }
+
   const projectId = randomUUID();
   logDebug("createProject:start", { projectId });
 
@@ -145,11 +162,7 @@ export async function createProject() {
     data: {
       id: projectId,
       name: "默认项目",
-      sessions: {
-        create: {
-          history: [],
-        },
-      },
+      userId: session.userId,
     },
   });
 
@@ -157,12 +170,34 @@ export async function createProject() {
   return projectId;
 }
 
+export async function getUserProjects(userId: string) {
+  const session = await requireSession();
+  if (userId !== session.userId) {
+    throw new Error("Unauthorized");
+  }
+
+  const projects = await prisma.project.findMany({
+    where: { userId: session.userId },
+    orderBy: { created_at: "desc" },
+    select: {
+      id: true,
+      name: true,
+      created_at: true,
+    },
+  });
+
+  return projects;
+}
+
 export async function listArtifacts(projectId: string) {
+  const session = await requireSession();
   const parsedProjectId = projectIdSchema.safeParse(projectId);
   if (!parsedProjectId.success) {
     logDebug("listArtifacts:invalid", { projectId });
     throw new Error("Invalid projectId");
   }
+
+  await requireProjectForUser(parsedProjectId.data, session.userId);
 
   const artifacts = await prisma.artifact.findMany({
     where: { projectId: parsedProjectId.data },
@@ -190,11 +225,14 @@ export async function listArtifacts(projectId: string) {
 }
 
 export async function createArtifact(projectId: string) {
+  const session = await requireSession();
   const parsedProjectId = projectIdSchema.safeParse(projectId);
   if (!parsedProjectId.success) {
     logDebug("createArtifact:invalid", { projectId });
     throw new Error("Invalid projectId");
   }
+
+  await requireProjectForUser(parsedProjectId.data, session.userId);
 
   const artifact = await prisma.artifact.create({
     data: {
@@ -219,11 +257,14 @@ export async function createArtifactFromPrompt(
   promptContent: string,
   title?: string
 ) {
+  const session = await requireSession();
   const parsedProjectId = projectIdSchema.safeParse(projectId);
   if (!parsedProjectId.success) {
     logDebug("createArtifactFromPrompt:invalid", { projectId });
     throw new Error("Invalid projectId");
   }
+
+  await requireProjectForUser(parsedProjectId.data, session.userId);
 
   const trimmedPrompt = promptContent.trim();
   if (!trimmedPrompt) {
@@ -269,6 +310,7 @@ export async function updateArtifact(
   artifactId: string,
   payload: unknown
 ) {
+  const session = await requireSession();
   const parsedProjectId = projectIdSchema.safeParse(projectId);
   const parsedArtifactId = artifactIdSchema.safeParse(artifactId);
   if (!parsedProjectId.success || !parsedArtifactId.success) {
@@ -280,6 +322,18 @@ export async function updateArtifact(
   if (!parsedPayload.success) {
     logDebug("updateArtifact:invalid-payload", { artifactId });
     throw new Error("Invalid payload");
+  }
+
+  const ownedArtifact = await prisma.artifact.findFirst({
+    where: {
+      id: parsedArtifactId.data,
+      projectId: parsedProjectId.data,
+      project: { userId: session.userId },
+    },
+    select: { id: true },
+  });
+  if (!ownedArtifact) {
+    throw new Error("Artifact not found");
   }
 
   const artifact = await prisma.artifact.update({
@@ -295,11 +349,24 @@ export async function updateArtifact(
 }
 
 export async function deleteArtifact(projectId: string, artifactId: string) {
+  const session = await requireSession();
   const parsedProjectId = projectIdSchema.safeParse(projectId);
   const parsedArtifactId = artifactIdSchema.safeParse(artifactId);
   if (!parsedProjectId.success || !parsedArtifactId.success) {
     logDebug("deleteArtifact:invalid", { projectId, artifactId });
     throw new Error("Invalid artifact");
+  }
+
+  const ownedArtifact = await prisma.artifact.findFirst({
+    where: {
+      id: parsedArtifactId.data,
+      projectId: parsedProjectId.data,
+      project: { userId: session.userId },
+    },
+    select: { id: true },
+  });
+  if (!ownedArtifact) {
+    throw new Error("Artifact not found");
   }
 
   await prisma.artifactSession.deleteMany({
@@ -319,6 +386,7 @@ export async function deleteArtifact(projectId: string, artifactId: string) {
 }
 
 export async function loadArtifact(projectId: string, artifactId: string) {
+  const session = await requireSession();
   const parsedProjectId = projectIdSchema.safeParse(projectId);
   const parsedArtifactId = artifactIdSchema.safeParse(artifactId);
   if (!parsedProjectId.success || !parsedArtifactId.success) {
@@ -327,7 +395,11 @@ export async function loadArtifact(projectId: string, artifactId: string) {
   }
 
   const artifact = await prisma.artifact.findFirst({
-    where: { id: parsedArtifactId.data, projectId: parsedProjectId.data },
+    where: {
+      id: parsedArtifactId.data,
+      projectId: parsedProjectId.data,
+      project: { userId: session.userId },
+    },
   });
 
   if (!artifact) {
@@ -342,6 +414,7 @@ export async function loadArtifact(projectId: string, artifactId: string) {
 }
 
 export async function loadArtifactContext(projectId: string, artifactId: string) {
+  const session = await requireSession();
   const parsedProjectId = projectIdSchema.safeParse(projectId);
   const parsedArtifactId = artifactIdSchema.safeParse(artifactId);
   if (!parsedProjectId.success || !parsedArtifactId.success) {
@@ -350,7 +423,11 @@ export async function loadArtifactContext(projectId: string, artifactId: string)
   }
 
   const artifact = await prisma.artifact.findFirst({
-    where: { id: parsedArtifactId.data, projectId: parsedProjectId.data },
+    where: {
+      id: parsedArtifactId.data,
+      projectId: parsedProjectId.data,
+      project: { userId: session.userId },
+    },
     select: {
       id: true,
       title: true,
@@ -425,6 +502,7 @@ export async function loadArtifactSession(
   artifactId: string,
   sessionId: string
 ) {
+  const userSession = await requireSession();
   const parsedProjectId = projectIdSchema.safeParse(projectId);
   const parsedArtifactId = artifactIdSchema.safeParse(artifactId);
   const parsedSessionId = sessionIdSchema.safeParse(sessionId);
@@ -441,7 +519,7 @@ export async function loadArtifactSession(
     where: {
       id: parsedSessionId.data,
       artifactId: parsedArtifactId.data,
-      artifact: { projectId: parsedProjectId.data },
+      artifact: { projectId: parsedProjectId.data, project: { userId: userSession.userId } },
     },
   });
 
@@ -469,6 +547,7 @@ export async function createArtifactSession(
   projectId: string,
   artifactId: string
 ) {
+  const userSession = await requireSession();
   const parsedProjectId = projectIdSchema.safeParse(projectId);
   const parsedArtifactId = artifactIdSchema.safeParse(artifactId);
   if (!parsedProjectId.success || !parsedArtifactId.success) {
@@ -477,7 +556,11 @@ export async function createArtifactSession(
   }
 
   const artifact = await prisma.artifact.findFirst({
-    where: { id: parsedArtifactId.data, projectId: parsedProjectId.data },
+    where: {
+      id: parsedArtifactId.data,
+      projectId: parsedProjectId.data,
+      project: { userId: userSession.userId },
+    },
   });
 
   if (!artifact) {
@@ -491,7 +574,7 @@ export async function createArtifactSession(
     sessionId,
   });
 
-  const session = await prisma.artifactSession.create({
+  const artifactSession = await prisma.artifactSession.create({
     data: {
       id: sessionId,
       artifactId: parsedArtifactId.data,
@@ -499,16 +582,19 @@ export async function createArtifactSession(
     },
   });
 
-  logDebug("createArtifactSession:done", { sessionId: session.id });
-  return session.id;
+  logDebug("createArtifactSession:done", { sessionId: artifactSession.id });
+  return artifactSession.id;
 }
 
 export async function createSession(projectId: string) {
+  const userSession = await requireSession();
   const parsedProjectId = projectIdSchema.safeParse(projectId);
   if (!parsedProjectId.success) {
     logDebug("createSession:invalid", { projectId });
     throw new Error("Invalid projectId");
   }
+
+  await requireProjectForUser(parsedProjectId.data, userSession.userId);
 
   const sessionId = randomUUID();
   logDebug("createSession:start", { projectId: parsedProjectId.data, sessionId });
@@ -527,6 +613,7 @@ export async function createSession(projectId: string) {
 }
 
 export async function deleteSession(projectId: string, sessionId: string) {
+  const session = await requireSession();
   const parsedProjectId = projectIdSchema.safeParse(projectId);
   const parsedSessionId = sessionIdSchema.safeParse(sessionId);
   if (!parsedProjectId.success || !parsedSessionId.success) {
@@ -535,7 +622,11 @@ export async function deleteSession(projectId: string, sessionId: string) {
   }
 
   const result = await prisma.session.deleteMany({
-    where: { id: parsedSessionId.data, projectId: parsedProjectId.data },
+    where: {
+      id: parsedSessionId.data,
+      projectId: parsedProjectId.data,
+      project: { userId: session.userId },
+    },
   });
 
   if (result.count === 0) {
@@ -545,30 +636,20 @@ export async function deleteSession(projectId: string, sessionId: string) {
 }
 
 export async function loadProjectContext(projectId: string) {
+  const session = await requireSession();
   const parsedProjectId = projectIdSchema.safeParse(projectId);
   if (!parsedProjectId.success) {
     logDebug("loadProjectContext:invalid", { projectId });
     throw new Error("Invalid projectId");
   }
 
-  let project = await prisma.project.findUnique({
-    where: { id: parsedProjectId.data },
+  const project = await prisma.project.findFirst({
+    where: { id: parsedProjectId.data, userId: session.userId },
   });
 
   if (!project) {
     logDebug("loadProjectContext:not-found", { projectId });
-    project = await prisma.project.create({
-      data: {
-        id: parsedProjectId.data,
-        name: "默认项目",
-        sessions: {
-          create: {
-            history: [],
-            state: {},
-          },
-        },
-      },
-    });
+    throw new Error("Project not found");
   }
 
   logDebug("loadProjectContext:start", { projectId: project.id });
@@ -578,31 +659,19 @@ export async function loadProjectContext(projectId: string) {
     select: { id: true, created_at: true, history: true, state: true },
   });
 
-  if (sessions.length === 0) {
-    const session = await prisma.session.create({
-      data: {
-        id: randomUUID(),
-        projectId: project.id,
-        history: [],
-        state: {},
-      },
-      select: { id: true, created_at: true, history: true, state: true },
-    });
-    sessions = [session];
-  }
+  const currentSessionId = sessions[0]?.id ?? null;
+  const currentSession =
+    currentSessionId
+      ? await prisma.session.findFirst({
+          where: { id: currentSessionId, projectId: project.id },
+        })
+      : null;
 
-  const currentSessionId = sessions[0]?.id;
-  const currentSession = await prisma.session.findFirst({
-    where: { id: currentSessionId, projectId: project.id },
-  });
-
-  if (!currentSession) {
-    throw new Error("Session not found");
-  }
-
-  const historyResult = HistoryItemSchema.array().safeParse(currentSession.history);
+  const historyResult = HistoryItemSchema.array().safeParse(
+    currentSession?.history ?? []
+  );
   const history = historyResult.success ? historyResult.data : [];
-  const state = normalizeSessionState(currentSession.state ?? {});
+  const state = normalizeSessionState(currentSession?.state ?? {});
 
   logDebug("loadProjectContext:done", {
     projectId: project.id,
@@ -625,6 +694,7 @@ export async function loadProjectContext(projectId: string) {
 }
 
 export async function loadSessionContext(projectId: string, sessionId: string) {
+  const userSession = await requireSession();
   const parsedProjectId = projectIdSchema.safeParse(projectId);
   const parsedSessionId = sessionIdSchema.safeParse(sessionId);
   if (!parsedProjectId.success || !parsedSessionId.success) {
@@ -633,7 +703,11 @@ export async function loadSessionContext(projectId: string, sessionId: string) {
   }
 
   const session = await prisma.session.findFirst({
-    where: { id: parsedSessionId.data, projectId: parsedProjectId.data },
+    where: {
+      id: parsedSessionId.data,
+      projectId: parsedProjectId.data,
+      project: { userId: userSession.userId },
+    },
   });
 
   if (!session) {
@@ -661,6 +735,7 @@ export async function updateSessionState(
   sessionId: string,
   state: SessionState
 ) {
+  const userSession = await requireSession();
   const parsedProjectId = projectIdSchema.safeParse(projectId);
   const parsedSessionId = sessionIdSchema.safeParse(sessionId);
   if (!parsedProjectId.success || !parsedSessionId.success) {
@@ -680,10 +755,17 @@ export async function updateSessionState(
     draft_answers: normalizedDrafts,
   });
 
-  await prisma.session.update({
-    where: { id: parsedSessionId.data },
+  const updated = await prisma.session.updateMany({
+    where: {
+      id: parsedSessionId.data,
+      projectId: parsedProjectId.data,
+      project: { userId: userSession.userId },
+    },
     data: { state: candidate },
   });
+  if (updated.count === 0) {
+    throw new Error("Session not found");
+  }
 }
 
 export async function updateSessionTitle(
@@ -691,6 +773,7 @@ export async function updateSessionTitle(
   sessionId: string,
   title: string
 ) {
+  const userSession = await requireSession();
   const parsedProjectId = projectIdSchema.safeParse(projectId);
   const parsedSessionId = sessionIdSchema.safeParse(sessionId);
   const parsedTitle = titleSchema.safeParse(title);
@@ -700,7 +783,11 @@ export async function updateSessionTitle(
   }
 
   const session = await prisma.session.findFirst({
-    where: { id: parsedSessionId.data, projectId: parsedProjectId.data },
+    where: {
+      id: parsedSessionId.data,
+      projectId: parsedProjectId.data,
+      project: { userId: userSession.userId },
+    },
     select: { state: true },
   });
 
@@ -730,6 +817,7 @@ export async function updateSessionTargetModel(
   sessionId: string,
   targetModel: string | null
 ) {
+  const userSession = await requireSession();
   const parsedProjectId = projectIdSchema.safeParse(projectId);
   const parsedSessionId = sessionIdSchema.safeParse(sessionId);
   if (!parsedProjectId.success || !parsedSessionId.success) {
@@ -741,7 +829,11 @@ export async function updateSessionTargetModel(
   const nextTargetModel = normalized ? normalized : null;
 
   const session = await prisma.session.findFirst({
-    where: { id: parsedSessionId.data, projectId: parsedProjectId.data },
+    where: {
+      id: parsedSessionId.data,
+      projectId: parsedProjectId.data,
+      project: { userId: userSession.userId },
+    },
     select: { state: true },
   });
 
@@ -775,6 +867,7 @@ export async function updateSessionModelConfig(
   modelId: string | null,
   outputFormat: string | null
 ) {
+  const userSession = await requireSession();
   const parsedProjectId = projectIdSchema.safeParse(projectId);
   const parsedSessionId = sessionIdSchema.safeParse(sessionId);
   if (!parsedProjectId.success || !parsedSessionId.success) {
@@ -788,7 +881,11 @@ export async function updateSessionModelConfig(
   const nextOutputFormat = parsedOutputFormat.success ? parsedOutputFormat.data : null;
 
   const session = await prisma.session.findFirst({
-    where: { id: parsedSessionId.data, projectId: parsedProjectId.data },
+    where: {
+      id: parsedSessionId.data,
+      projectId: parsedProjectId.data,
+      project: { userId: userSession.userId },
+    },
     select: { state: true },
   });
 

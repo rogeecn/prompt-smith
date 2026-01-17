@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { z } from "zod";
 import { MoreVertical, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import ArtifactEditor from "./ArtifactEditor";
@@ -10,7 +10,6 @@ import ArtifactChat from "./ArtifactChat";
 import {
   createArtifact,
   createArtifactSession,
-  createProject,
   deleteArtifact,
   listArtifacts,
   loadArtifactContext,
@@ -27,7 +26,6 @@ type ArtifactsClientProps = {
 export default function ArtifactsClient({
   initialProjectId = null,
 }: ArtifactsClientProps) {
-  const router = useRouter();
   const pathname = usePathname();
   const [projectId, setProjectId] = useState<string | null>(null);
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
@@ -39,7 +37,6 @@ export default function ArtifactsClient({
   >([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [initialMessages, setInitialMessages] = useState<HistoryItem[]>([]);
-  const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [isCreatingArtifact, setIsCreatingArtifact] = useState(false);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [isLoadingContext, setIsLoadingContext] = useState(false);
@@ -49,34 +46,13 @@ export default function ArtifactsClient({
     title: string;
   } | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const hasRequestedRef = useRef(false);
-
   const validProjectId = projectIdSchema.safeParse(initialProjectId).success
     ? initialProjectId
     : null;
 
-  // Project Init
-  const createAndRedirect = useCallback(async () => {
-    if (isCreatingProject) return;
-    setIsCreatingProject(true);
-    try {
-      const newProjectId = await createProject();
-      setProjectId(newProjectId);
-      router.replace(`/artifacts?projectId=${newProjectId}`);
-    } finally {
-      setIsCreatingProject(false);
-    }
-  }, [isCreatingProject, router]);
-
   useEffect(() => {
-    if (validProjectId) {
-      setProjectId(validProjectId);
-      return;
-    }
-    if (hasRequestedRef.current) return;
-    hasRequestedRef.current = true;
-    void createAndRedirect();
-  }, [validProjectId, createAndRedirect]);
+    setProjectId(validProjectId);
+  }, [validProjectId]);
 
   // Artifact List
   const refreshArtifacts = useCallback(async (activeProjectId: string) => {
@@ -252,14 +228,18 @@ export default function ArtifactsClient({
 
   if (!projectId) {
     return (
-      <div className="flex min-h-screen flex-col bg-background items-center justify-center">
-        <div className="animate-pulse font-display text-2xl">Loading Artifacts...</div>
+      <div className="flex min-h-screen flex-col bg-white items-center justify-center px-6 text-center">
+        <div className="font-display text-2xl text-black">请先选择一个项目</div>
+        <a href="/" className="mt-4 text-sm text-black underline">
+          返回项目列表
+        </a>
       </div>
     );
   }
 
   const buildHref = (href: string) => `${href}?projectId=${projectId}`;
-  const isWizardActive = pathname === "/";
+  const wizardHref = `/project/${projectId}`;
+  const isWizardActive = pathname.startsWith("/project");
   const isArtifactsActive = pathname.startsWith("/artifacts");
 
   return (
@@ -297,7 +277,13 @@ export default function ArtifactsClient({
               </div>
               <nav className="mt-4 flex flex-col gap-2 text-sm font-medium text-gray-500">
                 <Link
-                  href={buildHref("/")}
+                  href="/"
+                  className={pathname === "/" ? "text-black" : "hover:text-black"}
+                >
+                  Projects
+                </Link>
+                <Link
+                  href={wizardHref}
                   className={isWizardActive ? "text-black" : "hover:text-black"}
                 >
                   Wizard

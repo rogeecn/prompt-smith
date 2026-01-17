@@ -1,15 +1,14 @@
-import HomeClient from "../../components/HomeClient";
+import { redirect } from "next/navigation";
+import Dashboard from "../../components/Dashboard";
+import { getSession } from "../lib/auth";
+import { getUserProjects } from "./actions";
 
-type PageProps = {
-  searchParams?: Promise<{
-    projectId?: string | string[];
-  }>;
-};
+export default async function Page() {
+  const session = await getSession();
+  if (!session) {
+    redirect("/login");
+  }
 
-export default async function Page({ searchParams }: PageProps) {
-  const resolvedSearchParams = await searchParams;
-  const rawProjectId = resolvedSearchParams?.projectId;
-  const projectId = typeof rawProjectId === "string" ? rawProjectId : null;
-
-  return <HomeClient initialProjectId={projectId} />;
+  const projects = await getUserProjects(session.userId);
+  return <Dashboard userId={session.userId} projects={projects} />;
 }
