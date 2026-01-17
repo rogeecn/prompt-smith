@@ -34,6 +34,11 @@ const formatDefaultValue = (variable: ArtifactVariable) => {
 
 const MAX_TEXTAREA_HEIGHT = 140;
 
+const stripThinkingBlock = (content: string) =>
+  content.replace(/<thinking>[\s\S]*?<\/thinking>/gi, "").trim();
+
+const normalizeMarkdown = (content: string) => content.replace(/\n/g, "  \n");
+
 const buildInitialDraftAnswers = (variables: ArtifactVariable[]) =>
   variables.reduce<Record<string, DraftAnswer>>((acc, variable) => {
     const value = formatDefaultValue(variable);
@@ -351,6 +356,9 @@ export default function ArtifactChat({
         <div ref={listRef} className="flex-1 overflow-y-auto">
           {messages.map((item, index) => {
             const isUser = item.role === "user";
+            const cleanedContent =
+              item.role === "assistant" ? stripThinkingBlock(item.content) : item.content;
+            const displayContent = normalizeMarkdown(cleanedContent);
             return (
               <div key={`${item.timestamp}-${index}`} className="w-full">
                 <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
@@ -367,7 +375,7 @@ export default function ArtifactChat({
                      prose-pre:bg-gray-50 prose-pre:border prose-pre:border-gray-200 prose-pre:text-gray-800
                      prose-code:text-black prose-code:font-mono prose-code:bg-gray-100 prose-code:px-1
                    `}>
-                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.content}</ReactMarkdown>
+                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayContent}</ReactMarkdown>
                    </div>
                 </div>
               </div>
