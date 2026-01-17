@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import ArtifactChatPageClient from "../../../../components/ArtifactChatPageClient";
 
 type PageProps = {
   params: Promise<{
@@ -20,10 +19,5 @@ export default async function ArtifactChatPage({ params, searchParams }: PagePro
     redirect("/");
   }
 
-  return (
-    <ArtifactChatPageClient
-      artifactId={resolvedParams.artifactId}
-      initialProjectId={projectId}
-    />
-  );
+  redirect(`/artifacts?projectId=${projectId}&artifactId=${resolvedParams.artifactId}`);
 }
