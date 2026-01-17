@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
-import { ai, getCompatModel } from "../../../../../lib/genkit";
+import { ai, getModelRef } from "../../../../../lib/genkit";
 import { resolveModelConfig } from "../../../../../lib/model-config";
 import { getPrisma } from "../../../../lib/prisma";
 import {
@@ -306,40 +306,59 @@ export async function POST(req: Request) {
     return jsonWithTrace({ error: "Invalid request" }, { status: 400 }, traceId);
   }
 
-  if (!process.env.OPENAI_API_KEY) {
-    console.error("[api/artifacts/chat] Missing OPENAI_API_KEY");
-    return jsonWithTrace(
-      { error: "Missing OPENAI_API_KEY" },
-      { status: 500 },
-      traceId
-    );
-  }
-
-  if (!process.env.OPENAI_BASE_URL) {
-    console.error("[api/artifacts/chat] Missing OPENAI_BASE_URL");
-    return jsonWithTrace(
-      { error: "Missing OPENAI_BASE_URL" },
-      { status: 500 },
-      traceId
-    );
-  }
-
   let modelConfig: ReturnType<typeof resolveModelConfig>;
   try {
     modelConfig = resolveModelConfig(null);
   } catch (error) {
     console.error(
-      "[api/artifacts/chat] Missing OPENAI_MODELS or OPENAI_MODEL",
+      "[api/artifacts/chat] Missing MODEL_CATALOG or OPENAI_MODEL/OPENAI_MODELS",
       { error }
     );
     return jsonWithTrace(
-      { error: "Missing OPENAI_MODELS or OPENAI_MODEL" },
+      { error: "Missing MODEL_CATALOG or OPENAI_MODEL/OPENAI_MODELS" },
       { status: 500 },
       traceId
     );
   }
 
-  const modelRef = getCompatModel(modelConfig.model);
+  if (modelConfig.provider === "openai") {
+    if (!process.env.OPENAI_API_KEY) {
+      console.error("[api/artifacts/chat] Missing OPENAI_API_KEY");
+      return jsonWithTrace(
+        { error: "Missing OPENAI_API_KEY" },
+        { status: 500 },
+        traceId
+      );
+    }
+    if (!process.env.OPENAI_BASE_URL) {
+      console.error("[api/artifacts/chat] Missing OPENAI_BASE_URL");
+      return jsonWithTrace(
+        { error: "Missing OPENAI_BASE_URL" },
+        { status: 500 },
+        traceId
+      );
+    }
+  }
+  if (modelConfig.provider === "google" && !process.env.GOOGLE_API_KEY) {
+    console.error("[api/artifacts/chat] Missing GOOGLE_API_KEY");
+    return jsonWithTrace(
+      { error: "Missing GOOGLE_API_KEY" },
+      { status: 500 },
+      traceId
+    );
+  }
+
+  let modelRef: ReturnType<typeof getModelRef>;
+  try {
+    modelRef = getModelRef(modelConfig);
+  } catch (error) {
+    console.error("[api/artifacts/chat] Model provider error", { error });
+    return jsonWithTrace(
+      { error: "Model provider error" },
+      { status: 500 },
+      traceId
+    );
+  }
 
   const { projectId, artifactId, sessionId, message, inputs } = parsed.data;
   traceId = parsed.data.traceId ?? traceId;

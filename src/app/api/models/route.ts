@@ -18,11 +18,11 @@ export async function GET() {
       defaultFormat: OUTPUT_FORMATS[0],
     });
   } catch (error) {
-    console.error("[api/models] Missing OPENAI_MODELS or OPENAI_MODEL", {
+    console.error("[api/models] Missing MODEL_CATALOG or OPENAI_MODEL/OPENAI_MODELS", {
       error,
     });
     return NextResponse.json(
-      { error: "Missing OPENAI_MODELS or OPENAI_MODEL" },
+      { error: "Missing MODEL_CATALOG or OPENAI_MODEL/OPENAI_MODELS" },
       { status: 500 }
     );
   }

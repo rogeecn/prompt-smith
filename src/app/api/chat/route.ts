@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { ai, getCompatModel } from "../../../../lib/genkit";
+import { ai, getModelRef } from "../../../../lib/genkit";
 import { resolveModelConfig } from "../../../../lib/model-config";
 import { getPrisma } from "../../../lib/prisma";
 import { getSession } from "../../../lib/auth";
@@ -553,7 +553,7 @@ const runAlchemyGeneration = async ({
   history,
   latestUserContent,
 }: {
-  model: ReturnType<typeof getCompatModel>;
+  model: ReturnType<typeof getModelRef>;
   modelLabel: string | null;
   promptFormat: PromptFormat;
   history: { role: string; content: string }[];
@@ -726,7 +726,7 @@ const buildGuardFixPrompt = (minVariables: number, promptFormat: PromptFormat) =
 const runGuardReview = async (
   prompt: string,
   promptFormat: PromptFormat,
-  model: ReturnType<typeof getCompatModel>
+  model: ReturnType<typeof getModelRef>
 ) => {
   const guardPrompt = buildGuardPrompt(MIN_PROMPT_VARIABLES, promptFormat);
   const guardResponse = await generateWithRetry({
@@ -744,7 +744,7 @@ const runGuardFix = async (
   prompt: string,
   issues: string[],
   promptFormat: PromptFormat,
-  model: ReturnType<typeof getCompatModel>
+  model: ReturnType<typeof getModelRef>
 ) => {
   const guardPrompt = buildGuardFixPrompt(MIN_PROMPT_VARIABLES, promptFormat);
   const guardResponse = await generateWithRetry({
@@ -870,7 +870,7 @@ const applyGuardFix = async (
   prompt: string,
   issues: string[],
   promptFormat: PromptFormat,
-  model: ReturnType<typeof getCompatModel>
+  model: ReturnType<typeof getModelRef>
 ) => {
   const fixReview = await runGuardFix(prompt, issues, promptFormat, model);
   const revised = fixReview.revised_prompt?.trim() ?? "";
@@ -1005,24 +1005,6 @@ export async function POST(req: Request) {
     return jsonWithTrace({ error: "Invalid request" }, { status: 400 }, traceId);
   }
 
-  if (!process.env.OPENAI_API_KEY) {
-    console.error("[api/chat] Missing OPENAI_API_KEY");
-    return jsonWithTrace(
-      { error: "Missing OPENAI_API_KEY" },
-      { status: 500 },
-      traceId
-    );
-  }
-
-  if (!process.env.OPENAI_BASE_URL) {
-    console.error("[api/chat] Missing OPENAI_BASE_URL");
-    return jsonWithTrace(
-      { error: "Missing OPENAI_BASE_URL" },
-      { status: 500 },
-      traceId
-    );
-  }
-
   const { projectId, sessionId, message, answers } = parsed.data;
   const requestedModelId = normalizeModelId(
     parsed.data.modelId ?? parsed.data.targetModel
@@ -1067,13 +1049,38 @@ export async function POST(req: Request) {
     try {
       modelConfig = resolveModelConfig(requestedModelId ?? sessionModelId);
     } catch (error) {
-      console.error("[api/chat] Missing OPENAI_MODELS or OPENAI_MODEL", {
-        error,
-      });
-      throw new HttpError(500, "Missing OPENAI_MODELS or OPENAI_MODEL");
+      console.error(
+        "[api/chat] Missing MODEL_CATALOG or OPENAI_MODEL/OPENAI_MODELS",
+        { error }
+      );
+      throw new HttpError(
+        500,
+        "Missing MODEL_CATALOG or OPENAI_MODEL/OPENAI_MODELS"
+      );
     }
 
-    const modelRef = getCompatModel(modelConfig.model);
+    if (modelConfig.provider === "openai") {
+      if (!process.env.OPENAI_API_KEY) {
+        console.error("[api/chat] Missing OPENAI_API_KEY");
+        throw new HttpError(500, "Missing OPENAI_API_KEY");
+      }
+      if (!process.env.OPENAI_BASE_URL) {
+        console.error("[api/chat] Missing OPENAI_BASE_URL");
+        throw new HttpError(500, "Missing OPENAI_BASE_URL");
+      }
+    }
+    if (modelConfig.provider === "google" && !process.env.GOOGLE_API_KEY) {
+      console.error("[api/chat] Missing GOOGLE_API_KEY");
+      throw new HttpError(500, "Missing GOOGLE_API_KEY");
+    }
+
+    let modelRef: ReturnType<typeof getModelRef>;
+    try {
+      modelRef = getModelRef(modelConfig);
+    } catch (error) {
+      console.error("[api/chat] Model provider error", { error });
+      throw new HttpError(500, "Model provider error");
+    }
     const modelLabel = modelConfig.label || modelConfig.id;
 
     const historyParsed = historyArraySchema.safeParse(session.history);

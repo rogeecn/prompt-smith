@@ -32,24 +32,33 @@ npm install
 ```bash
 DATABASE_URL="file:./dev.db"
 AUTH_SECRET="YOUR_RANDOM_SECRET"
+MODEL_CATALOG='[
+  {"id":"gpt-4o-mini","label":"GPT-4o mini","provider":"openai","model":"gpt-4o-mini"},
+  {"id":"gemini-1.5-pro","label":"Gemini 1.5 Pro","provider":"google","model":"gemini-1.5-pro"}
+]'
+MODEL_DEFAULT_ID="gpt-4o-mini"
 OPENAI_API_KEY="YOUR_KEY"
 OPENAI_BASE_URL="https://api.openai.com/v1"
-OPENAI_MODEL="gpt-4o-mini"
+GOOGLE_API_KEY="YOUR_GOOGLE_KEY"
 ```
 
-如需启用多模型配置（前端模型列表来自后端配置），使用 `OPENAI_MODELS`：
+如需启用多模型配置（前端模型列表来自后端配置），推荐使用 `MODEL_CATALOG`：
 
 ```bash
-OPENAI_MODELS='[
-  {"id":"gpt-4o-mini","label":"GPT-4o mini","model":"gpt-4o-mini"},
-  {"id":"gpt-4o","label":"GPT-4o","model":"gpt-4o"}
+MODEL_CATALOG='[
+  {"id":"gpt-4o-mini","label":"GPT-4o mini","provider":"openai","model":"gpt-4o-mini"},
+  {"id":"gpt-4o","label":"GPT-4o","provider":"openai","model":"gpt-4o"},
+  {"id":"gemini-1.5-flash","label":"Gemini 1.5 Flash","provider":"google","model":"gemini-1.5-flash"}
 ]'
-OPENAI_DEFAULT_MODEL_ID="gpt-4o-mini"
+MODEL_DEFAULT_ID="gpt-4o-mini"
 ```
 
 说明：
-- `OPENAI_MODEL` 与 `OPENAI_MODELS` 二选一即可（推荐后者）。
+- `MODEL_CATALOG` 支持多供应商；`provider` 目前支持 `openai` / `google`。
 - `id` 用于前端选择；`model` 为实际请求模型；`label` 为展示文案。
+- 选择 `openai` 供应商时，需要配置 `OPENAI_API_KEY` 与 `OPENAI_BASE_URL`。
+- 选择 `google` 供应商时，需要配置 `GOOGLE_API_KEY`。
+- 兼容旧配置：仍可使用 `OPENAI_MODEL` 或 `OPENAI_MODELS`（仅 OpenAI）。
 - `AUTH_SECRET` 用于签发登录会话，必须设置。
 
 可选配置：
@@ -183,6 +192,6 @@ public/         # 静态资源
 
 ## 说明
 
-- OpenAI 兼容接口必须配置 `OPENAI_BASE_URL`，并提供 `OPENAI_MODEL` 或 `OPENAI_MODELS`
+- 使用 `openai` 供应商时必须配置 `OPENAI_BASE_URL`，并提供 `MODEL_CATALOG` 或 `OPENAI_MODEL`/`OPENAI_MODELS`
 - 模型选择与输出格式在 UI 中独立配置
 - 如果出现跨域开发警告，确认 `next.config.ts` 中的 `allowedDevOrigins`
