@@ -353,7 +353,7 @@ export default function ArtifactsClient({
                         type="button"
                         aria-label="编辑制品"
                         onClick={() => handleEditArtifact(item)}
-                        className="text-gray-400 hover:text-black transition-colors"
+                        className="text-gray-500 opacity-100 visible hover:text-black transition-colors"
                       >
                         <Pencil className="h-4 w-4" />
                       </button>
@@ -362,7 +362,7 @@ export default function ArtifactsClient({
                         aria-label="删除制品"
                         onClick={() => handleDeleteArtifact(item)}
                         disabled={deletingArtifactId === item.id}
-                        className="text-gray-400 hover:text-rose-500 transition-colors disabled:opacity-40"
+                        className="text-gray-500 opacity-100 visible hover:text-rose-500 transition-colors disabled:opacity-40"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
