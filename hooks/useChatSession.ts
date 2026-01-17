@@ -25,6 +25,8 @@ export type SendRequestPayload = {
   appendUserMessage?: boolean;
 };
 
+const DELIBERATION_MESSAGE_PREFIX = "__DELIBERATIONS__:";
+
 const STAGE_LABELS: Record<string, string> = {
   start: "已接收请求",
   load_session: "加载会话中...",
@@ -281,8 +283,19 @@ export const useChatSession = ({
       }
       setIsFinished(payload.is_finished);
       setDeliberations(payload.deliberations ?? []);
+      const deliberationMessage =
+        payload.deliberations && payload.deliberations.length > 0
+          ? {
+              role: "assistant" as const,
+              content: `${DELIBERATION_MESSAGE_PREFIX}${JSON.stringify(
+                payload.deliberations
+              )}`,
+              timestamp: Date.now(),
+            }
+          : null;
       setMessages((prev) => [
         ...prev,
+        ...(deliberationMessage ? [deliberationMessage] : []),
         { role: "assistant", content: payload.reply, timestamp: Date.now() },
       ]);
       setPendingQuestions(payload.questions ?? []);

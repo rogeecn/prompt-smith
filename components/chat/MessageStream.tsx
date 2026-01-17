@@ -1,14 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import MessageBlock from "./MessageBlock";
 import AgentDeliberation from "./AgentDeliberation";
 import { Activity } from "lucide-react";
-import type { HistoryItem, LLMResponse, Question, DraftAnswer } from "../../lib/schemas";
+import type { HistoryItem, Question, DraftAnswer, LLMResponse } from "../../lib/schemas";
 
 type MessageStreamProps = {
   messages: HistoryItem[];
-  deliberations: LLMResponse["deliberations"];
   isLoading: boolean;
   loadingStage?: string | null;
   parseFormMessage: (content: string) => {
@@ -17,38 +15,25 @@ type MessageStreamProps = {
   } | null;
 };
 
+const DELIBERATION_MESSAGE_PREFIX = "__DELIBERATIONS__:";
+
+const parseDeliberationMessage = (content: string) => {
+  if (!content.startsWith(DELIBERATION_MESSAGE_PREFIX)) return null;
+  const raw = content.slice(DELIBERATION_MESSAGE_PREFIX.length);
+  try {
+    const parsed = JSON.parse(raw) as LLMResponse["deliberations"];
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
 export default function MessageStream({
   messages,
-  deliberations,
   isLoading,
   loadingStage,
   parseFormMessage,
 }: MessageStreamProps) {
-  const [visibleDeliberations, setVisibleDeliberations] = useState<
-    LLMResponse["deliberations"]
-  >([]);
-
-  useEffect(() => {
-    if (!deliberations || deliberations.length === 0) {
-      setVisibleDeliberations([]);
-      return;
-    }
-
-    let index = 0;
-    setVisibleDeliberations([]);
-    const timer = setInterval(() => {
-      index += 1;
-      setVisibleDeliberations(deliberations.slice(0, index));
-      if (index >= deliberations.length) {
-        clearInterval(timer);
-      }
-    }, 450);
-
-    return () => {
-      clearInterval(timer);
-    };
-  }, [deliberations]);
-
   if (messages.length === 0) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center p-12 text-center">
@@ -67,6 +52,15 @@ export default function MessageStream({
     <div className="flex-1">
       <div className="flex flex-col">
         {messages.map((item, index) => {
+          const deliberation = parseDeliberationMessage(item.content);
+          if (deliberation) {
+            return (
+              <AgentDeliberation
+                key={`${item.timestamp}-${index}`}
+                deliberations={deliberation}
+              />
+            );
+          }
           const formPayload = parseFormMessage(item.content);
           return (
             <MessageBlock
@@ -79,7 +73,6 @@ export default function MessageStream({
             />
           );
         })}
-        <AgentDeliberation deliberations={visibleDeliberations} />
 
         {/* AI Loading Block */}
         {isLoading && (

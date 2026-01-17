@@ -29,6 +29,7 @@ const MAX_HISTORY_ITEMS = Number(process.env.MAX_HISTORY_ITEMS ?? "60");
 const MAX_QUESTION_ROUNDS = Number(process.env.MAX_QUESTION_ROUNDS ?? "3");
 const MIN_PROMPT_VARIABLES = Number(process.env.MIN_PROMPT_VARIABLES ?? "3");
 const FORM_MESSAGE_PREFIX = "__FORM__:";
+const DELIBERATION_MESSAGE_PREFIX = "__DELIBERATIONS__:";
 const prisma = getPrisma();
 type HistoryItem = z.infer<typeof HistoryItemSchema>;
 
@@ -41,6 +42,11 @@ const formatHistoryForLog = (items: HistoryItem[]) =>
     content: truncateLog(item.content, 1000),
     timestamp: item.timestamp,
   }));
+
+const isDeliberationMessage = (item: HistoryItem) =>
+  item.role === "assistant" &&
+  typeof item.content === "string" &&
+  item.content.startsWith(DELIBERATION_MESSAGE_PREFIX);
 
 const INJECTION_PATTERNS = [
   { label: "ignore-previous", regex: /ignore\s+(all|previous|above)\s+instructions?/i },
@@ -1090,12 +1096,16 @@ export async function POST(req: Request) {
 
     const historyParsed = historyArraySchema.safeParse(session.history);
     const history = historyParsed.success ? historyParsed.data : [];
+    const historyForPrompt = history.filter(
+      (item) => !isDeliberationMessage(item)
+    );
     const trimmedHistory =
       Number.isFinite(MAX_HISTORY_ITEMS) && MAX_HISTORY_ITEMS > 0
-        ? history.slice(-MAX_HISTORY_ITEMS)
-        : history;
-    const completedRounds = history.filter((item) => item.role === "assistant")
-      .length;
+        ? historyForPrompt.slice(-MAX_HISTORY_ITEMS)
+        : historyForPrompt;
+    const completedRounds = historyForPrompt.filter(
+      (item) => item.role === "assistant"
+    ).length;
     const shouldForceFinalize =
       Number.isFinite(MAX_QUESTION_ROUNDS) &&
       MAX_QUESTION_ROUNDS > 0 &&
@@ -1211,7 +1221,7 @@ export async function POST(req: Request) {
       const alchemy = await runAlchemyGeneration({
         model: modelRef,
         modelLabel,
-        promptFormat,
+      promptFormat,
         history: trimmedHistory,
         latestUserContent: userContent,
       });
@@ -1397,6 +1407,18 @@ export async function POST(req: Request) {
         content: message ?? userContent,
         timestamp: Date.now(),
       },
+      ...(normalizedResponse.deliberations &&
+      normalizedResponse.deliberations.length > 0
+        ? [
+            {
+              role: "assistant",
+              content: `${DELIBERATION_MESSAGE_PREFIX}${JSON.stringify(
+                normalizedResponse.deliberations
+              )}`,
+              timestamp: Date.now(),
+            },
+          ]
+        : []),
       {
         role: "assistant",
         content: normalizedResponse.reply,

@@ -74,6 +74,7 @@ export default function ChatInterface({
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const formRef = useRef<HTMLDivElement | null>(null);
   const hasCustomTitleRef = useRef(false);
 
   const {
@@ -157,10 +158,15 @@ export default function ChatInterface({
   }, [input]);
 
   useEffect(() => {
-    if (listRef.current) {
-      listRef.current.scrollTop = listRef.current.scrollHeight;
-    }
-  }, [messages, isLoading, deliberations, finalPrompt, pendingQuestions]);
+    if (!listRef.current) return;
+    if (pendingQuestions.length > 0) return;
+    listRef.current.scrollTop = listRef.current.scrollHeight;
+  }, [messages, isLoading, deliberations, finalPrompt, pendingQuestions.length]);
+
+  useEffect(() => {
+    if (pendingQuestions.length === 0 || !formRef.current) return;
+    formRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [pendingQuestions.length]);
 
   useEffect(() => {
     if (!finalPrompt || hasCustomTitleRef.current) {
@@ -354,9 +360,13 @@ export default function ChatInterface({
             ) : (
               <span className="text-xs text-gray-400">模型加载中...</span>
             )}
-            {saveStatus === "saving" && (
-              <span className="text-xs text-gray-400">Saving...</span>
-            )}
+            <span
+              className={`text-xs text-gray-400 transition-opacity ${
+                saveStatus === "saving" ? "opacity-100" : "opacity-0"
+              }`}
+            >
+              Saving...
+            </span>
           </div>
         </div>
       </div>
@@ -365,34 +375,35 @@ export default function ChatInterface({
       <div ref={listRef} className="flex-1 overflow-y-auto bg-white">
         <MessageStream
           messages={messages}
-          deliberations={deliberations}
           isLoading={isLoading}
           loadingStage={loadingStage}
           parseFormMessage={parseFormMessage}
         />
 
         {showQuestionForm && (
-          <QuestionForm
-            questions={pendingQuestions}
-            draftAnswers={draftAnswers}
-            fieldErrors={fieldErrors}
-            isLoading={isLoading}
-            isDisabled={isDisabled}
-            saveStatusLabel=""
-            formError={formError}
-            onTextChange={(k, v) => setDraftAnswers(p => ({ ...p, [k]: { type: "text", value: v } }))}
-            onSingleSelect={(k, v) => setDraftAnswers(p => ({ ...p, [k]: { type: "single", value: v, other: v === "__other__" ? p[k]?.other : undefined } }))}
-            onMultiToggle={(k, v) => setDraftAnswers(p => {
-              const cur = Array.isArray(p[k]?.value) ? p[k].value : [];
-              if (v === "__none__") return { ...p, [k]: { type: "multi", value: [v] } };
-              const next = cur.includes(v) ? cur.filter(x => x !== v) : [...cur.filter(x => x !== "__none__"), v];
-              return { ...p, [k]: { type: "multi", value: next, other: next.includes("__other__") ? p[k]?.other : undefined } };
-            })}
-            onOtherChange={(k, v) => setDraftAnswers(p => ({ ...p, [k]: { ...p[k]!, other: v } }))}
-            onSelectAll={(k, opts) => setDraftAnswers(p => ({ ...p, [k]: { type: "multi", value: opts!.map(o => o.id).filter(id => id !== "__other__" && id !== "__none__") } }))}
-            onSubmit={handleAnswerSubmit}
-            onRetry={() => retryPayload && sendRequest(retryPayload)}
-          />
+          <div ref={formRef}>
+            <QuestionForm
+              questions={pendingQuestions}
+              draftAnswers={draftAnswers}
+              fieldErrors={fieldErrors}
+              isLoading={isLoading}
+              isDisabled={isDisabled}
+              saveStatusLabel=""
+              formError={formError}
+              onTextChange={(k, v) => setDraftAnswers(p => ({ ...p, [k]: { type: "text", value: v } }))}
+              onSingleSelect={(k, v) => setDraftAnswers(p => ({ ...p, [k]: { type: "single", value: v, other: v === "__other__" ? p[k]?.other : undefined } }))}
+              onMultiToggle={(k, v) => setDraftAnswers(p => {
+                const cur = Array.isArray(p[k]?.value) ? p[k].value : [];
+                if (v === "__none__") return { ...p, [k]: { type: "multi", value: [v] } };
+                const next = cur.includes(v) ? cur.filter(x => x !== v) : [...cur.filter(x => x !== "__none__"), v];
+                return { ...p, [k]: { type: "multi", value: next, other: next.includes("__other__") ? p[k]?.other : undefined } };
+              })}
+              onOtherChange={(k, v) => setDraftAnswers(p => ({ ...p, [k]: { ...p[k]!, other: v } }))}
+              onSelectAll={(k, opts) => setDraftAnswers(p => ({ ...p, [k]: { type: "multi", value: opts!.map(o => o.id).filter(id => id !== "__other__" && id !== "__none__") } }))}
+              onSubmit={handleAnswerSubmit}
+              onRetry={() => retryPayload && sendRequest(retryPayload)}
+            />
+          </div>
         )}
 
         {/* Final Prompt Display - Editorial Style */}
