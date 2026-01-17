@@ -127,6 +127,28 @@ http://<你的内网IP>:3000/
 npm run build
 ```
 
+### Docker 部署
+
+本项目提供 Dockerfile，可直接构建镜像：
+
+```bash
+docker build -t prompt-smith:latest .
+```
+
+启动时请提供环境变量：
+
+```bash
+docker run -p 3000:3000 --env-file .env prompt-smith:latest
+```
+
+### 镜像发布（GitHub Actions）
+
+推送带 `v` 前缀的 tag（例如 `v0.2.0`）后会自动构建并发布镜像到：
+
+```
+ghcr.io/<owner>/<repo>:v0.2.0
+```
+
 ### 启动生产服务
 
 ```bash
