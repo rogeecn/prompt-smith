@@ -12,7 +12,12 @@ if (!databaseUrl) {
 
 const adapter = new PrismaLibSql({ url: databaseUrl });
 
-export const prisma = globalForPrisma.prisma ?? new PrismaClient({ adapter });
+const hasUserModel = Boolean(globalForPrisma.prisma?.user);
+
+export const prisma =
+  globalForPrisma.prisma && hasUserModel
+    ? globalForPrisma.prisma
+    : new PrismaClient({ adapter });
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
