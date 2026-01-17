@@ -1,10 +1,13 @@
 import { SignJWT, jwtVerify } from "jose";
 import { z } from "zod";
 
-const AUTH_SECRET = process.env.AUTH_SECRET;
-if (!AUTH_SECRET) {
-  throw new Error("Missing AUTH_SECRET");
-}
+const getAuthSecret = () => {
+  const secret = process.env.AUTH_SECRET;
+  if (!secret) {
+    throw new Error("Missing AUTH_SECRET");
+  }
+  return secret;
+};
 
 const SESSION_COOKIE_NAME = "prompt_smith_session";
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7;
@@ -16,7 +19,7 @@ const SessionPayloadSchema = z.object({
 
 export type SessionPayload = z.infer<typeof SessionPayloadSchema>;
 
-const getSecret = () => new TextEncoder().encode(AUTH_SECRET);
+const getSecret = () => new TextEncoder().encode(getAuthSecret());
 
 export const getSessionCookieName = () => SESSION_COOKIE_NAME;
 export const getSessionMaxAge = () => SESSION_MAX_AGE;
