@@ -1,0 +1,42 @@
+import { cookies } from "next/headers";
+import {
+  getSessionCookieName,
+  getSessionMaxAge,
+  signSession,
+  verifySessionToken,
+  type SessionPayload,
+} from "./auth-core";
+
+const buildCookieOptions = () => ({
+  httpOnly: true,
+  sameSite: "lax" as const,
+  secure: process.env.NODE_ENV === "production",
+  path: "/",
+  maxAge: getSessionMaxAge(),
+});
+
+export const getSession = async (): Promise<SessionPayload | null> => {
+  const token = cookies().get(getSessionCookieName())?.value;
+  if (!token) return null;
+  return verifySessionToken(token);
+};
+
+export const requireSession = async (): Promise<SessionPayload> => {
+  const session = await getSession();
+  if (!session) {
+    throw new Error("Unauthorized");
+  }
+  return session;
+};
+
+export const setSessionCookie = async (payload: SessionPayload) => {
+  const token = await signSession(payload);
+  cookies().set(getSessionCookieName(), token, buildCookieOptions());
+};
+
+export const clearSessionCookie = () => {
+  cookies().set(getSessionCookieName(), "", {
+    ...buildCookieOptions(),
+    maxAge: 0,
+  });
+};

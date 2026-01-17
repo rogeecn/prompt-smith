@@ -71,6 +71,13 @@ export const DraftAnswerSchema = z.object({
 
 export type DraftAnswer = z.infer<typeof DraftAnswerSchema>;
 
+export const AuthCredentialsSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+});
+
+export type AuthCredentials = z.infer<typeof AuthCredentialsSchema>;
+
 export const DraftAnswerRecordSchema = z.preprocess(
   (value) => {
     if (!value || typeof value !== "object" || Array.isArray(value)) {
