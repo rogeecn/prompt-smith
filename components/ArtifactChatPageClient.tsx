@@ -410,7 +410,7 @@ export default function ArtifactChatPageClient({
                           {editingSessionId === session.id ? (
                             <div
                               className={[
-                                "w-full rounded-xl border px-3 py-3 text-left text-sm transition",
+                                "w-full rounded-xl border px-3 py-3 pr-10 text-left text-sm transition",
                                 isActive
                                   ? "border-slate-900 bg-slate-900 text-white"
                                   : "border-transparent bg-slate-50 text-slate-700",
@@ -432,10 +432,10 @@ export default function ArtifactChatPageClient({
                                       setSessionTitleDraft(session.title ?? "");
                                     }
                                   }}
-                                  className="w-full border-b border-slate-200 bg-transparent text-xs font-semibold text-slate-900 outline-none focus:border-slate-900"
+                                  className="w-full min-w-0 flex-1 border-b border-slate-200 bg-transparent text-xs font-semibold text-slate-900 outline-none focus:border-slate-900"
                                   placeholder="输入会话标题"
                                 />
-                                <span className="text-xs text-slate-400">
+                                <span className="shrink-0 text-xs text-slate-400">
                                   {formatSessionLabel(session.created_at)}
                                 </span>
                               </div>
@@ -453,15 +453,17 @@ export default function ArtifactChatPageClient({
                               type="button"
                               onClick={() => handleSelectSession(session.id)}
                               className={[
-                                "w-full cursor-pointer rounded-xl border px-3 py-3 text-left text-sm transition",
+                                "w-full cursor-pointer rounded-xl border px-3 py-3 pr-10 text-left text-sm transition",
                                 isActive
                                   ? "border-slate-900 bg-slate-900 text-white"
                                   : "border-transparent bg-slate-50 text-slate-700 hover:border-slate-200 hover:bg-slate-100",
                               ].join(" ")}
                             >
                               <div className="flex items-center justify-between gap-2">
-                                <span className="font-semibold">{title}</span>
-                                <span className="text-xs text-slate-400">
+                                <span className="min-w-0 flex-1 truncate font-semibold">
+                                  {title}
+                                </span>
+                                <span className="shrink-0 text-xs text-slate-400">
                                   {formatSessionLabel(session.created_at)}
                                 </span>
                               </div>

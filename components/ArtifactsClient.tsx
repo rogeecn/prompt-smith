@@ -521,7 +521,7 @@ export default function ArtifactsClient({
                         `}
                       >
                         {editingSessionId === session.id ? (
-                          <div className="flex-1">
+                          <div className="flex-1 min-w-0">
                             <div className={`border-l-2 pl-3 ${isActive ? "border-accent" : "border-transparent"}`}>
                               <div className="flex items-start justify-between gap-2">
                                 <input
@@ -542,7 +542,7 @@ export default function ArtifactsClient({
                                   className="w-full border-b border-gray-200 bg-transparent text-xs font-semibold text-gray-700 outline-none focus:border-black"
                                   placeholder="输入会话标题"
                                 />
-                                <span className="text-[10px] text-gray-400">
+                                <span className="shrink-0 text-[10px] text-gray-400">
                                   {formatDate(session.created_at)}
                                 </span>
                               </div>
@@ -554,14 +554,14 @@ export default function ArtifactsClient({
                         ) : (
                           <button
                             onClick={() => handleSelectSession(session.id)}
-                            className="flex-1 text-left"
+                            className="flex-1 min-w-0 text-left"
                           >
                             <div className={`border-l-2 pl-3 ${isActive ? "border-accent" : "border-transparent"}`}>
-                              <div className="flex justify-between items-start gap-2">
-                                <span className="text-xs font-semibold text-gray-700">
+                              <div className="flex items-start justify-between gap-2">
+                                <span className="min-w-0 flex-1 truncate text-xs font-semibold text-gray-700">
                                   {title}
                                 </span>
-                                <span className="text-[10px] text-gray-400">
+                                <span className="shrink-0 text-[10px] text-gray-400">
                                   {formatDate(session.created_at)}
                                 </span>
                               </div>
