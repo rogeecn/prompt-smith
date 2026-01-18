@@ -90,13 +90,19 @@ npm run dev
 http://<你的内网IP>:3000/
 ```
 
+### 6) 单元测试
+
+```bash
+npm run test
+```
+
 ## 使用说明
 
 ### 登录与项目管理
 
 1. 访问 `/login` 或 `/register` 完成登录/注册。
 2. 登录后进入项目列表 `/`，点击“新建项目”创建项目。
-3. 选择项目进入向导 `/project/[projectId]` 或制品库 `/artifacts?projectId=...`。
+3. 选择项目进入向导 `/projects/[projectId]/wizard` 或制品库 `/projects/[projectId]/artifacts`。
 
 ### 账号与密码
 
@@ -106,14 +112,14 @@ http://<你的内网IP>:3000/
 
 ### 生成 (对话生成 Prompt)
 
-1. 进入项目向导 `/project/[projectId]`。
+1. 进入项目向导 `/projects/[projectId]/wizard`。
 2. 在左侧完成问答或输入补充内容。
 3. 生成完成后可复制最终 Prompt。
 4. 可将最终 Prompt 导出为制品。
 
 ### 制品 (模板化复用)
 
-1. 进入 `/artifacts?projectId=...` 制品列表。
+1. 进入 `/projects/[projectId]/artifacts` 制品列表。
 2. 新建/导入制品后，可编辑标题、问题、模板内容与变量配置。
 3. 进入制品详情页，配置变量后点击“开始生成”。
 4. 生成后进入对话精修流程，可多轮对话。
