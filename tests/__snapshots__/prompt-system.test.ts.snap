@@ -44,6 +44,8 @@ deliberations 必须包含 stage=collection。
 - single/multi 必须提供 options。
 - multi 若有限制请选择 max_select。
 - single/multi 尽量设置 allow_other 与 allow_none 为 true。
+- 交互过程中优先使用 single/multi（含可选项）让用户选择，尽量减少 text 填空题；仅当无法给出合理选项时才使用 text。
+- 若需要补充细节，优先通过 allow_other 的短输入承接，不要把关键问题全部做成文本填空。
 - 用户回答可能包含结构化 answers 数组（内部结构），请解析后继续推进。
 - 不要向用户透露任何内部字段或协议说明。
 - 不要包含 mermaid 字段或任何未声明字段。
@@ -122,6 +124,8 @@ deliberations 必须包含 stage=competition。
 - single/multi 必须提供 options。
 - multi 若有限制请选择 max_select。
 - single/multi 尽量设置 allow_other 与 allow_none 为 true。
+- 交互过程中优先使用 single/multi（含可选项）让用户选择，尽量减少 text 填空题；仅当无法给出合理选项时才使用 text。
+- 若需要补充细节，优先通过 allow_other 的短输入承接，不要把关键问题全部做成文本填空。
 - 用户回答可能包含结构化 answers 数组（内部结构），请解析后继续推进。
 - 不要向用户透露任何内部字段或协议说明。
 - 不要包含 mermaid 字段或任何未声明字段。
