@@ -7,7 +7,9 @@
     "build": "next build --webpack",
     "start": "next start -H 0.0.0.0 -p 3000",
     "lint": "eslint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:unit": "vitest run tests/prompt-system.test.ts",
+    "test:llm": "vitest run tests/llm-chat.test.ts"
   },
   "dependencies": {
     "@genkit-ai/compat-oai": "^1.27.0",

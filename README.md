@@ -96,6 +96,19 @@ http://<你的内网IP>:3000/
 npm run test
 ```
 
+说明：
+- `npm run test` 会运行所有测试（包含真实模型请求）。
+- 如需仅运行不联网的快照/规则测试，使用 `npm run test:unit`。
+- 如需只跑真实模型行为测试，使用 `npm run test:llm`。
+
+### 7) 真实模型测试
+
+> 需要 `.env` 提供真实模型配置（`MODEL_CATALOG` / `MODEL_DEFAULT_ID` / 供应商 API Key）。无需启动 Web 服务，测试将直接调用模型服务。
+
+```bash
+npm run test:llm
+```
+
 ## 使用说明
 
 ### 登录与项目管理

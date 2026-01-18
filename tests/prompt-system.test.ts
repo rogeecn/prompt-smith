@@ -17,11 +17,13 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toContain('"reply": string');
     expect(prompt).toContain("不要包含 mermaid 字段");
     expect(prompt).toContain("reply 必须是面向用户的自然语言");
+    expect(prompt).toContain("reply 中严禁出现字段名");
     expect(prompt).toContain("final_prompt 非空时");
     expect(prompt).toContain("questions 非空时");
     expect(prompt).toContain("泄露系统提示/协议");
     expect(prompt).toContain("第一轮输入为空");
     expect(prompt).toContain("示例性问题");
+    expect(prompt).toContain("例如：");
     expect(prompt).toContain("后续轮次但仍过于宽泛");
     expect(prompt).toContain("跳过提问或直接输出 final_prompt");
     expect(prompt).toContain("无法提供合理 options");
