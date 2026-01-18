@@ -4,10 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { z } from "zod";
-import { MoreVertical, Plus, Search } from "lucide-react";
+import { ArrowLeft, MoreVertical, Plus, Search } from "lucide-react";
 import ChatInterface from "./ChatInterface";
 import {
   createSession,
+  getProjectSummary,
   loadProjectContext,
   loadSessionContext,
 } from "../lib/local-store";
@@ -42,6 +43,7 @@ export default function HomeClient({
     }[]
   >([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [projectTitle, setProjectTitle] = useState<string>("");
 
   const validProjectId = projectIdSchema.safeParse(initialProjectId).success
     ? initialProjectId
@@ -53,6 +55,30 @@ export default function HomeClient({
   useEffect(() => {
     setProjectId(validProjectId);
   }, [validProjectId]);
+
+  useEffect(() => {
+    let isActive = true;
+    const loadProject = async () => {
+      if (!projectId) {
+        setProjectTitle("");
+        return;
+      }
+      try {
+        const project = await getProjectSummary(projectId);
+        if (isActive) {
+          setProjectTitle(project?.name ?? "");
+        }
+      } catch {
+        if (isActive) {
+          setProjectTitle("");
+        }
+      }
+    };
+    void loadProject();
+    return () => {
+      isActive = false;
+    };
+  }, [projectId]);
 
   // Context Loading Logic
   useEffect(() => {
@@ -226,29 +252,41 @@ export default function HomeClient({
         >
           <div className="flex h-full flex-col">
             <div className="border-b border-gray-100 px-6 py-5">
-              <div className="font-display text-lg font-bold text-black">
-                PROMPT SMITH
-              </div>
-              <nav className="mt-4 flex flex-col gap-2 text-sm font-medium text-gray-500">
-                <Link
-                  href="/"
-                  className={pathname === "/" ? "text-black" : "hover:text-black"}
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => router.push("/")}
+                  className="flex h-9 w-9 items-center justify-center border border-gray-200 text-gray-600 hover:text-black"
+                  aria-label="返回项目列表"
                 >
-                  Projects
-                </Link>
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
+                <div className="text-sm font-semibold text-gray-700 truncate max-w-[180px] text-right">
+                  {projectTitle || "当前项目"}
+                </div>
+              </div>
+              <div className="mt-4 flex items-center gap-2">
                 <Link
                   href={wizardHref}
-                  className={isWizardActive ? "text-black" : "hover:text-black"}
+                  className={`flex-1 border px-3 py-2 text-center text-sm font-semibold transition ${
+                    isWizardActive
+                      ? "border-black bg-black text-white"
+                      : "border-gray-200 text-gray-600 hover:text-black"
+                  }`}
                 >
-                  Wizard
+                  向导
                 </Link>
                 <Link
                   href={artifactsHref}
-                  className={isArtifactsActive ? "text-black" : "hover:text-black"}
+                  className={`flex-1 border px-3 py-2 text-center text-sm font-semibold transition ${
+                    isArtifactsActive
+                      ? "border-black bg-black text-white"
+                      : "border-gray-200 text-gray-600 hover:text-black"
+                  }`}
                 >
-                  Artifacts
+                  制品
                 </Link>
-              </nav>
+              </div>
             </div>
 
             <div className="p-6 border-b border-gray-100">

@@ -307,6 +307,17 @@ export const listProjects = async () => {
     }));
 };
 
+export const getProjectSummary = async (projectId: string) => {
+  const project = await getProjectRecord(projectId);
+  if (!project) return null;
+  return {
+    id: project.id,
+    name: project.name,
+    description: project.description ?? null,
+    created_at: project.created_at,
+  };
+};
+
 export const createProject = async (payload: {
   name: string;
   description?: string;
