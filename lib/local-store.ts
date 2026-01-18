@@ -1,219 +1,284 @@
-"use client";
-
 import {
   ArtifactSchema,
-  ArtifactUpdateSchema,
   ArtifactVariablesSchema,
-  DraftAnswerSchema,
   HistoryItemSchema,
-  OutputFormatSchema,
-  QuestionSchema,
+  SessionStateSchema,
   type Artifact,
-  type DraftAnswer,
+  type ArtifactUpdate,
+  type ArtifactVariable,
   type HistoryItem,
   type OutputFormat,
   type SessionState,
 } from "./schemas";
 import { deriveTitleFromPrompt, parseTemplateVariables } from "./template";
 
-const STORAGE_KEY = "prompt_smith_local_db_v1";
+const DB_NAME = "prompt_smith_local";
+const DB_VERSION = 1;
 
-type LocalProject = {
+const STORE_PROJECTS = "projects";
+const STORE_SESSIONS = "sessions";
+const STORE_ARTIFACTS = "artifacts";
+const STORE_ARTIFACT_SESSIONS = "artifactSessions";
+
+type StoredProject = {
   id: string;
   name: string;
-  description: string | null;
+  description?: string | null;
   created_at: string;
+  updated_at: string;
+  current_session_id?: string | null;
 };
 
-type LocalSession = {
+type StoredSession = {
   id: string;
   projectId: string;
   created_at: string;
+  updated_at: string;
   history: HistoryItem[];
   state: SessionState | null;
+  title?: string | null;
+  last_message?: string | null;
 };
 
-type LocalArtifact = Artifact & {
+type StoredArtifact = {
+  id: string;
   projectId: string;
+  title: string;
+  problem: string;
+  prompt_content: string;
+  variables: ArtifactVariable[];
   created_at: string;
   updated_at: string;
+  current_session_id?: string | null;
 };
 
-type LocalArtifactSession = {
+type StoredArtifactSession = {
   id: string;
+  projectId: string;
   artifactId: string;
-  title: string | null;
   created_at: string;
   updated_at: string;
   history: HistoryItem[];
-};
-
-type LocalStore = {
-  projects: LocalProject[];
-  sessions: LocalSession[];
-  artifacts: LocalArtifact[];
-  artifactSessions: LocalArtifactSession[];
+  title?: string | null;
+  last_message?: string | null;
 };
 
 type ProjectExportPayload = {
-  version: 1;
+  version: number;
   exported_at: string;
-  project: LocalProject;
-  sessions: LocalSession[];
-  artifacts: LocalArtifact[];
-  artifactSessions: LocalArtifactSession[];
+  project: StoredProject;
+  sessions: StoredSession[];
+  artifacts: StoredArtifact[];
+  artifactSessions: StoredArtifactSession[];
 };
 
-const emptyStore: LocalStore = {
-  projects: [],
-  sessions: [],
-  artifacts: [],
-  artifactSessions: [],
-};
+const dbRef: { current: Promise<IDBDatabase> | null } = { current: null };
 
-const ensureBrowserStorage = () => {
-  if (typeof window === "undefined" || !window.localStorage) {
-    throw new Error("Browser storage not available");
-  }
-};
-
-const loadStore = (): LocalStore => {
-  if (typeof window === "undefined") {
-    return emptyStore;
-  }
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return emptyStore;
-    const parsed = JSON.parse(raw) as Partial<LocalStore>;
-    return {
-      projects: Array.isArray(parsed.projects) ? parsed.projects : [],
-      sessions: Array.isArray(parsed.sessions) ? parsed.sessions : [],
-      artifacts: Array.isArray(parsed.artifacts) ? parsed.artifacts : [],
-      artifactSessions: Array.isArray(parsed.artifactSessions)
-        ? parsed.artifactSessions
-        : [],
-    };
-  } catch {
-    return emptyStore;
-  }
-};
-
-const saveStore = (next: LocalStore) => {
-  ensureBrowserStorage();
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-};
-
-const updateStore = (updater: (store: LocalStore) => LocalStore) => {
-  const current = loadStore();
-  const next = updater(current);
-  saveStore(next);
-  return next;
-};
+const nowIso = () => new Date().toISOString();
 
 const createId = () => {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
   }
-  const bytes = new Uint8Array(16);
-  if (typeof crypto !== "undefined" && "getRandomValues" in crypto) {
-    crypto.getRandomValues(bytes);
-  } else {
-    for (let i = 0; i < bytes.length; i += 1) {
-      bytes[i] = Math.floor(Math.random() * 256);
-    }
-  }
-  bytes[6] = (bytes[6] & 0x0f) | 0x40;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  return `id_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 };
 
-const formatSessionSummary = (history: HistoryItem[]) => {
-  if (history.length === 0) return "未开始";
-  const content = history[history.length - 1]?.content?.trim() ?? "";
-  if (!content) return "未开始";
-  return content.length > 36 ? `${content.slice(0, 36)}…` : content;
+const ensureBrowser = () => {
+  if (typeof window === "undefined" || !("indexedDB" in window)) {
+    throw new Error("当前环境不支持 IndexedDB");
+  }
 };
 
-const normalizeDraftAnswers = (value: unknown) => {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return {};
-  }
-
-  const record = value as Record<string, unknown>;
-  const next: Record<string, DraftAnswer> = {};
-
-  Object.entries(record).forEach(([key, entry]) => {
-    if (typeof entry === "string") {
-      next[key] = { type: "text", value: entry };
-      return;
-    }
-    if (Array.isArray(entry) && entry.every((item) => typeof item === "string")) {
-      next[key] = { type: "multi", value: entry };
-      return;
-    }
-    const parsed = DraftAnswerSchema.safeParse(entry);
-    if (parsed.success) {
-      next[key] = parsed.data;
-    }
+const requestToPromise = <T>(request: IDBRequest<T>) =>
+  new Promise<T>((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error ?? new Error("IndexedDB request failed"));
   });
 
-  return next;
-};
+const transactionToPromise = (tx: IDBTransaction) =>
+  new Promise<void>((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error ?? new Error("IndexedDB transaction failed"));
+    tx.onabort = () => reject(tx.error ?? new Error("IndexedDB transaction aborted"));
+  });
 
-const normalizeSessionState = (value: unknown): SessionState => {
-  const empty: SessionState = {
-    questions: [],
-    deliberations: [],
-    final_prompt: null,
-    is_finished: false,
-    target_model: null,
-    model_id: null,
-    output_format: null,
-    title: null,
-    draft_answers: {},
-  };
-
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return empty;
+const openDb = () => {
+  ensureBrowser();
+  if (dbRef.current) {
+    return dbRef.current;
   }
 
-  const record = value as Record<string, unknown>;
-  const questions = Array.isArray(record.questions)
-    ? record.questions
-        .map((item) => QuestionSchema.safeParse(item))
-        .filter((parsed) => parsed.success)
-        .map((parsed) => parsed.data)
-    : [];
-  const deliberations = Array.isArray(record.deliberations)
-    ? record.deliberations
-        .map((item) => item)
-        .filter(Boolean)
-    : [];
-  const outputFormatParsed = OutputFormatSchema.safeParse(record.output_format);
+  dbRef.current = new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-  return {
-    questions,
-    deliberations,
-    final_prompt:
-      typeof record.final_prompt === "string" ? record.final_prompt : null,
-    is_finished: typeof record.is_finished === "boolean" ? record.is_finished : false,
-    target_model: typeof record.target_model === "string" ? record.target_model : null,
-    model_id: typeof record.model_id === "string" ? record.model_id : null,
-    output_format: outputFormatParsed.success ? outputFormatParsed.data : null,
-    title: typeof record.title === "string" ? record.title : null,
-    draft_answers: normalizeDraftAnswers(record.draft_answers),
-  };
+    request.onupgradeneeded = () => {
+      const db = request.result;
+
+      if (!db.objectStoreNames.contains(STORE_PROJECTS)) {
+        db.createObjectStore(STORE_PROJECTS, { keyPath: "id" });
+      }
+
+      if (!db.objectStoreNames.contains(STORE_SESSIONS)) {
+        const store = db.createObjectStore(STORE_SESSIONS, { keyPath: "id" });
+        store.createIndex("projectId", "projectId", { unique: false });
+      }
+
+      if (!db.objectStoreNames.contains(STORE_ARTIFACTS)) {
+        const store = db.createObjectStore(STORE_ARTIFACTS, { keyPath: "id" });
+        store.createIndex("projectId", "projectId", { unique: false });
+      }
+
+      if (!db.objectStoreNames.contains(STORE_ARTIFACT_SESSIONS)) {
+        const store = db.createObjectStore(STORE_ARTIFACT_SESSIONS, { keyPath: "id" });
+        store.createIndex("artifactId", "artifactId", { unique: false });
+        store.createIndex("projectId", "projectId", { unique: false });
+      }
+    };
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error ?? new Error("打开 IndexedDB 失败"));
+  });
+
+  return dbRef.current;
 };
 
-const normalizeArtifact = (value: unknown) => {
-  const parsed = ArtifactSchema.safeParse(value);
+const withStore = async <T>(
+  storeName: string,
+  mode: IDBTransactionMode,
+  handler: (store: IDBObjectStore, tx: IDBTransaction) => Promise<T>
+) => {
+  const db = await openDb();
+  const tx = db.transaction(storeName, mode);
+  const store = tx.objectStore(storeName);
+  const result = await handler(store, tx);
+  await transactionToPromise(tx);
+  return result;
+};
+
+const withStores = async <T>(
+  storeNames: string[],
+  mode: IDBTransactionMode,
+  handler: (tx: IDBTransaction) => Promise<T>
+) => {
+  const db = await openDb();
+  const tx = db.transaction(storeNames, mode);
+  const result = await handler(tx);
+  await transactionToPromise(tx);
+  return result;
+};
+
+const sanitizeHistory = (value: unknown): HistoryItem[] => {
+  if (!Array.isArray(value)) return [];
+  return value.reduce<HistoryItem[]>((acc, item) => {
+    const parsed = HistoryItemSchema.safeParse(item);
+    if (parsed.success) acc.push(parsed.data);
+    return acc;
+  }, []);
+};
+
+const sanitizeSessionState = (value: unknown): SessionState | null => {
+  const parsed = SessionStateSchema.safeParse(value);
   return parsed.success ? parsed.data : null;
 };
 
+const sanitizeVariables = (value: unknown): ArtifactVariable[] => {
+  const parsed = ArtifactVariablesSchema.safeParse(value);
+  return parsed.success ? parsed.data : [];
+};
+
+const summarizeContent = (content?: string | null) => {
+  if (!content) return "";
+  const trimmed = content.trim();
+  if (!trimmed) return "";
+  if (trimmed.startsWith("__FORM__:")) return "已提交表单";
+  if (trimmed.startsWith("__DELIBERATIONS__:")) return "多 Agent 评分";
+  const normalized = trimmed.replace(/\s+/g, " ");
+  return normalized.length > 60 ? `${normalized.slice(0, 60)}…` : normalized;
+};
+
+const defaultSessionState = (): SessionState => ({
+  questions: [],
+  deliberations: [],
+  final_prompt: null,
+  is_finished: false,
+  target_model: null,
+  model_id: null,
+  output_format: null,
+  title: null,
+  draft_answers: {},
+});
+
+const toArtifact = (artifact: StoredArtifact): Artifact => ({
+  id: artifact.id,
+  title: artifact.title,
+  problem: artifact.problem,
+  prompt_content: artifact.prompt_content,
+  variables: artifact.variables ?? [],
+});
+
+const getProjectRecord = async (projectId: string) =>
+  withStore(STORE_PROJECTS, "readonly", (store) =>
+    requestToPromise(store.get(projectId) as IDBRequest<StoredProject | undefined>)
+  );
+
+const getSessionRecord = async (sessionId: string) =>
+  withStore(STORE_SESSIONS, "readonly", (store) =>
+    requestToPromise(store.get(sessionId) as IDBRequest<StoredSession | undefined>)
+  );
+
+const getArtifactRecord = async (artifactId: string) =>
+  withStore(STORE_ARTIFACTS, "readonly", (store) =>
+    requestToPromise(store.get(artifactId) as IDBRequest<StoredArtifact | undefined>)
+  );
+
+const listSessionsForProject = async (projectId: string) =>
+  withStore(STORE_SESSIONS, "readonly", async (store) => {
+    const index = store.index("projectId");
+    const result = await requestToPromise(
+      index.getAll(projectId) as IDBRequest<StoredSession[]>
+    );
+    return result ?? [];
+  });
+
+const listArtifactsForProject = async (projectId: string) =>
+  withStore(STORE_ARTIFACTS, "readonly", async (store) => {
+    const index = store.index("projectId");
+    const result = await requestToPromise(
+      index.getAll(projectId) as IDBRequest<StoredArtifact[]>
+    );
+    return result ?? [];
+  });
+
+const listArtifactSessionsForArtifact = async (artifactId: string) =>
+  withStore(STORE_ARTIFACT_SESSIONS, "readonly", async (store) => {
+    const index = store.index("artifactId");
+    const result = await requestToPromise(
+      index.getAll(artifactId) as IDBRequest<StoredArtifactSession[]>
+    );
+    return result ?? [];
+  });
+
+const listArtifactSessionsForProject = async (projectId: string) =>
+  withStore(STORE_ARTIFACT_SESSIONS, "readonly", async (store) => {
+    const index = store.index("projectId");
+    const result = await requestToPromise(
+      index.getAll(projectId) as IDBRequest<StoredArtifactSession[]>
+    );
+    return result ?? [];
+  });
+
 export const listProjects = async () => {
-  const store = loadStore();
-  return [...store.projects].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const items = await withStore(STORE_PROJECTS, "readonly", (store) =>
+    requestToPromise(store.getAll() as IDBRequest<StoredProject[]>)
+  );
+  return (items ?? [])
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .map((project) => ({
+      id: project.id,
+      name: project.name,
+      description: project.description ?? null,
+      created_at: project.created_at,
+    }));
 };
 
 export const createProject = async (payload: {
@@ -224,157 +289,286 @@ export const createProject = async (payload: {
   if (!name) {
     throw new Error("项目名称不能为空");
   }
-  const id = createId();
-  const nextProject: LocalProject = {
-    id,
+  const now = nowIso();
+  const project: StoredProject = {
+    id: createId(),
     name,
     description: payload.description?.trim() || null,
-    created_at: new Date().toISOString(),
+    created_at: now,
+    updated_at: now,
+    current_session_id: null,
   };
-  updateStore((store) => ({
-    ...store,
-    projects: [nextProject, ...store.projects],
-  }));
-  return id;
+  await withStore(STORE_PROJECTS, "readwrite", (store) =>
+    requestToPromise(store.put(project))
+  );
+  return project.id;
 };
 
-export const exportProject = async (projectId: string): Promise<ProjectExportPayload> => {
-  const store = loadStore();
-  const project = store.projects.find((item) => item.id === projectId);
+export const exportProject = async (projectId: string) => {
+  const project = await getProjectRecord(projectId);
   if (!project) {
-    throw new Error("Project not found");
+    throw new Error("项目不存在");
   }
-  const sessions = store.sessions.filter((session) => session.projectId === projectId);
-  const artifacts = store.artifacts.filter((artifact) => artifact.projectId === projectId);
-  const artifactIdSet = new Set(artifacts.map((artifact) => artifact.id));
-  const artifactSessions = store.artifactSessions.filter((session) =>
-    artifactIdSet.has(session.artifactId)
-  );
+  const [sessions, artifacts, artifactSessions] = await Promise.all([
+    listSessionsForProject(projectId),
+    listArtifactsForProject(projectId),
+    listArtifactSessionsForProject(projectId),
+  ]);
 
-  return {
+  const payload: ProjectExportPayload = {
     version: 1,
-    exported_at: new Date().toISOString(),
+    exported_at: nowIso(),
     project,
     sessions,
     artifacts,
     artifactSessions,
   };
+  return payload;
 };
 
 export const importProject = async (payload: unknown) => {
-  const data = payload as ProjectExportPayload;
-  if (!data || data.version !== 1 || !data.project) {
-    throw new Error("无效的项目导入数据");
+  if (!payload || typeof payload !== "object") {
+    throw new Error("导入文件格式错误");
+  }
+
+  const raw = payload as Partial<ProjectExportPayload>;
+  const rawProject = raw.project as Partial<StoredProject> | undefined;
+  if (!rawProject || typeof rawProject !== "object") {
+    throw new Error("导入文件缺少项目信息");
   }
 
   const newProjectId = createId();
-  const project: LocalProject = {
-    ...data.project,
+  const now = nowIso();
+  const project: StoredProject = {
     id: newProjectId,
+    name: typeof rawProject.name === "string" && rawProject.name.trim()
+      ? rawProject.name.trim()
+      : "导入项目",
+    description:
+      typeof rawProject.description === "string" && rawProject.description.trim()
+        ? rawProject.description.trim()
+        : null,
+    created_at: now,
+    updated_at: now,
+    current_session_id: null,
   };
 
   const sessionIdMap = new Map<string, string>();
   const artifactIdMap = new Map<string, string>();
-
-  const sessions = (data.sessions ?? []).map((session) => {
-    const nextId = createId();
-    sessionIdMap.set(session.id, nextId);
+  const sessions = (raw.sessions ?? []).filter(Boolean).map((item) => {
+    const rawSession = item as Partial<StoredSession>;
+    const originalId = typeof rawSession.id === "string" ? rawSession.id : createId();
+    const newId = createId();
+    sessionIdMap.set(originalId, newId);
+    const history = sanitizeHistory(rawSession.history);
+    const state = sanitizeSessionState(rawSession.state);
     return {
-      ...session,
-      id: nextId,
+      id: newId,
       projectId: newProjectId,
-    };
+      created_at: rawSession.created_at && typeof rawSession.created_at === "string" ? rawSession.created_at : now,
+      updated_at: now,
+      history,
+      state,
+      title: typeof rawSession.title === "string" ? rawSession.title : state?.title ?? null,
+      last_message: summarizeContent(history.at(-1)?.content ?? rawSession.last_message ?? ""),
+    } satisfies StoredSession;
   });
 
-  const artifacts = (data.artifacts ?? []).map((artifact) => {
-    const nextId = createId();
-    artifactIdMap.set(artifact.id, nextId);
+  const artifacts = (raw.artifacts ?? []).filter(Boolean).map((item) => {
+    const rawArtifact = item as Partial<StoredArtifact>;
+    const originalId = typeof rawArtifact.id === "string" ? rawArtifact.id : createId();
+    const newId = createId();
+    artifactIdMap.set(originalId, newId);
+    const variables = sanitizeVariables(rawArtifact.variables);
+    const title =
+      typeof rawArtifact.title === "string" && rawArtifact.title.trim()
+        ? rawArtifact.title.trim()
+        : "导入制品";
+    const problem =
+      typeof rawArtifact.problem === "string" && rawArtifact.problem.trim()
+        ? rawArtifact.problem.trim()
+        : "导入描述";
+    const prompt =
+      typeof rawArtifact.prompt_content === "string" && rawArtifact.prompt_content.trim()
+        ? rawArtifact.prompt_content.trim()
+        : "导入内容";
     return {
-      ...artifact,
-      id: nextId,
+      id: newId,
       projectId: newProjectId,
-    };
+      title,
+      problem,
+      prompt_content: prompt,
+      variables,
+      created_at: rawArtifact.created_at && typeof rawArtifact.created_at === "string" ? rawArtifact.created_at : now,
+      updated_at: now,
+      current_session_id: null,
+    } satisfies StoredArtifact;
   });
 
-  const artifactSessions = (data.artifactSessions ?? []).map((session) => {
-    const nextId = createId();
-    return {
-      ...session,
-      id: nextId,
-      artifactId: artifactIdMap.get(session.artifactId) ?? session.artifactId,
-    };
-  });
+  const artifactSessions = (raw.artifactSessions ?? [])
+    .filter(Boolean)
+    .map((item) => {
+      const rawSession = item as Partial<StoredArtifactSession>;
+      const oldArtifactId = typeof rawSession.artifactId === "string" ? rawSession.artifactId : "";
+      const artifactId = artifactIdMap.get(oldArtifactId);
+      if (!artifactId) return null;
+      const history = sanitizeHistory(rawSession.history);
+      return {
+        id: createId(),
+        projectId: newProjectId,
+        artifactId,
+        created_at:
+          rawSession.created_at && typeof rawSession.created_at === "string"
+            ? rawSession.created_at
+            : now,
+        updated_at: now,
+        history,
+        title: typeof rawSession.title === "string" ? rawSession.title : null,
+        last_message: summarizeContent(history.at(-1)?.content ?? rawSession.last_message ?? ""),
+      } satisfies StoredArtifactSession;
+    })
+    .filter((item): item is StoredArtifactSession => item !== null);
 
-  updateStore((store) => ({
-    ...store,
-    projects: [project, ...store.projects],
-    sessions: [...sessions, ...store.sessions],
-    artifacts: [...artifacts, ...store.artifacts],
-    artifactSessions: [...artifactSessions, ...store.artifactSessions],
+  const artifactSessionIndex = new Map<string, StoredArtifactSession>();
+  for (const session of artifactSessions) {
+    if (!artifactSessionIndex.has(session.artifactId)) {
+      artifactSessionIndex.set(session.artifactId, session);
+    }
+  }
+
+  const artifactsWithSessions = artifacts.map((artifact) => ({
+    ...artifact,
+    current_session_id: artifactSessionIndex.get(artifact.id)?.id ?? null,
   }));
 
-  return newProjectId;
+  const nextCurrentSession =
+    typeof rawProject.current_session_id === "string"
+      ? sessionIdMap.get(rawProject.current_session_id) ?? null
+      : sessions[0]?.id ?? null;
+
+  project.current_session_id = nextCurrentSession;
+
+  await withStores(
+    [STORE_PROJECTS, STORE_SESSIONS, STORE_ARTIFACTS, STORE_ARTIFACT_SESSIONS],
+    "readwrite",
+    async (tx) => {
+      const projectStore = tx.objectStore(STORE_PROJECTS);
+      await requestToPromise(projectStore.put(project));
+
+      const sessionStore = tx.objectStore(STORE_SESSIONS);
+      for (const session of sessions) {
+        await requestToPromise(sessionStore.put(session));
+      }
+
+      const artifactStore = tx.objectStore(STORE_ARTIFACTS);
+      for (const artifact of artifactsWithSessions) {
+        await requestToPromise(artifactStore.put(artifact));
+      }
+
+      const artifactSessionStore = tx.objectStore(STORE_ARTIFACT_SESSIONS);
+      for (const session of artifactSessions) {
+        await requestToPromise(artifactSessionStore.put(session));
+      }
+    }
+  );
 };
 
 export const createSession = async (projectId: string) => {
-  const id = createId();
-  const nextSession: LocalSession = {
-    id,
+  const project = await getProjectRecord(projectId);
+  if (!project) {
+    throw new Error("项目不存在");
+  }
+  const now = nowIso();
+  const session: StoredSession = {
+    id: createId(),
     projectId,
-    created_at: new Date().toISOString(),
+    created_at: now,
+    updated_at: now,
     history: [],
     state: null,
+    title: null,
+    last_message: "",
   };
-  updateStore((store) => ({
-    ...store,
-    sessions: [nextSession, ...store.sessions],
-  }));
-  return id;
-};
 
-export const deleteSession = async (projectId: string, sessionId: string) => {
-  updateStore((store) => ({
-    ...store,
-    sessions: store.sessions.filter(
-      (session) => !(session.id === sessionId && session.projectId === projectId)
-    ),
-  }));
+  await withStores([STORE_PROJECTS, STORE_SESSIONS], "readwrite", async (tx) => {
+    const sessionStore = tx.objectStore(STORE_SESSIONS);
+    await requestToPromise(sessionStore.put(session));
+
+    const projectStore = tx.objectStore(STORE_PROJECTS);
+    await requestToPromise(
+      projectStore.put({
+        ...project,
+        updated_at: now,
+        current_session_id: session.id,
+      } satisfies StoredProject)
+    );
+  });
+
+  return session.id;
 };
 
 export const loadProjectContext = async (projectId: string) => {
-  const store = loadStore();
-  const sessions = store.sessions
-    .filter((session) => session.projectId === projectId)
-    .sort((a, b) => b.created_at.localeCompare(a.created_at));
-  const currentSession = sessions[0] ?? null;
-  const history = currentSession?.history ?? [];
-  const state = normalizeSessionState(currentSession?.state ?? {});
+  const project = await getProjectRecord(projectId);
+  if (!project) {
+    return {
+      sessions: [],
+      history: [],
+      state: null as SessionState | null,
+      currentSessionId: null as string | null,
+    };
+  }
+
+  const sessions = await listSessionsForProject(projectId);
+  const sortedSessions = sessions.sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const summaries = sortedSessions.map((session) => ({
+    id: session.id,
+    created_at: session.created_at,
+    last_message: session.last_message ?? summarizeContent(session.history.at(-1)?.content ?? ""),
+    title: session.title ?? session.state?.title ?? null,
+  }));
+
+  const currentSessionId = project.current_session_id ?? summaries[0]?.id ?? null;
+  if (!currentSessionId) {
+    return { sessions: summaries, history: [], state: null, currentSessionId: null };
+  }
+
+  const currentSession = await getSessionRecord(currentSessionId);
+  if (!currentSession) {
+    return { sessions: summaries, history: [], state: null, currentSessionId: null };
+  }
+
+  if (project.current_session_id !== currentSessionId) {
+    await withStore(STORE_PROJECTS, "readwrite", (store) =>
+      requestToPromise(
+        store.put({ ...project, current_session_id: currentSessionId, updated_at: nowIso() })
+      )
+    );
+  }
 
   return {
-    history,
-    sessions: sessions.map((session) => ({
-      id: session.id,
-      created_at: session.created_at,
-      title: normalizeSessionState(session.state ?? {}).title,
-      last_message: formatSessionSummary(session.history),
-    })),
-    currentSessionId: currentSession?.id ?? null,
-    state,
+    sessions: summaries,
+    history: currentSession.history ?? [],
+    state: currentSession.state ?? null,
+    currentSessionId,
   };
 };
 
 export const loadSessionContext = async (projectId: string, sessionId: string) => {
-  const store = loadStore();
-  const session = store.sessions.find(
-    (item) => item.id === sessionId && item.projectId === projectId
-  );
-  if (!session) {
-    throw new Error("Session not found");
+  const session = await getSessionRecord(sessionId);
+  if (!session || session.projectId !== projectId) {
+    return { history: [], state: null as SessionState | null };
   }
-  return {
-    history: session.history ?? [],
-    state: normalizeSessionState(session.state ?? {}),
-  };
+
+  const project = await getProjectRecord(projectId);
+  if (project && project.current_session_id !== sessionId) {
+    await withStore(STORE_PROJECTS, "readwrite", (store) =>
+      requestToPromise(
+        store.put({ ...project, current_session_id: sessionId, updated_at: nowIso() })
+      )
+    );
+  }
+
+  return { history: session.history ?? [], state: session.state ?? null };
 };
 
 export const updateSessionState = async (
@@ -382,15 +576,20 @@ export const updateSessionState = async (
   sessionId: string,
   state: SessionState
 ) => {
-  const normalized = normalizeSessionState(state);
-  updateStore((store) => ({
-    ...store,
-    sessions: store.sessions.map((session) =>
-      session.id === sessionId && session.projectId === projectId
-        ? { ...session, state: normalized }
-        : session
-    ),
-  }));
+  const session = await getSessionRecord(sessionId);
+  if (!session || session.projectId !== projectId) return;
+  const now = nowIso();
+  const nextTitle = state.title ?? session.title ?? null;
+  await withStore(STORE_SESSIONS, "readwrite", (store) =>
+    requestToPromise(
+      store.put({
+        ...session,
+        state,
+        title: nextTitle,
+        updated_at: now,
+      } satisfies StoredSession)
+    )
+  );
 };
 
 export const updateSessionTitle = async (
@@ -398,24 +597,20 @@ export const updateSessionTitle = async (
   sessionId: string,
   title: string
 ) => {
-  const trimmed = title.trim();
-  if (!trimmed) {
-    throw new Error("Invalid session title");
-  }
-  updateStore((store) => ({
-    ...store,
-    sessions: store.sessions.map((session) => {
-      if (session.id !== sessionId || session.projectId !== projectId) {
-        return session;
-      }
-      const normalized = normalizeSessionState(session.state ?? {});
-      return {
+  const session = await getSessionRecord(sessionId);
+  if (!session || session.projectId !== projectId) return;
+  const now = nowIso();
+  const nextState = session.state ? { ...session.state, title } : null;
+  await withStore(STORE_SESSIONS, "readwrite", (store) =>
+    requestToPromise(
+      store.put({
         ...session,
-        state: { ...normalized, title: trimmed },
-      };
-    }),
-  }));
-  return trimmed;
+        title,
+        state: nextState,
+        updated_at: now,
+      } satisfies StoredSession)
+    )
+  );
 };
 
 export const updateSessionModelConfig = async (
@@ -424,28 +619,23 @@ export const updateSessionModelConfig = async (
   modelId: string | null,
   outputFormat: OutputFormat | null
 ) => {
-  const normalizedModel = modelId?.trim() || null;
-  const normalizedFormat = OutputFormatSchema.safeParse(outputFormat).success
-    ? outputFormat
-    : null;
-  updateStore((store) => ({
-    ...store,
-    sessions: store.sessions.map((session) => {
-      if (session.id !== sessionId || session.projectId !== projectId) {
-        return session;
-      }
-      const normalized = normalizeSessionState(session.state ?? {});
-      return {
+  const session = await getSessionRecord(sessionId);
+  if (!session || session.projectId !== projectId) return;
+  const now = nowIso();
+  const nextState = session.state ? { ...session.state } : defaultSessionState();
+  nextState.model_id = modelId ?? null;
+  nextState.target_model = modelId ?? null;
+  nextState.output_format = outputFormat ?? null;
+
+  await withStore(STORE_SESSIONS, "readwrite", (store) =>
+    requestToPromise(
+      store.put({
         ...session,
-        state: {
-          ...normalized,
-          model_id: normalizedModel,
-          target_model: normalizedModel,
-          output_format: normalizedFormat,
-        },
-      };
-    }),
-  }));
+        state: nextState,
+        updated_at: now,
+      } satisfies StoredSession)
+    )
+  );
 };
 
 export const updateSessionHistory = async (
@@ -453,65 +643,63 @@ export const updateSessionHistory = async (
   sessionId: string,
   history: HistoryItem[]
 ) => {
-  const parsedHistory = HistoryItemSchema.array().safeParse(history);
-  updateStore((store) => ({
-    ...store,
-    sessions: store.sessions.map((session) =>
-      session.id === sessionId && session.projectId === projectId
-        ? { ...session, history: parsedHistory.success ? parsedHistory.data : [] }
-        : session
-    ),
-  }));
+  const session = await getSessionRecord(sessionId);
+  if (!session || session.projectId !== projectId) return;
+  const now = nowIso();
+  const lastMessage = summarizeContent(history.at(-1)?.content ?? "");
+
+  await withStore(STORE_SESSIONS, "readwrite", (store) =>
+    requestToPromise(
+      store.put({
+        ...session,
+        history,
+        last_message: lastMessage,
+        updated_at: now,
+      } satisfies StoredSession)
+    )
+  );
 };
 
 export const listArtifacts = async (projectId: string) => {
-  const store = loadStore();
-  return store.artifacts
-    .filter((artifact) => artifact.projectId === projectId)
-    .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
-    .map((artifact) => ({
-      ...artifact,
-      variables: ArtifactVariablesSchema.parse(artifact.variables ?? []),
-    }));
+  const items = await listArtifactsForProject(projectId);
+  return items
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .map((artifact) => toArtifact(artifact));
 };
 
 export const createArtifact = async (projectId: string) => {
-  const id = createId();
-  const now = new Date().toISOString();
-  const artifact: LocalArtifact = {
-    id,
+  const project = await getProjectRecord(projectId);
+  if (!project) {
+    throw new Error("项目不存在");
+  }
+  const now = nowIso();
+  const artifact: StoredArtifact = {
+    id: createId(),
     projectId,
     title: "未命名制品",
-    problem: "请填写该制品解决的问题。",
-    prompt_content:
-      "你是一个专业助手。请根据用户需求给出清晰、可执行的结果。",
+    problem: "待补充",
+    prompt_content: "待补充",
     variables: [],
     created_at: now,
     updated_at: now,
+    current_session_id: null,
   };
-  updateStore((store) => ({
-    ...store,
-    artifacts: [artifact, ...store.artifacts],
-  }));
-  return artifact;
+  await withStore(STORE_ARTIFACTS, "readwrite", (store) =>
+    requestToPromise(store.put(artifact))
+  );
+  return toArtifact(artifact);
 };
 
-export const createArtifactFromPrompt = async (
-  projectId: string,
-  promptContent: string,
-  title?: string
-) => {
-  const trimmedPrompt = promptContent.trim();
-  if (!trimmedPrompt) {
-    throw new Error("Prompt content is required");
+export const createArtifactFromPrompt = async (projectId: string, prompt: string) => {
+  const project = await getProjectRecord(projectId);
+  if (!project) {
+    throw new Error("项目不存在");
   }
-  const derivedTitle =
-    title?.trim() || deriveTitleFromPrompt(trimmedPrompt) || "未命名制品";
-  const parsedVariables = parseTemplateVariables(trimmedPrompt);
-  const variables = parsedVariables.map((variable) => ({
+  const now = nowIso();
+  const variables = parseTemplateVariables(prompt).map((variable) => ({
     key: variable.key,
     label: variable.label ?? variable.key,
-    type: variable.type ?? ("string" as const),
+    type: variable.type ?? "string",
     required: variable.required ?? true,
     placeholder: variable.placeholder,
     default: variable.default,
@@ -520,108 +708,122 @@ export const createArtifactFromPrompt = async (
     true_label: variable.true_label,
     false_label: variable.false_label,
   }));
-  const now = new Date().toISOString();
-  const artifact: LocalArtifact = {
+  const title = deriveTitleFromPrompt(prompt);
+  const artifact: StoredArtifact = {
     id: createId(),
     projectId,
-    title: derivedTitle,
-    problem: "由最终 Prompt 导出",
-    prompt_content: trimmedPrompt,
+    title,
+    problem: "由向导生成的制品",
+    prompt_content: prompt,
     variables,
     created_at: now,
     updated_at: now,
+    current_session_id: null,
   };
-  updateStore((store) => ({
-    ...store,
-    artifacts: [artifact, ...store.artifacts],
-  }));
-  return artifact;
+  await withStore(STORE_ARTIFACTS, "readwrite", (store) =>
+    requestToPromise(store.put(artifact))
+  );
+  return toArtifact(artifact);
 };
 
 export const updateArtifact = async (
   projectId: string,
   artifactId: string,
-  payload: unknown
+  patch: ArtifactUpdate
 ) => {
-  const parsedPayload = ArtifactUpdateSchema.safeParse(payload);
-  if (!parsedPayload.success) {
-    throw new Error("Invalid payload");
+  const artifact = await getArtifactRecord(artifactId);
+  if (!artifact || artifact.projectId !== projectId) {
+    throw new Error("制品不存在");
   }
-  let updated: LocalArtifact | null = null;
-  updateStore((store) => ({
-    ...store,
-    artifacts: store.artifacts.map((artifact) => {
-      if (artifact.id !== artifactId || artifact.projectId !== projectId) {
-        return artifact;
-      }
-      updated = {
-        ...artifact,
-        ...parsedPayload.data,
-        updated_at: new Date().toISOString(),
-      };
-      return updated;
-    }),
-  }));
-  if (!updated) {
-    throw new Error("Artifact not found");
+  const now = nowIso();
+  const next: StoredArtifact = {
+    ...artifact,
+    title: patch.title,
+    problem: patch.problem,
+    prompt_content: patch.prompt_content,
+    variables: patch.variables ?? [],
+    updated_at: now,
+  };
+
+  const parsed = ArtifactSchema.safeParse({
+    id: next.id,
+    title: next.title,
+    problem: next.problem,
+    prompt_content: next.prompt_content,
+    variables: next.variables,
+  });
+  if (!parsed.success) {
+    throw new Error("制品数据不合法");
   }
-  return updated;
+
+  await withStore(STORE_ARTIFACTS, "readwrite", (store) =>
+    requestToPromise(store.put(next))
+  );
+  return parsed.data;
 };
 
 export const deleteArtifact = async (projectId: string, artifactId: string) => {
-  updateStore((store) => ({
-    ...store,
-    artifacts: store.artifacts.filter(
-      (artifact) => !(artifact.id === artifactId && artifact.projectId === projectId)
-    ),
-    artifactSessions: store.artifactSessions.filter(
-      (session) => session.artifactId !== artifactId
-    ),
-  }));
+  await withStores([STORE_ARTIFACTS, STORE_ARTIFACT_SESSIONS], "readwrite", async (tx) => {
+    const artifactStore = tx.objectStore(STORE_ARTIFACTS);
+    const artifact = await requestToPromise(
+      artifactStore.get(artifactId) as IDBRequest<StoredArtifact | undefined>
+    );
+    if (!artifact || artifact.projectId !== projectId) {
+      return;
+    }
+    await requestToPromise(artifactStore.delete(artifactId));
+
+    const sessionStore = tx.objectStore(STORE_ARTIFACT_SESSIONS);
+    const index = sessionStore.index("artifactId");
+    const sessions = await requestToPromise(
+      index.getAll(artifactId) as IDBRequest<StoredArtifactSession[]>
+    );
+    for (const session of sessions ?? []) {
+      await requestToPromise(sessionStore.delete(session.id));
+    }
+  });
 };
 
 export const loadArtifactContext = async (projectId: string, artifactId: string) => {
-  const store = loadStore();
-  const artifact = store.artifacts.find(
-    (item) => item.id === artifactId && item.projectId === projectId
-  );
-  const normalized = artifact ? normalizeArtifact(artifact) : null;
-  if (!normalized) {
-    throw new Error("Artifact not found");
-  }
-
-  let sessions = store.artifactSessions
-    .filter((session) => session.artifactId === artifactId)
-    .sort((a, b) => b.created_at.localeCompare(a.created_at));
-
-  if (sessions.length === 0) {
-    const nextSession: LocalArtifactSession = {
-      id: createId(),
-      artifactId,
-      title: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+  const artifact = await getArtifactRecord(artifactId);
+  if (!artifact || artifact.projectId !== projectId) {
+    return {
+      artifact: null,
+      sessions: [],
       history: [],
+      currentSessionId: null,
     };
-    sessions = [nextSession];
-    updateStore((current) => ({
-      ...current,
-      artifactSessions: [nextSession, ...current.artifactSessions],
-    }));
   }
 
-  const currentSession = sessions[0];
+  let sessions = await listArtifactSessionsForArtifact(artifactId);
+  sessions = sessions.sort((a, b) => b.created_at.localeCompare(a.created_at));
+
+  let currentSessionId = artifact.current_session_id ?? sessions[0]?.id ?? null;
+  let history: HistoryItem[] = [];
+
+  if (!currentSessionId) {
+    const newSessionId = await createArtifactSession(projectId, artifactId);
+    currentSessionId = newSessionId;
+    sessions = await listArtifactSessionsForArtifact(artifactId);
+  }
+
+  if (currentSessionId) {
+    const session = sessions.find((item) => item.id === currentSessionId);
+    history = session?.history ?? [];
+  }
+
+  const summaries = sessions.map((session) => ({
+    id: session.id,
+    title: session.title ?? null,
+    created_at: session.created_at,
+    last_message: session.last_message ?? summarizeContent(session.history.at(-1)?.content ?? ""),
+  }));
 
   return {
-    artifact: normalized,
-    history: currentSession.history ?? [],
-    sessions: sessions.map((session) => ({
-      id: session.id,
-      title: session.title,
-      created_at: session.created_at,
-      last_message: formatSessionSummary(session.history),
-    })),
-    currentSessionId: currentSession.id,
+    artifact: toArtifact(artifact),
+    sessions: summaries,
+    history,
+    currentSessionId,
   };
 };
 
@@ -630,42 +832,56 @@ export const loadArtifactSession = async (
   artifactId: string,
   sessionId: string
 ) => {
-  const store = loadStore();
-  const artifact = store.artifacts.find(
-    (item) => item.id === artifactId && item.projectId === projectId
+  const session = await withStore(STORE_ARTIFACT_SESSIONS, "readonly", (store) =>
+    requestToPromise(store.get(sessionId) as IDBRequest<StoredArtifactSession | undefined>)
   );
-  if (!artifact) {
-    throw new Error("Artifact not found");
+  if (!session || session.projectId !== projectId || session.artifactId !== artifactId) {
+    return { history: [] as HistoryItem[] };
   }
-  const session = store.artifactSessions.find(
-    (item) => item.id === sessionId && item.artifactId === artifactId
-  );
-  if (!session) {
-    throw new Error("Artifact session not found");
+
+  const artifact = await getArtifactRecord(artifactId);
+  if (artifact && artifact.current_session_id !== sessionId) {
+    await withStore(STORE_ARTIFACTS, "readwrite", (store) =>
+      requestToPromise(
+        store.put({ ...artifact, current_session_id: sessionId, updated_at: nowIso() })
+      )
+    );
   }
+
   return { history: session.history ?? [] };
 };
 
 export const createArtifactSession = async (projectId: string, artifactId: string) => {
-  const store = loadStore();
-  const artifact = store.artifacts.find(
-    (item) => item.id === artifactId && item.projectId === projectId
-  );
-  if (!artifact) {
-    throw new Error("Artifact not found");
+  const artifact = await getArtifactRecord(artifactId);
+  if (!artifact || artifact.projectId !== projectId) {
+    throw new Error("制品不存在");
   }
-  const session: LocalArtifactSession = {
+  const now = nowIso();
+  const session: StoredArtifactSession = {
     id: createId(),
+    projectId,
     artifactId,
-    title: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: now,
+    updated_at: now,
     history: [],
+    title: null,
+    last_message: "",
   };
-  updateStore((current) => ({
-    ...current,
-    artifactSessions: [session, ...current.artifactSessions],
-  }));
+
+  await withStores([STORE_ARTIFACT_SESSIONS, STORE_ARTIFACTS], "readwrite", async (tx) => {
+    const sessionStore = tx.objectStore(STORE_ARTIFACT_SESSIONS);
+    await requestToPromise(sessionStore.put(session));
+
+    const artifactStore = tx.objectStore(STORE_ARTIFACTS);
+    await requestToPromise(
+      artifactStore.put({
+        ...artifact,
+        current_session_id: session.id,
+        updated_at: now,
+      } satisfies StoredArtifact)
+    );
+  });
+
   return session.id;
 };
 
@@ -675,23 +891,20 @@ export const updateArtifactSessionTitle = async (
   sessionId: string,
   title: string
 ) => {
-  const trimmed = title.trim();
-  if (!trimmed) {
-    throw new Error("Invalid title");
-  }
-  updateStore((store) => ({
-    ...store,
-    artifactSessions: store.artifactSessions.map((session) => {
-      if (session.id !== sessionId || session.artifactId !== artifactId) {
-        return session;
-      }
-      return {
+  const session = await withStore(STORE_ARTIFACT_SESSIONS, "readonly", (store) =>
+    requestToPromise(store.get(sessionId) as IDBRequest<StoredArtifactSession | undefined>)
+  );
+  if (!session || session.projectId !== projectId || session.artifactId !== artifactId) return;
+
+  await withStore(STORE_ARTIFACT_SESSIONS, "readwrite", (store) =>
+    requestToPromise(
+      store.put({
         ...session,
-        title: trimmed,
-        updated_at: new Date().toISOString(),
-      };
-    }),
-  }));
+        title,
+        updated_at: nowIso(),
+      } satisfies StoredArtifactSession)
+    )
+  );
 };
 
 export const deleteArtifactSession = async (
@@ -699,19 +912,34 @@ export const deleteArtifactSession = async (
   artifactId: string,
   sessionId: string
 ) => {
-  const store = loadStore();
-  const artifact = store.artifacts.find(
-    (item) => item.id === artifactId && item.projectId === projectId
-  );
-  if (!artifact) {
-    throw new Error("Artifact not found");
-  }
-  updateStore((current) => ({
-    ...current,
-    artifactSessions: current.artifactSessions.filter(
-      (session) => session.id !== sessionId
-    ),
-  }));
+  await withStores([STORE_ARTIFACT_SESSIONS, STORE_ARTIFACTS], "readwrite", async (tx) => {
+    const sessionStore = tx.objectStore(STORE_ARTIFACT_SESSIONS);
+    const session = await requestToPromise(
+      sessionStore.get(sessionId) as IDBRequest<StoredArtifactSession | undefined>
+    );
+    if (!session || session.projectId !== projectId || session.artifactId !== artifactId) {
+      return;
+    }
+    await requestToPromise(sessionStore.delete(sessionId));
+
+    const artifactStore = tx.objectStore(STORE_ARTIFACTS);
+    const artifact = await requestToPromise(
+      artifactStore.get(artifactId) as IDBRequest<StoredArtifact | undefined>
+    );
+    if (artifact && artifact.current_session_id === sessionId) {
+      const remainingSessions = await requestToPromise(
+        sessionStore.index("artifactId").getAll(artifactId) as IDBRequest<StoredArtifactSession[]>
+      );
+      const nextSessionId = remainingSessions?.[0]?.id ?? null;
+      await requestToPromise(
+        artifactStore.put({
+          ...artifact,
+          current_session_id: nextSessionId,
+          updated_at: nowIso(),
+        } satisfies StoredArtifact)
+      );
+    }
+  });
 };
 
 export const updateArtifactSessionHistory = async (
@@ -720,17 +948,21 @@ export const updateArtifactSessionHistory = async (
   sessionId: string,
   history: HistoryItem[]
 ) => {
-  const parsedHistory = HistoryItemSchema.array().safeParse(history);
-  updateStore((store) => ({
-    ...store,
-    artifactSessions: store.artifactSessions.map((session) =>
-      session.id === sessionId && session.artifactId === artifactId
-        ? {
-            ...session,
-            history: parsedHistory.success ? parsedHistory.data : [],
-            updated_at: new Date().toISOString(),
-          }
-        : session
-    ),
-  }));
+  const session = await withStore(STORE_ARTIFACT_SESSIONS, "readonly", (store) =>
+    requestToPromise(store.get(sessionId) as IDBRequest<StoredArtifactSession | undefined>)
+  );
+  if (!session || session.projectId !== projectId || session.artifactId !== artifactId) return;
+
+  const now = nowIso();
+  const lastMessage = summarizeContent(history.at(-1)?.content ?? "");
+  await withStore(STORE_ARTIFACT_SESSIONS, "readwrite", (store) =>
+    requestToPromise(
+      store.put({
+        ...session,
+        history,
+        last_message: lastMessage,
+        updated_at: now,
+      } satisfies StoredArtifactSession)
+    )
+  );
 };
