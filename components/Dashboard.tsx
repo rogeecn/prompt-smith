@@ -172,7 +172,7 @@ export default function Dashboard() {
               暂无项目，请先创建一个新的项目。
             </div>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2">
               {projectList.map((project) => (
                 <div
                   key={project.id}
