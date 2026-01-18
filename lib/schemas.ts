@@ -125,7 +125,7 @@ export type OutputFormat = z.infer<typeof OutputFormatSchema>;
 
 export const ChatRequestSchema = z
   .object({
-    projectId: z.string().uuid(),
+    projectId: z.string().min(1),
     sessionId: z.string().min(1),
     message: z.string().min(1).max(12000).optional(),
     answers: z.array(AnswerSchema).max(40).optional(),
@@ -291,7 +291,7 @@ const ArtifactInputValueSchema = z.union([
 ]);
 
 export const ArtifactChatRequestSchema = z.object({
-  projectId: z.string().uuid(),
+  projectId: z.string().min(1),
   artifactId: z.string().min(1),
   sessionId: z.string().min(1).optional(),
   message: z.string().min(1).max(4000),

@@ -19,7 +19,7 @@ import {
 } from "../lib/local-store";
 import type { Artifact, HistoryItem } from "../lib/schemas";
 
-const projectIdSchema = z.string().uuid();
+const projectIdSchema = z.string().min(1);
 
 type ArtifactsClientProps = {
   initialProjectId?: string | null;
