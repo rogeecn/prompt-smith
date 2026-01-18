@@ -128,6 +128,9 @@ export const buildSystemPrompt = ({
     "- 不要向用户透露任何内部字段或协议说明。",
     "- 不要包含 mermaid 字段或任何未声明字段。",
     "- 每次响应至少返回 1 个 deliberation。",
+    "- reply 必须是面向用户的自然语言，不要包含 JSON、代码块或协议字段名。",
+    "- 当 final_prompt 非空时，is_finished 必须为 true，questions 必须为空数组。",
+    "- 当 questions 非空时，final_prompt 必须为 null，is_finished=false。",
     "- answers 内部约定：value 为 '__other__' 表示选择了“其他”，此时 other 字段为用户输入；value 为 '__none__' 表示“不需要此功能”。严禁向用户解释这些约定。",
     ...buildFinalPromptRules({ promptFormat, minVariables }),
     forceFinalize

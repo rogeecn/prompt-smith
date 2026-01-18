@@ -16,6 +16,9 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toContain("当前模型: gpt-5.2。输出格式: Markdown");
     expect(prompt).toContain('"reply": string');
     expect(prompt).toContain("不要包含 mermaid 字段");
+    expect(prompt).toContain("reply 必须是面向用户的自然语言");
+    expect(prompt).toContain("final_prompt 非空时");
+    expect(prompt).toContain("questions 非空时");
     expect(prompt).toContain("至少包含 5 个占位符");
     expect(prompt).toContain("## Role");
   });
