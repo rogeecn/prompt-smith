@@ -24,9 +24,6 @@ const formatHistoryForLog = (items: { role: string; content: string; timestamp: 
     timestamp: item.timestamp,
   }));
 
-const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
@@ -51,8 +48,9 @@ const parseArtifactChatRequest = (value: unknown) => {
     return { success: false, error: "Invalid request" } as const;
   }
 
-  const projectId = typeof value.projectId === "string" ? value.projectId : "";
-  if (!UUID_REGEX.test(projectId)) {
+  const projectId =
+    typeof value.projectId === "string" ? value.projectId.trim() : "";
+  if (!projectId) {
     return { success: false, error: "Invalid projectId" } as const;
   }
 
