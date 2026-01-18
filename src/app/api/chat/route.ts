@@ -3,8 +3,6 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ai, getModelRef } from "../../../../lib/genkit";
 import { resolveModelConfig } from "../../../../lib/model-config";
-import { getPrisma } from "../../../lib/prisma";
-import { getSession } from "../../../lib/auth";
 import {
   ChatRequestSchema,
   DeliberationAgentSchema,
@@ -35,7 +33,6 @@ const MAX_QUESTION_ROUNDS = Number(process.env.MAX_QUESTION_ROUNDS ?? "3");
 const MIN_PROMPT_VARIABLES = Number(process.env.MIN_PROMPT_VARIABLES ?? "3");
 const FORM_MESSAGE_PREFIX = "__FORM__:";
 const DELIBERATION_MESSAGE_PREFIX = "__DELIBERATIONS__:";
-const prisma = getPrisma();
 type HistoryItem = z.infer<typeof HistoryItemSchema>;
 
 const truncateLog = (value: string, limit = 2000) =>
@@ -886,10 +883,6 @@ export async function POST(req: Request) {
   const startedAt = Date.now();
   let traceId: string = randomUUID();
   let body: unknown;
-  const authSession = await getSession();
-  if (!authSession) {
-    return jsonWithTrace({ error: "Unauthorized" }, { status: 401 }, traceId);
-  }
   try {
     body = await req.json();
   } catch {
@@ -923,16 +916,9 @@ export async function POST(req: Request) {
   const runChat = async (notifyStage?: StageNotifier) => {
     notifyStage?.("start");
     notifyStage?.("load_session");
-    const session = await prisma.session.findFirst({
-      where: { id: sessionId, projectId, project: { userId: authSession.userId } },
-    });
-
-    if (!session) {
-      console.error("[api/chat] Session not found", { projectId, sessionId });
-      throw new HttpError(404, "Session not found");
-    }
-
-    const sessionStateParsed = SessionStateSchema.safeParse(session.state ?? {});
+    const sessionStateParsed = SessionStateSchema.safeParse(
+      parsed.data.sessionState ?? {}
+    );
     const storedSessionState = sessionStateParsed.success
       ? sessionStateParsed.data
       : null;
@@ -975,7 +961,7 @@ export async function POST(req: Request) {
     }
     const modelLabel = modelConfig.label || modelConfig.id;
 
-    const historyParsed = historyArraySchema.safeParse(session.history);
+    const historyParsed = historyArraySchema.safeParse(parsed.data.history ?? []);
     const history = historyParsed.success ? historyParsed.data : [];
     const historyForPrompt = history.filter(
       (item) => !isDeliberationMessage(item)
@@ -1314,10 +1300,6 @@ export async function POST(req: Request) {
         : updatedHistory;
 
     notifyStage?.("persist");
-    await prisma.session.update({
-      where: { id: session.id },
-      data: { history: prunedHistory, state: sessionState },
-    });
 
     console.info("[api/chat] done", { ms: Date.now() - startedAt });
     return normalizedResponse;

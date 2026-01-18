@@ -16,7 +16,7 @@ import {
   loadArtifactContext,
   loadArtifactSession,
   updateArtifactSessionTitle,
-} from "../src/app/actions";
+} from "../lib/local-store";
 import type { Artifact, HistoryItem } from "../lib/schemas";
 
 const projectIdSchema = z.string().uuid();
@@ -539,13 +539,18 @@ export default function ArtifactsClient({
                     <div className="font-mono text-xs">Loading context...</div>
                   </div>
                 ) : currentSessionId && currentArtifactId ? (
-                   <ArtifactChat
+                  <ArtifactChat
                     key={`${currentArtifactId}-${currentSessionId}`}
                     projectId={projectId as string}
                     artifactId={currentArtifactId}
                     sessionId={currentSessionId}
+                    promptContent={
+                      artifact?.prompt_content ??
+                      currentArtifact?.prompt_content ??
+                      ""
+                    }
                     initialMessages={initialMessages}
-                    variables={artifact?.variables}
+                    variables={artifact?.variables ?? currentArtifact?.variables ?? []}
                     onSessionIdChange={handleSessionIdChange}
                   />
                 ) : null}

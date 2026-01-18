@@ -1,6 +1,4 @@
-import { redirect } from "next/navigation";
-import { getSession } from "../../../../../lib/auth";
-import { loadArtifactContext } from "../../../../actions";
+import ArtifactsClient from "../../../../../../components/ArtifactsClient";
 
 type PageProps = {
   params: Promise<{
@@ -11,17 +9,10 @@ type PageProps = {
 
 export default async function ArtifactEntryPage({ params }: PageProps) {
   const resolvedParams = await params;
-  const session = await getSession();
-  if (!session) {
-    redirect("/login");
-  }
-
-  const context = await loadArtifactContext(
-    resolvedParams.projectId,
-    resolvedParams.artifactId
-  );
-
-  redirect(
-    `/projects/${resolvedParams.projectId}/artifacts/${resolvedParams.artifactId}/sessions/${context.currentSessionId}`
+  return (
+    <ArtifactsClient
+      initialProjectId={resolvedParams.projectId}
+      initialArtifactId={resolvedParams.artifactId}
+    />
   );
 }

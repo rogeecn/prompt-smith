@@ -14,7 +14,10 @@ import {
   ModelCatalogSchema,
   type OutputFormat,
 } from "../lib/schemas";
-import { createArtifactFromPrompt, updateSessionTitle } from "../src/app/actions";
+import {
+  createArtifactFromPrompt,
+  updateSessionTitle,
+} from "../lib/local-store";
 import { useChatSession } from "../hooks/useChatSession";
 import { deriveTitleFromPrompt } from "../lib/template";
 

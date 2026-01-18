@@ -13,6 +13,7 @@ import type {
   HistoryItem,
   Question,
 } from "../lib/schemas";
+import { updateArtifactSessionHistory } from "../lib/local-store";
 
 const parseListInput = (value: string) =>
   value.split(/[,，\n]/).map((item) => item.trim()).filter(Boolean);
@@ -148,6 +149,7 @@ type ArtifactChatProps = {
   projectId: string;
   artifactId: string;
   sessionId: string;
+  promptContent: string;
   initialMessages?: HistoryItem[];
   variables?: ArtifactVariable[];
   isDisabled?: boolean;
@@ -158,6 +160,7 @@ export default function ArtifactChat({
   projectId,
   artifactId,
   sessionId,
+  promptContent,
   initialMessages = [],
   variables = [],
   isDisabled = false,
@@ -205,6 +208,11 @@ export default function ArtifactChat({
       listRef.current.scrollTop = listRef.current.scrollHeight;
     }
   }, [messages, isLoading]);
+
+  useEffect(() => {
+    if (!projectId || !artifactId || !sessionId) return;
+    void updateArtifactSessionHistory(projectId, artifactId, sessionId, messages);
+  }, [projectId, artifactId, sessionId, messages]);
 
   const updateVariableInput = (key: string, value: string) => {
     setDraftAnswers((prev) => ({ ...prev, [key]: { type: "text", value } }));
@@ -275,11 +283,15 @@ export default function ArtifactChat({
     const resolvedMessage =
       options?.summary ? buildFormSummary(variables, inputPayload) : trimmed;
 
+    const nextUserMessage = {
+      role: "user" as const,
+      content: resolvedMessage,
+      timestamp: Date.now(),
+    };
+    const historyForRequest =
+      options?.appendUser ?? true ? [...messages, nextUserMessage] : messages;
     if (options?.appendUser ?? true) {
-      setMessages((prev) => [
-        ...prev,
-        { role: "user", content: resolvedMessage, timestamp: Date.now() },
-      ]);
+      setMessages((prev) => [...prev, nextUserMessage]);
     }
 
     setIsLoading(true);
@@ -298,6 +310,9 @@ export default function ArtifactChat({
           message: resolvedMessage,
           traceId,
           inputs: inputPayload,
+          prompt_content: promptContent,
+          variables,
+          history: historyForRequest,
         } as ArtifactChatRequest),
       });
 

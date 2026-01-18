@@ -6,7 +6,11 @@ import { usePathname, useRouter } from "next/navigation";
 import { z } from "zod";
 import { MoreVertical, Plus, Search } from "lucide-react";
 import ChatInterface from "./ChatInterface";
-import { createSession, deleteSession, loadProjectContext, loadSessionContext } from "../src/app/actions";
+import {
+  createSession,
+  loadProjectContext,
+  loadSessionContext,
+} from "../lib/local-store";
 import type { HistoryItem, SessionState } from "../lib/schemas";
 
 const projectIdSchema = z.string().uuid();
@@ -59,6 +63,19 @@ export default function HomeClient({
       try {
         const context = await loadProjectContext(projectId);
         if (!isActive) return;
+        if (!context.currentSessionId) {
+          const sessionId = await createSession(projectId);
+          if (!isActive) return;
+          setInitialMessages([]);
+          setSessions([
+            { id: sessionId, created_at: new Date(), last_message: "未开始" },
+            ...context.sessions,
+          ]);
+          setCurrentSessionId(sessionId);
+          setInitialState(null);
+          router.replace(`/projects/${projectId}/wizard/sessions/${sessionId}`);
+          return;
+        }
         setInitialMessages(context.history);
         setSessions(context.sessions);
         setCurrentSessionId(context.currentSessionId);
@@ -88,7 +105,7 @@ export default function HomeClient({
     return () => {
       isActive = false;
     };
-  }, [projectId, validInitialSessionId]);
+  }, [projectId, validInitialSessionId, router]);
 
   // Session Management Logic
   const handleSelectSession = useCallback(

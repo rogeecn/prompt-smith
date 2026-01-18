@@ -13,7 +13,7 @@ import {
   loadArtifactSession,
   updateArtifact,
   updateArtifactSessionTitle,
-} from "../src/app/actions";
+} from "../lib/local-store";
 import type { Artifact, HistoryItem } from "../lib/schemas";
 
 const projectIdSchema = z.string().uuid();
@@ -377,8 +377,9 @@ export default function ArtifactChatPageClient({
                 projectId={validProjectId}
                 artifactId={artifactId}
                 sessionId={currentSessionId}
+                promptContent={artifact?.prompt_content ?? ""}
                 initialMessages={initialMessages}
-                variables={artifact?.variables}
+                variables={artifact?.variables ?? []}
               />
             ) : null}
           </section>

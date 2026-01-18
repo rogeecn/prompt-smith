@@ -129,6 +129,8 @@ export const ChatRequestSchema = z
     sessionId: z.string().min(1),
     message: z.string().min(1).max(12000).optional(),
     answers: z.array(AnswerSchema).max(40).optional(),
+    history: z.array(z.lazy(() => HistoryItemSchema)).optional(),
+    sessionState: z.lazy(() => SessionStateSchema).optional(),
     traceId: z.string().min(1).optional(),
     modelId: z.string().min(1).optional(),
     outputFormat: OutputFormatSchema.optional(),
@@ -295,6 +297,9 @@ export const ArtifactChatRequestSchema = z.object({
   message: z.string().min(1).max(4000),
   traceId: z.string().min(1).optional(),
   inputs: z.record(z.string(), ArtifactInputValueSchema).optional(),
+  prompt_content: z.string().min(1).optional(),
+  variables: ArtifactVariablesSchema.optional(),
+  history: z.array(HistoryItemSchema).optional(),
 });
 
 export type ArtifactChatRequest = z.infer<typeof ArtifactChatRequestSchema>;

@@ -2,20 +2,17 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { ai, getModelRef } from "../../../../../lib/genkit";
 import { resolveModelConfig } from "../../../../../lib/model-config";
-import { getPrisma } from "../../../../lib/prisma";
 import {
   ArtifactVariablesSchema,
   HistoryItemSchema,
 } from "../../../../../lib/schemas";
 import { extractTemplateVariables, renderTemplate } from "../../../../../lib/template";
-import { getSession } from "../../../../lib/auth";
 
 const historyArraySchema = HistoryItemSchema.array();
 const isDebug = process.env.NODE_ENV !== "production";
 const REQUEST_TIMEOUT_MS = Number(process.env.OPENAI_TIMEOUT_MS ?? "180000");
 const MAX_RETRIES = Number(process.env.OPENAI_MAX_RETRIES ?? "2");
 const MAX_HISTORY_ITEMS = Number(process.env.MAX_HISTORY_ITEMS ?? "60");
-const prisma = getPrisma();
 
 const truncateLog = (value: string, limit = 2000) =>
   value.length > limit ? `${value.slice(0, limit)}...<truncated>` : value;
@@ -92,9 +89,35 @@ const parseArtifactChatRequest = (value: unknown) => {
     inputs = value.inputs;
   }
 
+  const promptContent =
+    typeof value.prompt_content === "string" ? value.prompt_content.trim() : "";
+  if (!promptContent) {
+    return { success: false, error: "Missing prompt_content" } as const;
+  }
+
+  const variablesResult = ArtifactVariablesSchema.safeParse(value.variables ?? []);
+  if (!variablesResult.success) {
+    return { success: false, error: "Invalid variables" } as const;
+  }
+
+  const historyResult = historyArraySchema.safeParse(value.history ?? []);
+  if (!historyResult.success) {
+    return { success: false, error: "Invalid history" } as const;
+  }
+
   return {
     success: true,
-    data: { projectId, artifactId, sessionId, message, traceId, inputs },
+    data: {
+      projectId,
+      artifactId,
+      sessionId,
+      message,
+      traceId,
+      inputs,
+      promptContent,
+      variables: variablesResult.data,
+      history: historyResult.data,
+    },
   } as const;
 };
 
@@ -299,10 +322,6 @@ export async function POST(req: Request) {
   const startedAt = Date.now();
   let traceId: string = randomUUID();
   let body: unknown;
-  const authSession = await getSession();
-  if (!authSession) {
-    return jsonWithTrace({ error: "Unauthorized" }, { status: 401 }, traceId);
-  }
   try {
     body = await req.json();
   } catch {
@@ -367,7 +386,16 @@ export async function POST(req: Request) {
     );
   }
 
-  const { projectId, artifactId, sessionId, message, inputs } = parsed.data;
+  const {
+    projectId,
+    artifactId,
+    sessionId,
+    message,
+    inputs,
+    promptContent,
+    variables,
+    history,
+  } = parsed.data;
   traceId = parsed.data.traceId ?? traceId;
   if (isDebug) {
     console.info("[api/artifacts/chat] request", {
@@ -380,31 +408,10 @@ export async function POST(req: Request) {
   }
 
   try {
-    const artifact = await prisma.artifact.findFirst({
-      where: {
-        id: artifactId,
-        projectId,
-        project: { userId: authSession.userId },
-      },
-      select: { id: true, prompt_content: true, variables: true },
-    });
-
-    if (!artifact) {
-      console.error("[api/artifacts/chat] Artifact not found", {
-        projectId,
-        artifactId,
-      });
-      return jsonWithTrace(
-        { error: "Artifact not found" },
-        { status: 404 },
-        traceId
-      );
-    }
-
-    const variables = normalizeArtifactVariables(artifact.variables);
-    const templateVariables = extractTemplateVariables(artifact.prompt_content);
+    const normalizedVariables = normalizeArtifactVariables(variables);
+    const templateVariables = extractTemplateVariables(promptContent);
     const missingDefinitions = templateVariables.filter(
-      (key) => !variables.some((variable) => variable.key === key)
+      (key) => !normalizedVariables.some((variable) => variable.key === key)
     );
 
     if (missingDefinitions.length > 0) {
@@ -417,10 +424,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const { renderedValues, errors } = resolveInputs(
-      variables,
-      inputs
-    );
+    const { renderedValues, errors } = resolveInputs(normalizedVariables, inputs);
     if (errors.length > 0) {
       return jsonWithTrace(
         {
@@ -434,42 +438,9 @@ export async function POST(req: Request) {
 
     const systemPrompt =
       templateVariables.length > 0
-        ? renderTemplate(artifact.prompt_content, renderedValues)
-        : artifact.prompt_content;
-
-    let session = null;
-    if (sessionId) {
-      session = await prisma.artifactSession.findFirst({
-        where: {
-          id: sessionId,
-          artifactId,
-          artifact: { projectId, project: { userId: authSession.userId } },
-        },
-      });
-      if (!session) {
-        console.error("[api/artifacts/chat] Session not found", {
-          projectId,
-          artifactId,
-          sessionId,
-        });
-        return jsonWithTrace(
-          { error: "Session not found" },
-          { status: 404 },
-          traceId
-        );
-      }
-    } else {
-      session = await prisma.artifactSession.create({
-        data: {
-          id: randomUUID(),
-          artifactId,
-          history: [],
-        },
-      });
-    }
-
-    const historyParsed = historyArraySchema.safeParse(session.history);
-    const history = historyParsed.success ? historyParsed.data : [];
+        ? renderTemplate(promptContent, renderedValues)
+        : promptContent;
+    const resolvedSessionId = sessionId ?? randomUUID();
     const trimmedHistory =
       Number.isFinite(MAX_HISTORY_ITEMS) && MAX_HISTORY_ITEMS > 0
         ? history.slice(-MAX_HISTORY_ITEMS)
@@ -479,7 +450,7 @@ export async function POST(req: Request) {
       traceId,
       projectId,
       artifactId,
-      sessionId: session.id,
+      sessionId: resolvedSessionId,
       model: {
         id: modelConfig.id,
         label: modelConfig.label,
@@ -509,30 +480,15 @@ export async function POST(req: Request) {
       throw new Error("Empty response");
     }
 
-    const updatedHistory = [
-      ...history,
-      { role: "user", content: message, timestamp: Date.now() },
-      { role: "assistant", content: reply, timestamp: Date.now() },
-    ];
-    const prunedHistory =
-      Number.isFinite(MAX_HISTORY_ITEMS) && MAX_HISTORY_ITEMS > 0
-        ? updatedHistory.slice(-MAX_HISTORY_ITEMS)
-        : updatedHistory;
-
-    await prisma.artifactSession.update({
-      where: { id: session.id },
-      data: { history: prunedHistory },
-    });
-
     console.info("[api/artifacts/chat] response", {
       traceId,
-      sessionId: session.id,
+      sessionId: resolvedSessionId,
       reply: truncateLog(reply, 4000),
       reply_length: reply.length,
     });
 
     console.info("[api/artifacts/chat] done", { ms: Date.now() - startedAt });
-    return jsonWithTrace({ reply, sessionId: session.id }, undefined, traceId);
+    return jsonWithTrace({ reply, sessionId: resolvedSessionId }, undefined, traceId);
   } catch (error) {
     console.error("[api/artifacts/chat] error", { traceId, error });
     const isTimeout =

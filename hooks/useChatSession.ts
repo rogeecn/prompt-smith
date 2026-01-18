@@ -13,9 +13,10 @@ import {
   type Question,
 } from "../lib/schemas";
 import {
-  updateSessionState,
+  updateSessionHistory,
   updateSessionModelConfig,
-} from "../src/app/actions";
+  updateSessionState,
+} from "../lib/local-store";
 import { deriveTitleFromPrompt } from "../lib/template";
 
 export type SendRequestPayload = {
@@ -135,6 +136,7 @@ export const useChatSession = ({
   >("idle");
   const [loadingStage, setLoadingStage] = useState<string | null>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const historySaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [modelId, setModelId] = useState<string | null>(
     initialState?.model_id ??
       initialState?.target_model ??
@@ -234,6 +236,24 @@ export const useChatSession = ({
     if (!projectId || !sessionId) {
       return;
     }
+    if (historySaveRef.current) {
+      clearTimeout(historySaveRef.current);
+    }
+    historySaveRef.current = setTimeout(() => {
+      void updateSessionHistory(projectId, sessionId, messages).catch(() => null);
+    }, 400);
+
+    return () => {
+      if (historySaveRef.current) {
+        clearTimeout(historySaveRef.current);
+      }
+    };
+  }, [projectId, sessionId, messages]);
+
+  useEffect(() => {
+    if (!projectId || !sessionId) {
+      return;
+    }
     if (!modelConfigInitRef.current) {
       modelConfigInitRef.current = true;
       return;
@@ -269,6 +289,10 @@ export const useChatSession = ({
       return;
     }
 
+    const historyForRequest =
+      appendUserMessage && optimisticUserMessage
+        ? [...messages, optimisticUserMessage]
+        : messages;
     if (appendUserMessage && optimisticUserMessage) {
       setMessages((prev) => [...prev, optimisticUserMessage]);
     }
@@ -293,11 +317,15 @@ export const useChatSession = ({
               timestamp: Date.now(),
             }
           : null;
-      setMessages((prev) => [
-        ...prev,
-        ...(deliberationMessage ? [deliberationMessage] : []),
-        { role: "assistant", content: payload.reply, timestamp: Date.now() },
-      ]);
+      setMessages((prev) => {
+        const next = [
+          ...prev,
+          ...(deliberationMessage ? [deliberationMessage] : []),
+          { role: "assistant", content: payload.reply, timestamp: Date.now() },
+        ];
+        void updateSessionHistory(projectId, sessionId, next).catch(() => null);
+        return next;
+      });
       setPendingQuestions(payload.questions ?? []);
       setDraftAnswers({});
       setRetryPayload(null);
@@ -315,6 +343,18 @@ export const useChatSession = ({
           sessionId,
           message,
           answers,
+          history: historyForRequest,
+          sessionState: {
+            questions: pendingQuestions,
+            deliberations,
+            final_prompt: finalPrompt,
+            is_finished: isFinished,
+            target_model: modelId,
+            model_id: modelId,
+            output_format: outputFormat,
+            title: initialState?.title ?? null,
+            draft_answers: draftAnswers,
+          },
           modelId: modelId?.trim() ? modelId.trim() : undefined,
           outputFormat: outputFormat ?? undefined,
         }),
@@ -400,10 +440,14 @@ export const useChatSession = ({
     } catch (error) {
       const message = error instanceof Error ? error.message : "请求失败";
       const displayMessage = formatErrorMessage(message);
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: displayMessage, timestamp: Date.now() },
-      ]);
+      setMessages((prev) => {
+        const next = [
+          ...prev,
+          { role: "assistant", content: displayMessage, timestamp: Date.now() },
+        ];
+        void updateSessionHistory(projectId, sessionId, next).catch(() => null);
+        return next;
+      });
       setFormError(displayMessage);
       setRetryPayload({ message, answers });
     } finally {

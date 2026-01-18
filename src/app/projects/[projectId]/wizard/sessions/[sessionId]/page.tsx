@@ -1,5 +1,3 @@
-import { redirect } from "next/navigation";
-import { getSession } from "../../../../../../lib/auth";
 import HomeClient from "../../../../../../../components/HomeClient";
 
 type PageProps = {
@@ -11,11 +9,6 @@ type PageProps = {
 
 export default async function WizardSessionPage({ params }: PageProps) {
   const resolvedParams = await params;
-  const session = await getSession();
-  if (!session) {
-    redirect("/login");
-  }
-
   return (
     <HomeClient
       initialProjectId={resolvedParams.projectId}

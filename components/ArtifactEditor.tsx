@@ -5,7 +5,7 @@ import {
   Save,
   Plus,
 } from "lucide-react";
-import { updateArtifact } from "../src/app/actions";
+import { updateArtifact } from "../lib/local-store";
 import type { Artifact, ArtifactUpdate, ArtifactVariable } from "../lib/schemas";
 import { parseTemplateVariables } from "../lib/template";
 

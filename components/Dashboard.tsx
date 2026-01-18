@@ -1,19 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createProject } from "../src/app/actions";
+import { createProject, exportProject, importProject, listProjects } from "../lib/local-store";
 
 type ProjectSummary = {
   id: string;
   name: string;
   description?: string | null;
   created_at: string | Date;
-};
-
-type DashboardProps = {
-  userId: string;
-  projects: ProjectSummary[];
 };
 
 const formatDate = (value: string | Date) => {
@@ -26,21 +21,51 @@ const formatDate = (value: string | Date) => {
   });
 };
 
-export default function Dashboard({ userId, projects }: DashboardProps) {
+const downloadJson = (filename: string, data: unknown) => {
+  const blob = new Blob([JSON.stringify(data, null, 2)], {
+    type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+};
+
+export default function Dashboard() {
   const router = useRouter();
-  const [projectList, setProjectList] = useState<ProjectSummary[]>(projects);
+  const [projectList, setProjectList] = useState<ProjectSummary[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    let isActive = true;
+    const load = async () => {
+      try {
+        const items = await listProjects();
+        if (isActive) setProjectList(items);
+      } catch (err) {
+        if (isActive) setError(err instanceof Error ? err.message : "加载项目失败");
+      }
+    };
+    void load();
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   const handleCreate = async () => {
     if (isCreating) return;
     setIsCreating(true);
     setError(null);
     try {
-      const projectId = await createProject(userId, {
+      const projectId = await createProject({
         name,
         description: description.trim() ? description : undefined,
       });
@@ -63,6 +88,29 @@ export default function Dashboard({ userId, projects }: DashboardProps) {
     }
   };
 
+  const handleExport = async (project: ProjectSummary) => {
+    try {
+      const payload = await exportProject(project.id);
+      const safeName = project.name.replace(/[^\w\u4e00-\u9fa5-]+/g, "_");
+      downloadJson(`project-${safeName || project.id}.json`, payload);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "导出失败");
+    }
+  };
+
+  const handleImport = async (file: File) => {
+    setImportError(null);
+    try {
+      const text = await file.text();
+      const payload = JSON.parse(text);
+      await importProject(payload);
+      const items = await listProjects();
+      setProjectList(items);
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : "导入失败");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white px-6 py-12">
       <div className="mx-auto max-w-5xl">
@@ -75,20 +123,48 @@ export default function Dashboard({ userId, projects }: DashboardProps) {
               选择一个项目进入向导或制品库。
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setError(null);
-              setIsModalOpen(true);
-            }}
-            disabled={isCreating}
-            className="border border-black bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:opacity-60"
-          >
-            {isCreating ? "创建中..." : "新建项目"}
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setImportError(null);
+                fileInputRef.current?.click();
+              }}
+              className="border border-gray-200 px-5 py-3 text-sm font-semibold text-gray-700 hover:text-black"
+            >
+              导入项目
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setError(null);
+                setIsModalOpen(true);
+              }}
+              disabled={isCreating}
+              className="border border-black bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:opacity-60"
+            >
+              {isCreating ? "创建中..." : "新建项目"}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/json"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) {
+                  void handleImport(file);
+                }
+                event.target.value = "";
+              }}
+            />
+          </div>
         </div>
 
         {error && <div className="mt-4 text-xs text-rose-500">{error}</div>}
+        {importError && (
+          <div className="mt-2 text-xs text-rose-500">{importError}</div>
+        )}
 
         <div className="mt-10">
           {projectList.length === 0 ? (
@@ -137,6 +213,13 @@ export default function Dashboard({ userId, projects }: DashboardProps) {
                       className="border border-gray-200 px-4 py-2 text-sm text-gray-700 hover:text-black"
                     >
                       打开制品库
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleExport(project)}
+                      className="border border-gray-200 px-4 py-2 text-sm text-gray-700 hover:text-black"
+                    >
+                      导出项目
                     </button>
                   </div>
                 </div>
