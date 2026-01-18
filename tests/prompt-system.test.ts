@@ -35,6 +35,36 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toContain("XML 标签结构输出");
     expect(prompt).toContain("<Role>");
   });
+
+  it("uses default model hint and no-round-limit copy", () => {
+    const prompt = buildSystemPrompt({
+      completedRounds: 0,
+      roundLimit: 0,
+      forceFinalize: false,
+      promptFormat: "markdown",
+      modelLabel: null,
+      minVariables: 3,
+    });
+
+    expect(prompt).toContain("当前模型: 默认模型");
+    expect(prompt).toContain("请尽量减少轮次");
+    expect(prompt).toContain("questions 必须存在");
+  });
+
+  it("includes safety and variable syntax requirements", () => {
+    const prompt = buildSystemPrompt({
+      completedRounds: 0,
+      roundLimit: 3,
+      forceFinalize: false,
+      promptFormat: "markdown",
+      modelLabel: "gpt-5.2",
+      minVariables: 3,
+    });
+
+    expect(prompt).toContain("Safe Guard 模块");
+    expect(prompt).toContain("语法：{{key|label:字段名|type:string");
+    expect(prompt).toContain("enum 变量必须提供 options");
+  });
 });
 
 describe("buildFinalPromptRules", () => {
@@ -45,5 +75,56 @@ describe("buildFinalPromptRules", () => {
     });
 
     expect(rules.join("\n")).toContain("至少包含 3 个占位符");
+  });
+
+  it("includes required markdown sections and syntax rules", () => {
+    const rules = buildFinalPromptRules({
+      promptFormat: "markdown",
+      minVariables: 4,
+    }).join("\n");
+
+    expect(rules).toContain("Markdown 二级标题输出");
+    expect(rules).toContain("## Role");
+    expect(rules).toContain("Safe Guard");
+    expect(rules).toContain("语法：{{key|label:字段名|type:string");
+  });
+
+  it("includes required xml sections", () => {
+    const rules = buildFinalPromptRules({
+      promptFormat: "xml",
+      minVariables: 4,
+    }).join("\n");
+
+    expect(rules).toContain("XML 标签结构输出");
+    expect(rules).toContain("<Role>");
+    expect(rules).toContain("<SafeGuard>");
+  });
+});
+
+describe("prompt snapshots", () => {
+  it("matches markdown baseline", () => {
+    const prompt = buildSystemPrompt({
+      completedRounds: 0,
+      roundLimit: 3,
+      forceFinalize: false,
+      promptFormat: "markdown",
+      modelLabel: "gpt-5.2",
+      minVariables: 3,
+    });
+
+    expect(prompt).toMatchSnapshot();
+  });
+
+  it("matches xml finalize baseline", () => {
+    const prompt = buildSystemPrompt({
+      completedRounds: 3,
+      roundLimit: 3,
+      forceFinalize: true,
+      promptFormat: "xml",
+      modelLabel: null,
+      minVariables: 3,
+    });
+
+    expect(prompt).toMatchSnapshot();
   });
 });
