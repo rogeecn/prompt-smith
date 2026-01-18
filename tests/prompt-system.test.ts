@@ -23,6 +23,8 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toContain("第一轮输入为空");
     expect(prompt).toContain("示例性问题");
     expect(prompt).toContain("后续轮次但仍过于宽泛");
+    expect(prompt).toContain("跳过提问或直接输出 final_prompt");
+    expect(prompt).toContain("无法提供合理 options");
     expect(prompt).toContain("questions 的 text 必须是用户可直接回答");
     expect(prompt).toContain("至少包含 5 个占位符");
     expect(prompt).toContain("## Role");
