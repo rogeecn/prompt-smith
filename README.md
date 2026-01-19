@@ -12,6 +12,14 @@ Prompt Smith 是一个面向产品与运营场景的提示词生产工具。
 - 会话管理：历史对话与新对话隔离
 - 账号管理：修改密码、无邮件找回
 
+## 数据存储说明
+
+当前版本使用浏览器 IndexedDB 保存项目、会话与制品数据：
+
+- 数据仅保存在用户浏览器，不跨设备同步。
+- 部署到 Vercel 等平台时无需额外数据库。
+- 如需多人协作或跨设备同步，可再接入服务端数据库。
+
 ## 本地开发
 
 ### 1) 环境准备
@@ -148,6 +156,33 @@ npm run test:llm
 完整规范见 `docs/template-variable-syntax.md`。
 
 ## 部署
+
+### Vercel 一键部署
+
+1. 登录 Vercel 控制台，点击 New Project。
+2. 选择 GitHub 仓库 `prompt-smith` 并导入。
+3. 框架会自动识别为 Next.js，无需修改构建命令。
+4. 在 Environment Variables 中配置模型相关变量（至少二选一）：
+
+OpenAI 示例：
+
+```bash
+MODEL_CATALOG='[{"id":"gpt-4o-mini","label":"GPT-4o mini","provider":"openai","model":"gpt-4o-mini"}]'
+MODEL_DEFAULT_ID="gpt-4o-mini"
+OPENAI_API_KEY="YOUR_KEY"
+OPENAI_BASE_URL="https://api.openai.com/v1"
+```
+
+Gemini 示例：
+
+```bash
+MODEL_CATALOG='[{"id":"gemini-1.5-pro","label":"Gemini 1.5 Pro","provider":"google","model":"gemini-1.5-pro"}]'
+MODEL_DEFAULT_ID="gemini-1.5-pro"
+GOOGLE_API_KEY="YOUR_GOOGLE_KEY"
+GOOGLE_BASE_URL="https://generativelanguage.googleapis.com"
+```
+
+5. 点击 Deploy 即可完成部署。
 
 ### 生产构建
 
